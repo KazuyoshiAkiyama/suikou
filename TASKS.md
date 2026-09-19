@@ -179,19 +179,40 @@ below 方向の境界が0以下まで下がった指標は、標本不足の指�
 これは、コーパスを手元に置ける環境で `suikou baseline` を実際の人間コーパスに
 走らせて `corpus/baselines.toml` や `oss.toml` と突き合わせるまで、開いたままにする。
 
-## T7 textlint の規則を書く
+## T7 textlint の規則を書く（済み）
 
-`packages/textlint-rule-preset-tech-maintainability` に M1 から M7 を書く。
+`packages/textlint-rule-preset-tech-maintainability` に M1 から M7 を書いた。
 
-Rust の側と同じ判定を JS で書き直すことになる。
-判定の定めは `docs/content/ja/metrics.md` にある。
+判定ロジックと正規表現は `crates/suikou-core/src/rules/mod.rs` から一字一句移植した。
+`src/lib/patterns.js` に正規表現と語彙を、`src/lib/blocks.js` に `markdown.rs` の
+ブロック抽出をそのまま移植してある。日本語の M1・M5 は kuromojin（IPADIC）で形態素解析する。
+`src/lib/morphology-ja.js` にある。
 
-ほかのプリセットとの重なりに気をつける。
-`@textlint-ja/textlint-rule-preset-ai-writing` の `no-ai-colon-continuation` と M1 は
-目的が違うが、同じ箇所を二重に指摘する場合がある。
+textlint 自身の Markdown AST は歩かず、各ルールが `context.getSource()` で受け取った
+原文を、移植したブロック抽出にかけてから判定する。理由と、IPADIC が UniDic の体言4分類を
+ひとつにまとめる点、textlint が標準の設定では `maint/` という接頭辞を表示しない点は
+D-23 に書いた。
 
-終わったと言える条件は、`tests/golden/input/` の各ファイルに対して
-Rust の側と同じ件数の指摘が出ることとする。
+`tests/golden/input/` の各ファイルに対して、Rust 側（`suikou check --format json`）と
+textlint プリセットの指摘件数は次のとおり一致した。
+
+| ファイル | list-lead-in | item-count | numbered-heading | manual-number | parallel-items | time-dependent | trailing-etc |
+|---|---|---|---|---|---|---|---|
+| ja_maintainability.md | 1 / 1 | 1 / 1 | 1 / 1 | 0 / 0 | 1 / 1 | 2 / 2 | 0 / 0 |
+| en_maintainability.md | 1 / 1 | 0 / 0 | 1 / 1 | 0 / 0 | 1 / 1 | 2 / 2 | 1 / 1 |
+| ja_prose.md | 0 / 0 | 1 / 1 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+| en_prose.md | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+| en_escaped.md | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+
+「Rust / textlint」の順に並べてある。`manual-number`（M4）はどの golden ファイルでも
+0件のため、`test/rules.test.js` に別の最小例を足して確かめてある。
+
+`npm test`（`node --test`）が通る。textlint-tester は使わなかった。経緯は D-23 にある。
+
+ほかのプリセットとの重なりについては、`@textlint-ja/textlint-rule-preset-ai-writing` の
+`no-ai-colon-continuation` と M1 の日本語判定が同じ行を二重に指摘しうることを
+`packages/textlint-rule-preset-tech-maintainability/README.md` に書いた。
+どちらか一方を抑える仕組みは設けていない。理由は D-23 にある。
 
 ## T8 terms サブコマンドを書く
 

@@ -421,3 +421,111 @@ Calibrating against the documents above left `ja.prose_ratio` (fence 0.69) in th
 and running `suikou check --profile` with it against a document that is mostly bullet
 lists fires the rule, while running it against a prose-only document does not, both
 confirmed against real command output.
+
+## D-23 Judgment calls in the textlint preset
+
+Writing `packages/textlint-rule-preset-tech-maintainability` (T7) raised several
+judgment calls that did not fit under one heading. They are laid out below.
+
+**textlint does not print `maint/` as the rule prefix under a standard config.** The
+brief for this task asked for rule IDs that match the Rust side, `maint/list-lead-in`
+and so on. Reading textlint's own preset-loading code showed that the prefix textlint
+prints comes from the config key written in `.textlintrc`, with a leading `preset-`
+stripped back off. Loading this package the standard way, as
+`"preset-tech-maintainability": true`, prints every finding under the prefix
+`tech-maintainability/`. A config key has to start with `preset-` to be recognized as a
+preset at all, and that same `preset-` is always the part stripped away before the rest
+of the key becomes the prefix, so no config key reaches a `maint/` prefix through the
+standard loader.
+
+Each rule's own name (the part after the prefix, such as `list-lead-in`) does match the
+Rust side, as asked. Only the prefix follows textlint's own convention instead, and
+bending that would mean renaming the package itself to something like
+`textlint-rule-preset-maint`, disagreeing with its own directory and confusing readers
+more than the prefix mismatch does. The package name stays aligned with its directory,
+and the README states plainly that a finding's printed prefix reads
+`tech-maintainability/`. The golden-parity tests sidestep the prefix question
+altogether: they call `@textlint/kernel` directly and register each rule under a
+`maint/` prefix by hand, so the constraint above never touches that comparison.
+
+**Match against the raw source, not the textlint AST.** textlint hands a rule the
+Markdown broken into nodes such as paragraphs and headings. A paragraph that soft-wraps
+across lines becomes a single Paragraph node inside textlint. `markdown.rs`, by
+contrast, builds one block per line, and a soft-wrapped continuation stays a separate
+line. The mismatch shows up on a paragraph such as lines 14 and 15 of
+`en_maintainability.md`, where one sentence spans two lines. Matching against the joined
+node text would join those two lines into one string, letting a regex match span words
+the Rust side never joins.
+
+Two paths were open: match against the text of textlint's Paragraph nodes, or port the
+line-based block builder to JavaScript and let textlint supply nothing but the raw
+source string. The first path looks more like a standard textlint rule, but the count
+of findings drifts whenever the node granularity differs from the line granularity. The
+second path was taken. `src/lib/blocks.js` ports the block builder from `markdown.rs`,
+regular expressions included, and each rule reads the raw source through
+`context.getSource(node)` and runs it through this local block builder before judging
+anything. textlint's job becomes reading the file, honoring configuration, and
+reporting; it does no parsing of the document structure on its own.
+
+The cost of this choice is that reported line and column numbers are computed against
+the preprocessed string rather than the raw one. A position in the raw file can drift
+from a position in the preprocessed one wherever an escape sequence was undone or
+inline markup was stripped. `src/lib/position.js` searches for the matched text within
+the target line, left to right, and ties it back to a character position in the raw
+source as an approximation. The approximation exists so that a finding is never
+dropped, not to guarantee an exact position. The check against `tests/golden/` compares
+counts only; position accuracy is not part of that bar.
+
+**IPADIC folds UniDic's four taigen categories into one part of speech.** The Japanese
+judgment for M1 and M5 asks whether the last token at the end of a line or item is a
+taigen, a noun-like word that can end a sentence on its own. suikou-core runs on UniDic
+and treats a token as taigen when its top-level part of speech is noun, suffix,
+pronoun, or adjectival noun stem. kuromojin, the standard analyzer in the textlint
+ecosystem, runs on IPADIC, which has no such four-way split at that level.
+
+Probing kuromojin 3.0.1 directly showed that words UniDic classifies as suffix, pronoun,
+or adjectival noun stem all surface under IPADIC as a noun whose finer subcategory
+reads pronoun, suffix, or adjectival-noun stem instead. "これ" (this) came back as
+noun/pronoun and "静か" (quiet) came back as noun/adjectival-noun-stem. Under IPADIC the
+four-way UniDic check collapses into one condition: that the top-level part of speech
+reads noun. `isTaigen` in `src/lib/morphology-ja.js` rests on this probe.
+
+The check for a verb or auxiliary ending in the ren'youkei needed the same kind of
+verification. UniDic subdivides that form, as in "連用形-一般", while IPADIC reports it
+as the bare string "連用形" with no suffix, confirmed against "使い" and "し". The
+Rust-side check, `cform.startsWith("連用形")`, ports over unchanged.
+
+**Messages follow the document's language; the Rust side always answers in Japanese.**
+`finding()` in suikou-core returns a Japanese message even for an English document, a
+behavior confirmed against the output of `suikou check` on `en_maintainability.md`.
+
+Some users of the textlint preset write only English documents, and a message they
+cannot read does not help them. The judgment logic and the regular expressions stay
+aligned with the Rust side, but the preset picks a Japanese or English message to match
+the language it detects. Both live in `src/lib/messages.js`. Message text plays no part
+in the count comparison, so this divergence does not touch the golden-test completion
+bar.
+
+**Tests call `node:test` directly instead of going through textlint-tester.**
+textlint-tester assumes Mocha's global `describe` and `it`. Where those globals are
+absent, it falls back to a stand-in that just calls the test function without waiting
+for it. That stand-in never awaits the Promise a test case returns, so running it under
+`node --test` let some assertions report success before the linting they depended on
+had even finished.
+
+Two paths were weighed: add Mocha as a dependency to keep textlint-tester, or write a
+thin layer directly on `@textlint/kernel`. The path that added no dependency won.
+`test/support/lint.js` wraps the kernel in a few lines, registers every rule under the
+`maint/` prefix, and awaits the result directly. That fits `node --test`'s async test
+functions without any adapter.
+
+**The overlap with `no-ai-colon-continuation` from
+`@textlint-ja/textlint-rule-preset-ai-writing` is left unsuppressed.** That rule also
+uses kuromojin to check whether the text before a colon ends in a predicate, which is
+close to the Japanese half of M1. The purpose differs: that rule flags a stylistic
+pattern typical of AI-written prose, and M1 flags a list structure that breaks when an
+item is added or removed. The two can still fire on the same line. No mechanism was
+added to let one suppress the other. A user who enables both presets has read both and
+is in a position to judge which finding fits their document; silencing one on their
+behalf would remove information rather than add it. The overlap is written down in the
+README instead.

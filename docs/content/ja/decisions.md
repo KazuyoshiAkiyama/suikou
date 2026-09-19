@@ -385,3 +385,104 @@ above の上限は指標によって違う。比率は1が上限になる一方�
 生き残った `ja.prose_ratio`（境界 0.69）を含むプロファイルを作り、箇条書きばかりの
 文書へ `suikou check --profile` をかけると発火し、地の文だけの文書では発火しないことを
 実行結果で確認した。
+
+## D-23 textlint プリセットの実装で分かれた判断
+
+`packages/textlint-rule-preset-tech-maintainability`（T7）を書く過程で、
+一つにまとめきれない判断が複数出た。以下に並べる。
+
+**textlint が実際に表示するルールIDは、標準の設定では `maint/` にならない。**
+指示は Rust側と揃えて `maint/list-lead-in` のような ID にすることを求めていた。
+`@textlint/config-loader` の `loader.js` と `@textlint/utils` の
+`normalizeTextlintRulePresetKey` を読んで確かめると、プリセットの接頭辞は
+`.textlintrc` に書いた設定キーから、先頭の `preset-` を取り除いた文字列になる。
+このパッケージを標準の書き方どおり `"preset-tech-maintainability": true` で
+読み込むと、表示される ID は `tech-maintainability/list-lead-in` になる。
+設定キーは `preset-` で始まらないとプリセットとして認識されず
+（`isPresetRuleKey` がそう定めている）、認識された場合はその `preset-` が
+必ず剥がされるため、標準の読み込み経路では `maint/` という接頭辞に
+どうやっても届かない。
+
+個々のルールの名前（`list-lead-in` のような接頭辞なしの部分）は指示どおり
+Rust側の名前と揃えてある。接頭辞だけは textlint 自身の命名規則に従うほかなく、
+それを曲げるとしたら npm パッケージ名を `textlint-rule-preset-maint` のように
+変える必要があるが、パッケージの置き場所である
+`packages/textlint-rule-preset-tech-maintainability` という名前と食い違って
+かえって分かりにくくなる。パッケージ名は置き場所に合わせたままとし、
+実際に表示される ID が `tech-maintainability/` 接頭辞になることを README に
+明記した。ゴールデンテストの突き合わせでは、`@textlint/kernel` を直に使い
+`maint/` 接頭辞で手動登録しているため、この制約の影響を受けない
+（`test/support/lint.js`）。
+
+**AST を経由せず行ベースで判定する。** textlint は Markdown を段落や見出しなどのノードに分けて渡す。ソフトラップで複数行に
+またがる段落は、textlint の中でひとつの Paragraph ノードにまとまる。一方 `markdown.rs`
+の `Document::parse` は行ごとにブロックを作り、ソフトラップの続きも独立した行として扱う。
+この食い違いは、`en_maintainability.md` の14〜15行目のような、ひとつの文が2行にまたがる
+段落で表面化する。ノード単位で判定すると2行分の文字列がひとつにまとまり、Rust側が
+決して結び付けない語同士が正規表現の一致範囲に入ってしまう。
+
+とりうる道は二つあった。textlint の Paragraph ノードのテキストをそのまま判定にかける道と、
+`Document::parse` と同じ行ベースの手順を JS に移植して、textlint の側では文字列としての
+原文しか使わない道である。前者は「textlint らしい」実装ではあるが、ノードの粒度が変わる
+たびに件数がずれる。後者を採った。`src/lib/blocks.js` が `markdown.rs` の
+`preprocess`・`strip_inline`・`Document::parse`・`list_blocks`・`block_before` を、
+正規表現も含めてそのまま移植している。各ルールは `context.getSource(node)` で原文を取り、
+自前のブロック抽出にかけてから判定する。textlint が担うのは、ファイルの読み込みと
+設定、報告の一本化であって、構造の解析ではない。
+
+この選び方の代償は、報告する行・列が前処理後の文字列に基づく点である。原文の生の
+文字列上での位置は、エスケープの解除やインライン記法の除去によって前処理後の位置と
+食い違うことがある。`src/lib/position.js` は、一致した文字列を対象の行の中で順に
+探して原文の文字インデックスへ近似的に結びつける。この近似は指摘を見失わせない
+ためのものであり、正確さそのものを保証しない。`tests/golden/` との突き合わせは
+件数だけを見ており、位置の正確さは条件に含めていない。
+
+**IPADIC は UniDic の体言4分類をひとつの品詞にまとめる。**
+M1・M5の日本語判定は、行末や項目末尾のトークンが体言止めかどうかを見る。
+suikou-core は UniDic を使い、品詞大分類が名詞・接尾辞・代名詞・形状詞のいずれかを
+体言とみなす。textlint 界隈の標準である kuromojin は IPADIC を使い、この4分類を
+持たない。
+
+kuromojin 3.0.1 に実測させると、UniDic で接尾辞・代名詞・形状詞に立つ語は、IPADIC
+では名詞の下位分類（品詞細分類1が代名詞・接尾・形容動詞語幹）として現れる。
+「これ」は名詞/代名詞、「委員長」の「長」は名詞/接尾、「静か」は名詞/形容動詞語幹
+だった。したがって IPADIC では、pos が名詞であることのひとつの条件に判定をまとめて
+よい。`src/lib/morphology-ja.js` の `isTaigen` はこの実測に基づく。
+
+連用形の判定も同様に実測で確かめた。UniDic は「連用形-一般」のように活用形を細分
+するが、IPADIC は単に「連用形」という値を返す（「使い」「し」で確認した）。
+`cform.startsWith("連用形")` という Rust 側の判定はそのまま移植して問題ない。
+
+**説明文の言語は文書の言語に合わせる。** Rust側は日本語で固定している。
+suikou-core の `finding()` は、文書が英語であっても日本語の説明文を返す。
+`en_maintainability.md` に対する `suikou check` の出力で確かめた。
+
+textlint プリセットの利用者には英語文書だけを書く人もいる。日本語しか読めない
+説明文を出すと、その人たちにとって指摘が使えない。判定ロジックと正規表現は
+Rust側と一致させる一方、説明文だけは検出した言語に合わせて日本語・英語を
+出し分けることにした。`src/lib/messages.js` に両方を持たせてある。件数の
+突き合わせに説明文の中身は関わらないため、この差はゴールデンテストの完了条件に
+影響しない。
+
+**テストは textlint-tester ではなく node:test を直接使う。**
+textlint-tester は Mocha の `describe`/`it` を前提に作られている。それらが
+グローバルに無い環境では、`method.apply(this)` を呼ぶだけの代用に落ちる。
+この代用は `testValid`・`testInvalid` が返す Promise を待たないため、
+`node --test` の実行環境にそのまま載せると、判定が終わる前にテストが
+成功したことになってしまう箇所があった。
+
+Mocha を依存に加えて textlint-tester を使う道と、`@textlint/kernel` を
+直に使う薄い層を書く道の二つを検討した。依存を増やさない方を選び、
+`test/support/lint.js` に `TextlintKernel` を包む数行を置いた。プリセットの
+全ルールを `maint/` 接頭辞付きで登録し、`async/await` で素直に結果を待つ。
+`node --test` の非同期テストとそのまま噛み合う。
+
+**`@textlint-ja/textlint-rule-preset-ai-writing` の `no-ai-colon-continuation`
+と重なる指摘を、あえて抑えない。** そのルールは、コロンの手前が述語で終わる
+文を kuromojin で検出しており、判定の作りが M1 の日本語版とよく似ている。
+目的は違う。あちらは AI が書いた文体の癖を検出し、こちらは項目の増減に
+弱い箇条書きの構造を検出する。それでも同じ行が両方から指摘されることがある。
+どちらか一方を優先させる仕組みは設けなかった。二つのプリセットを同時に
+有効にする利用者は、両方を読んだうえで自分の文書に合う方を選べる立場に
+あり、片方を黙らせると選ぶ材料を減らすことになる。README にこの重なりを
+明記した。
