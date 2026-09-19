@@ -117,6 +117,39 @@ pub fn count_ja(body: &str, morph: &dyn Morphology, counts: &mut BTreeMap<String
     flush_run_ja(&run, counts);
 }
 
+/// 半角英数字だけからなる表層形かどうか。
+/// 「Linux」「kernel」のような借用語の語をつなぐときにだけ空白を入れるために使う。
+fn is_latin_surface(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric())
+}
+
+/// 連なりを1語の文字列に組み立てる。
+///
+/// 日本語の複合語は語の間に空白を置かない（「形態」+「素」+「解析」→「形態素解析」）。
+/// 一方、UniDic は空白を1個の語境界としてしか使わず、トークンとして残さない。
+/// 「Linux kernel」を解析すると「Linux」と「kernel」が空白なしで隣り合うトークンになり、
+/// `concat` でそのままつなぐと本文に存在しない「Linuxkernel」という語を作ってしまう。
+/// この崩れは、自分の文書（`docs/content/ja/design.md` の「Linux kernel」）に
+/// この道具をかけて見つけた。
+///
+/// 半角英数字の語どうしが隣り合うときだけ、間に空白を1個入れて元の区切りを復元する。
+/// 半角英数字の語と日本語の語が隣り合う場合（「API仕様」のような語）は、
+/// 空白を入れない。日本語の文中でこの2つが直に続くときは、元の文でも
+/// 空白を置かない書き方が普通であるため。
+/// 漢字1字・かな1字だけの候補を捨てる根拠。
+///
+/// 「文」「形」「語」「値」「地」「数」「版」「行」「層」のような1字の候補が、
+/// 自分の文書にかけると上位を占めた。「地」は「地の文」が「の」で割れた残骸で、
+/// 残りは日本語の一般語としてどんな文章にも高頻度で出る、特定の分野に紐付かない語である。
+/// この崩れも自分の文書にこの道具をかけて見つけた。
+///
+/// 個別の語を挙げて除く一覧は作らない。挙げる基準そのものが思いつきになるためである。
+/// 代わりに、結果の文字数という構造だけで絞る。
+/// 日本語の術語抽出では、1字の候補を対象から外す扱いが広く採られている。
+/// 意味の運び手になるのはほとんどが複数字の複合語であり、1字の語は最小の形態素で
+/// 多義になりやすく、単独では分野を特定できないためである。
+/// 「文書」のような2字の1トークン語はこの絞り込みの対象にならない。
+/// 除いた根拠と、絞り込む前の実測値は `docs/content/ja/decisions.md` の D-24 にある。
 fn flush_run_ja(run: &[&str], counts: &mut BTreeMap<String, usize>) {
     if run.is_empty() {
         return;
@@ -124,7 +157,16 @@ fn flush_run_ja(run: &[&str], counts: &mut BTreeMap<String, usize>) {
     if run.len() == 1 && KEISHIKI_MEISHI.contains(&run[0]) {
         return;
     }
-    let word: String = run.concat();
+    let mut word = String::new();
+    for (i, surface) in run.iter().enumerate() {
+        if i > 0 && is_latin_surface(run[i - 1]) && is_latin_surface(surface) {
+            word.push(' ');
+        }
+        word.push_str(surface);
+    }
+    if word.chars().count() < 2 {
+        return;
+    }
     *counts.entry(word).or_insert(0) += 1;
 }
 
@@ -283,7 +325,8 @@ mod tests {
              文書|名詞|普通名詞||漢 指標|名詞|普通名詞||漢 は|助詞|係助詞||和 \
              こと|名詞|普通名詞||和 が|助詞|格助詞||和 大事|形状詞|一般|||和 \
              だ|助動詞||終止形-一般|和 3|名詞|数詞|||和 つ|接尾辞|名詞的|助数詞||和 \
-             ある|動詞|非自立可能|終止形-一般|和 保守|名詞|普通名詞||漢",
+             ある|動詞|非自立可能|終止形-一般|和 保守|名詞|普通名詞||漢 \
+             値|名詞|普通名詞||漢",
         )
     }
 
@@ -312,10 +355,52 @@ mod tests {
     }
 
     #[test]
+    fn adjacent_latin_words_are_joined_with_a_space() {
+        // UniDic は空白をトークンとして残さない。「Linux」と「kernel」は空白なしで
+        // 隣り合うトークンになる。`docs/content/ja/design.md` の「Linux kernel」に
+        // この道具をかけて、空白なしで連結され「Linuxkernel」という本文にない語が
+        // 出ることを見つけた。
+        let m = FakeMorphology::from_spec(
+            "Linux|名詞|普通名詞|| kernel|名詞|普通名詞|| \
+             を|助詞|格助詞||和 使う|動詞|一般|終止形-一般|和",
+        );
+        let mut counts = BTreeMap::new();
+        count_ja("Linuxkernelを使う。", &m, &mut counts);
+        assert_eq!(counts.get("Linux kernel"), Some(&1));
+        assert!(!counts.contains_key("Linuxkernel"), "{counts:?}");
+    }
+
+    #[test]
+    fn a_latin_word_next_to_a_japanese_word_gets_no_space() {
+        // 半角英数字の語と日本語の語が直に続く場合（「API仕様」のような語）は、
+        // 元の文でも空白を置かない書き方が普通であるため、空白を入れない。
+        let m = FakeMorphology::from_spec("API|名詞|普通名詞|| 仕様|名詞|普通名詞||漢");
+        let mut counts = BTreeMap::new();
+        count_ja("API仕様。API仕様。", &m, &mut counts);
+        assert_eq!(counts.get("API仕様"), Some(&2));
+    }
+
+    #[test]
     fn a_bare_formal_noun_is_not_a_term() {
         let mut counts = BTreeMap::new();
         count_ja("ことが大事だ。", &fake(), &mut counts);
         assert!(counts.is_empty(), "{counts:?}");
+    }
+
+    #[test]
+    fn a_single_character_word_is_not_a_term() {
+        // 「値」のような1字の候補は、分野を特定できない一般語であるため捨てる。
+        let mut counts = BTreeMap::new();
+        count_ja("値を使う。値を使う。", &fake(), &mut counts);
+        assert!(!counts.contains_key("値"), "{counts:?}");
+    }
+
+    #[test]
+    fn a_two_character_single_token_word_is_kept() {
+        // 「文書」は1トークンだが2字あり、1字の候補を除く絞り込みの対象にはならない。
+        let mut counts = BTreeMap::new();
+        count_ja("文書を使う。文書を使う。", &fake(), &mut counts);
+        assert_eq!(counts.get("文書"), Some(&2));
     }
 
     #[test]

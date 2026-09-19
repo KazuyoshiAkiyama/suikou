@@ -546,10 +546,38 @@ option. The rule leans on structure instead: a suffix only extends a run that al
 holds a noun. A suffix cut off by a numeral, for example the つ in 3つ, never starts a run
 by itself.
 
+UniDic marks a space only as a boundary between words and keeps no word for the space
+itself. Joining two Latin-script words without a space builds a word the source text
+does not have. Running the tool against its own documentation showed this: Linux
+kernel, which appears in several places in `design.md`, came out as Linuxkernel. The
+join now adds a space between two Latin-script words that sit next to each other, and
+adds no space between a Latin-script word and a Japanese word, as in 仕様 attached to
+API. That pair is normally written with no space inside a Japanese sentence, so the
+join adds no space there either.
+
 The list that filters out generic words reuses `KEISHIKI_MEISHI` from `metrics/ja.rs`
 rather than building a new one. A generic word that slips into the glossary only loses
 its exclusion from the metaphor check, a small cost. Missing a genuine term from the
 field costs more, so the balance favors keeping words in.
+
+Running the tool against its own documentation surfaced a further problem:
+single-character words filled the top of the word list. Out of 395 words, 54 words
+were a single character, and the top twenty words were 文 (50), 形 (49), 語 (48),
+指示 (43), 値 (36), then 地 (28) and 数 (27), then 版 (22), 行 (22), and 層 (20). 地
+is what is left after の split 地の文 into two words, and the rest of these words are
+ordinary Japanese words that appear often in any piece of writing and belong to no
+one field.
+
+Naming the words to drop was ruled out, since naming them is itself a guess. The fix
+uses structure instead: the number of characters in the assembled word. A word that
+comes out to one character is dropped. Dropping one-character words is common
+practice in Japanese term extraction, since a word of several characters carries
+most of the meaning, while a one-character word is the smallest possible word and
+tends to carry many meanings, rarely pointing to one field. A word of two characters
+built from one token, for example 文書, passes through this filter untouched. After
+the fix, the top words in the word list for this repository's own documentation were
+指示, 規則, 指標, 人間, 文書, 日本語, 指摘, 閾値, 辞書, and 実装, with no
+one-character word among them.
 
 English has neither a part-of-speech tagger nor a sentence splitter. The extraction
 leans on words written in capitals alone, a capitalized word that does not sit at the
@@ -564,6 +592,16 @@ D-04, The tokenizer hides behind a trait, treats D-04 as the first word, so the 
 The that follows reads as though it sat mid-sentence. The fix keeps treating the
 position as sentence-initial for as long as capital-only words keep appearing at the
 start of the text.
+
+A heading with two id-like words side by side carries a further problem. This
+file's own heading, D-13, M2 and M6 count every occurrence, has no mark between D-13
+and M2, so the two words merge into one word, D-13 M2. The word M2 on its own loses
+that occurrence and can fall under the occurrence floor. The cost falls on the
+missing side, a real word left out, rather than on the invented side, a word the
+source never wrote, so this stays a known limit rather than a fix. Fixing it needs a
+rule that decides how far to merge two id-like words next to each other, and no such
+rule has turned up that would do this without breaking a pair such as AWS S3, where
+two short words next to each other name one product.
 
 The occurrence floor defaults to two. A word seen once gives no way to tell a term of
 the field apart from an incidental phrase, and checking a term for consistency needs
