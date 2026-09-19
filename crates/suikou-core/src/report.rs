@@ -76,6 +76,48 @@ impl Report {
         worst
     }
 
+    /// 出力のトークン数の見積もり。
+    ///
+    /// 正確な数は模型ごとに違うため、文字数からの概算で足りる。
+    /// 日本語と英語で1トークンあたりの文字数が異なるので、中間の値を取る。
+    /// 切り詰めの判断にしか使わない。
+    pub const CHARS_PER_TOKEN: usize = 3;
+
+    pub fn estimated_tokens(&self) -> usize {
+        self.to_markdown().chars().count() / Self::CHARS_PER_TOKEN
+    }
+
+    /// 見積もりが budget に収まるまで、severity の低いものから落とす。
+    ///
+    /// 落とす順序は info、warning、error とする。
+    /// メンテナンス性の指摘を最後まで残すのは、閾値の問題ではなく規定違反だからである。
+    pub fn trim_to(&mut self, budget: usize) {
+        for level in [Severity::Info, Severity::Warning, Severity::Error] {
+            if self.estimated_tokens() <= budget {
+                return;
+            }
+            self.document.retain(|m| m.severity != level);
+            if self.estimated_tokens() <= budget {
+                return;
+            }
+            // 同じ severity の中では、位置の多いものから減らす。
+            while self.estimated_tokens() > budget {
+                let Some(f) = self
+                    .local
+                    .iter_mut()
+                    .filter(|f| f.severity == level && !f.positions.is_empty())
+                    .max_by_key(|f| f.positions.len())
+                else {
+                    break;
+                };
+                f.positions.pop();
+                f.truncated += 1;
+            }
+            // 位置を全部落としても、ルールと件数は残す。
+            // 何件あるかが分からないと、直し切れたかを判断できない。
+        }
+    }
+
     /// LLM が読む Markdown。方針を先に、位置を後に置く。
     pub fn to_markdown(&self) -> String {
         let mut out = String::new();
@@ -98,7 +140,12 @@ impl Report {
                     f.positions.len() + f.truncated
                 ));
                 for p in &f.positions {
-                    out.push_str(&format!("- L{} {}\n", p.line, p.text));
+                    // 同じ行に複数ある指摘を見分けられるように、列を持つものは列も出す。
+                    if p.column > 1 {
+                        out.push_str(&format!("- L{}:{} {}\n", p.line, p.column, p.text));
+                    } else {
+                        out.push_str(&format!("- L{} {}\n", p.line, p.text));
+                    }
                 }
                 if f.truncated > 0 {
                     out.push_str(&format!("- ほか{}件\n", f.truncated));
@@ -107,5 +154,64 @@ impl Report {
             }
         }
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn finding(sev: Severity, n: usize) -> LocalFinding {
+        LocalFinding {
+            rule_id: "maint/x".into(),
+            severity: sev,
+            message: "説明".into(),
+            positions: (0..n)
+                .map(|i| Position {
+                    line: i + 1,
+                    column: 1,
+                    text: "あ".repeat(40),
+                })
+                .collect(),
+            truncated: 0,
+        }
+    }
+
+    #[test]
+    fn worst_severity_prefers_error() {
+        let r = Report {
+            document: vec![],
+            local: vec![finding(Severity::Info, 1), finding(Severity::Error, 1)],
+        };
+        assert_eq!(r.worst_severity(), Some(Severity::Error));
+    }
+
+    #[test]
+    fn empty_report_has_no_severity() {
+        assert_eq!(Report::default().worst_severity(), None);
+    }
+
+    #[test]
+    fn trim_drops_info_before_error() {
+        let mut r = Report {
+            document: vec![],
+            local: vec![finding(Severity::Info, 10), finding(Severity::Error, 10)],
+        };
+        let before = r.estimated_tokens();
+        r.trim_to(before / 2);
+        assert!(r.local.iter().any(|f| f.severity == Severity::Error));
+        assert!(r.estimated_tokens() <= before);
+    }
+
+    #[test]
+    fn trim_keeps_the_count_of_dropped_positions() {
+        let mut r = Report {
+            document: vec![],
+            local: vec![finding(Severity::Info, 10)],
+        };
+        r.trim_to(10);
+        let kept: usize = r.local.iter().map(|f| f.positions.len()).sum();
+        let dropped: usize = r.local.iter().map(|f| f.truncated).sum();
+        assert_eq!(kept + dropped, 10, "{:?}", r.local);
     }
 }

@@ -4,7 +4,7 @@
 //! `research/` の参照実装が行ベースであり、ゴールデンテストの値を一致させるためである。
 //! 依存が減る分、バージョン差による事故も減る。
 //!
-//! 前処理の順序が結果を左右する。`docs/METRICS.md` に定めた順に行う。
+//! 前処理の順序が結果を左右する。`docs/content/ja/metrics.md` に定めた順に行う。
 
 use regex::Regex;
 use serde::Serialize;
@@ -60,13 +60,22 @@ re!(re_emphasis, r"\*\*([^*]*)\*\*|\*([^*]*)\*");
 re!(re_list, r"^(\s*)([-*+]|\d+[.)])\s+(.*)$");
 re!(re_heading, r"^#{1,6}\s+(.*)$");
 
+/// 取り除いた範囲を、同じ数の改行に置き換える。
+///
+/// 中身ごと消すと、後続の行の番号が前へずれる。
+/// 指摘の行番号が利用者の見ているファイルと食い違うと、その指摘は使えない。
+fn blank_out(caps: &regex::Captures) -> String {
+    let m = caps.get(0).map_or("", |m| m.as_str());
+    "\n".repeat(m.matches('\n').count())
+}
+
 /// 前処理。順序を変えてはならない。
 /// エスケープ解除を飛ばすと文分割が成立しない。
 pub fn preprocess(source: &str) -> String {
-    let s = re_frontmatter().replace(source, "");
-    let s = re_fence().replace_all(&s, "");
+    let s = re_frontmatter().replace(source, blank_out);
+    let s = re_fence().replace_all(&s, blank_out);
     let s = re_escape().replace_all(&s, "$1");
-    let s = re_html().replace_all(&s, " ");
+    let s = re_html().replace_all(&s, blank_out);
     s.into_owned()
 }
 
@@ -263,6 +272,17 @@ mod tests {
             out.contains("error. It"),
             "エスケープが解除されていない: {out}"
         );
+    }
+
+    #[test]
+    fn keeps_line_numbers_across_removed_blocks() {
+        // フロントマターとコードブロックを消しても、後続の行番号を保つ。
+        // 番号がずれると、指摘の位置が利用者の見ているファイルと食い違う。
+        let src = "---\ntitle: x\n---\n\n本文である。\n\n```\ncode\ncode\n```\n\n後の行である。\n";
+        let d = Document::parse(src);
+        let last = d.blocks.last().unwrap();
+        assert_eq!(last.text, "後の行である。");
+        assert_eq!(last.line, 12, "{:?}", d.blocks);
     }
 
     #[test]

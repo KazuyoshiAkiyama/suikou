@@ -9,6 +9,7 @@
 //! 既定の feature では lindera を含まないため、形態素解析器がなくても
 //! 本体のロジックを `FakeMorphology` でテストできる。
 
+pub mod check;
 pub mod lang;
 pub mod markdown;
 pub mod metrics;
@@ -17,6 +18,7 @@ pub mod report;
 pub mod rules;
 pub mod tokenizer;
 
+pub use check::evaluate;
 pub use lang::{Lang, Style};
 pub use markdown::Document;
 pub use report::{Report, Severity};
