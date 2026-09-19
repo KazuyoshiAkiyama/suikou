@@ -328,3 +328,25 @@ versions on the documentation side too.
 
 Fixing one canonical copy of each page also means the site and the repository never carry
 the same content twice.
+
+## D-21 brief's detail level lives on a flag, not a profile field
+
+The design document sketches an option where a profile carries the detail level for
+brief. This implementation sets that option aside and controls detail through a
+`--detail concise|balanced|detailed` flag alone.
+
+Here is the reasoning. Profile is a struct that holds metric thresholds. Adding a
+brief-specific field to it would split the struct across two jobs: values that
+calibration writes back, and a value that only picks an output shape. Mixing the two
+kinds of value in one struct blurs the range `suikou baseline` is supposed to touch, so
+this implementation keeps Profile to the single job of holding thresholds.
+
+The flag also grew a third level beyond the original sketch. TASKS.md first listed only
+concise and detailed, for example, but the implementation split out a middle level,
+balanced, once the structural rules turned out to fit one short sentence each while the
+time-dependent words still needed a full list every time. Concise trims that list-plus-
+sentences form further, and detailed adds the reasoning behind each rule.
+
+The profile-based option stays on the list of open questions. Whether to move detail
+onto a profile is a call this project can make once a real request for a per-project
+default shows up, not before.

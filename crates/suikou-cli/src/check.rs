@@ -26,7 +26,9 @@ pub struct Options {
 pub const EXIT_OK: i32 = 0;
 pub const EXIT_ERROR: i32 = 1;
 
-fn load_profile(name: &str) -> Result<Profile> {
+// brief からも使うため crate 内に公開する。プロファイルの読み込み方を
+// 二重に書かないための共有である。
+pub(crate) fn load_profile(name: &str) -> Result<Profile> {
     if let Some(p) = Profile::builtin(name) {
         return Ok(p);
     }

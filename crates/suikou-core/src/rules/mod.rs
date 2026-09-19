@@ -37,6 +37,23 @@ pub const TIME_DEPENDENT_JA: &[&str] = &[
     "現行の",
 ];
 
+/// M6 の英語版。語の一覧は `TIME_DEPENDENT_JA` と対になる。
+/// `brief` サブコマンドが禁止語を列挙するとき、この一覧を正本として使う。
+pub const TIME_DEPENDENT_EN: &[&str] = &[
+    "currently",
+    "presently",
+    "eventually",
+    "soon",
+    "latest",
+    "newest",
+    "newer",
+    "as of this writing",
+    "at present",
+    "in the future",
+    "in the near future",
+    "for now",
+];
+
 /// M1。英語の導入文がこれらを含めば完全な導入とみなす。
 /// 厳密には定形動詞の有無を見るべきだが、この判定だけで
 /// AWS S3 ユーザーガイドと Linux kernel を分離できている。
@@ -71,10 +88,6 @@ re!(
     r"^#{1,6}\s*(?:第?\s*[0-9０-９]+\s*[.．、)）章節]|[0-9０-９]+\s*[-–]\s)"
 );
 re!(re_m4, r"^\s*[-*+]\s+[0-9０-９]+\s*[.)．）、]\s");
-re!(
-    re_m6_en,
-    r"(?i)\b(currently|presently|eventually|soon|latest|newest|newer|as of this writing|at present|in the (?:near )?future|for now)\b"
-);
 re!(re_m7_ja, r"(?:など|等)[。、）\)]?\s*$");
 
 /// M6 の日本語。語の一覧は `TIME_DEPENDENT_JA` を正本とし、そこから組み立てる。
@@ -82,6 +95,11 @@ re!(re_m7_ja, r"(?:など|等)[。、）\)]?\s*$");
 fn re_m6_ja() -> &'static Regex {
     static R: OnceLock<Regex> = OnceLock::new();
     R.get_or_init(|| Regex::new(&TIME_DEPENDENT_JA.join("|")).unwrap())
+}
+/// M6 の英語。語の一覧は `TIME_DEPENDENT_EN` を正本とし、そこから組み立てる。
+fn re_m6_en() -> &'static Regex {
+    static R: OnceLock<Regex> = OnceLock::new();
+    R.get_or_init(|| Regex::new(&format!(r"(?i)\b({})\b", TIME_DEPENDENT_EN.join("|"))).unwrap())
 }
 re!(re_m7_en, r"(?i)(etc\.|and so on|and more)\s*[.)]?\s*$");
 

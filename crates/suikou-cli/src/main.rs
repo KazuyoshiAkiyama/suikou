@@ -4,6 +4,7 @@
 //! 文書指標を textlint の中に収めない理由は、収めると解析基盤が JS に縛られ、
 //! 検証済みの指標を実装の都合で捨てることになるためである。
 
+mod brief;
 mod check;
 mod morphology;
 
@@ -100,7 +101,19 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Command::Selftest => selftest(),
-        Command::Brief { .. } => todo!("brief"),
+        Command::Brief {
+            profile,
+            lang,
+            detail,
+        } => {
+            let text = brief::run(brief::Options {
+                profile,
+                lang,
+                detail,
+            })?;
+            print!("{text}");
+            Ok(())
+        }
         Command::Check {
             paths,
             format,
