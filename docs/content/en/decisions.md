@@ -531,3 +531,41 @@ added to let one suppress the other. A user who enables both presets has read bo
 is in a position to judge which finding fits their document; silencing one on their
 behalf would remove information rather than add it. The overlap is written down in the
 README instead.
+
+## D-24 The term extraction cuts words by structure, not part of speech alone
+
+Japanese groups a run of consecutive nouns into a single compound word.
+UniDic tags a bound suffix such as 素 or 性 with its own part of speech, separate from
+noun, so treating nouns alone split 形態素解析 into 形態 and 解析, and left 保守性 as just
+保守. Running the tool against its own documentation is what surfaced the break.
+
+Adding the suffix tag to the noun tag fixes that split, but it also lets a counter such
+as つ start a compound on its own. UniDic offers no finer-grained tag that would separate
+a counter from an ordinary derivational suffix, so building a list of counters was not an
+option. The rule leans on structure instead: a suffix only extends a run that already
+holds a noun. A suffix cut off by a numeral, for example the つ in 3つ, never starts a run
+by itself.
+
+The list that filters out generic words reuses `KEISHIKI_MEISHI` from `metrics/ja.rs`
+rather than building a new one. A generic word that slips into the glossary only loses
+its exclusion from the metaphor check, a small cost. Missing a genuine term from the
+field costs more, so the balance favors keeping words in.
+
+English has neither a part-of-speech tagger nor a sentence splitter. The extraction
+leans on words written in capitals alone, a capitalized word that does not sit at the
+start of a sentence, and inline code that reads as a bare identifier. Table rows are
+excluded from this scan. A table cell carries no sentence, so the start-of-sentence
+signal never fires there, and the same label repeats down a column often enough to
+clear the occurrence floor. Running the tool against its own English documentation
+showed table values leaking into the glossary this way.
+
+A heading that opens with an id carries the same problem. This file's own heading,
+D-04, The tokenizer hides behind a trait, treats D-04 as the first word, so the word
+The that follows reads as though it sat mid-sentence. The fix keeps treating the
+position as sentence-initial for as long as capital-only words keep appearing at the
+start of the text.
+
+The occurrence floor defaults to two. A word seen once gives no way to tell a term of
+the field apart from an incidental phrase, and checking a term for consistency needs
+the same word to appear more than once in the first place. This default comes from
+that pair of goals rather than from measurement.

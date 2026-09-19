@@ -17,10 +17,12 @@ pub mod metrics;
 pub mod profile;
 pub mod report;
 pub mod rules;
+pub mod terms;
 pub mod tokenizer;
 
 pub use check::evaluate;
 pub use lang::{Lang, Style};
 pub use markdown::Document;
 pub use report::{Report, Severity};
+pub use terms::{Term, Terms};
 pub use tokenizer::{Morphology, Token};

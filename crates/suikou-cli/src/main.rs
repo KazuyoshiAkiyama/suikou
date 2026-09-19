@@ -8,6 +8,7 @@ mod baseline;
 mod brief;
 mod check;
 mod morphology;
+mod terms;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -74,8 +75,17 @@ enum Command {
         #[arg(long)]
         out: Option<String>,
     },
-    /// 文書群から用語集と allowlist を抽出する
-    Terms { paths: Vec<String> },
+    /// 文書群から分野で確立した語を取り出し、たとえの判定から除く語彙集を作る
+    Terms {
+        paths: Vec<String>,
+        #[arg(long, default_value = ".suikou/terms.toml")]
+        out: String,
+        #[arg(long, default_value = "auto")]
+        lang: String,
+        /// 出現回数の下限。1回しか出ない語は分野の語と偶然の言い回しを見分けられない
+        #[arg(long, default_value_t = suikou_core::terms::DEFAULT_MIN_COUNT)]
+        min_count: usize,
+    },
     /// MCP サーバとして起動する
     Mcp,
     /// 常駐モードで起動する
@@ -154,7 +164,17 @@ fn main() -> Result<()> {
             name,
             out,
         }),
-        Command::Terms { .. } => todo!("terms"),
+        Command::Terms {
+            paths,
+            out,
+            lang,
+            min_count,
+        } => terms::run(terms::Options {
+            paths,
+            out,
+            lang,
+            min_count,
+        }),
         Command::Mcp => todo!("mcp"),
         Command::Daemon => todo!("daemon"),
     }
