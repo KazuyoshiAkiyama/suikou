@@ -1,0 +1,21 @@
+[workspace]
+resolver = "2"
+members = ["crates/suikou-core", "crates/suikou-cli"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "MIT OR Apache-2.0"
+
+# バージョンは実在を確認したうえで固定する。
+# lindera は API と素性の並びがバージョンで変わるため、特に厳密に固定する。
+# 更新するときは crates/suikou-core/src/tokenizer.rs の自己診断を必ず通すこと。
+[workspace.dependencies]
+anyhow = "=1.0.104"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+toml = "=1.1.6"   # 0.8 系から major が上がっている。API 差に注意
+regex = "=1.13.1"
+lindera = { version = "=6.0.0", features = ["embed-unidic"] }
+clap = { version = "=4.6.7", features = ["derive"] }

@@ -1,0 +1,68 @@
+# 人間コーパスの実測値。閾値の根拠になる。
+# 測定は research/ の Python 実装による。
+
+[meta]
+measured = "2026-09-15"
+ja_native = ["kaityo256/sevendayshpc", "kaityo256/python_zero", "future-architect/coding-standards"]
+ja_translated = ["kubernetes/website(ja)", "vuejs-translations/docs-ja", "linux kernel ja_JP"]
+en = ["linux kernel", "gcc", "rust-lang/book", "django", "google/eng-practices",
+      "awsdocs/amazon-s3-userguide", "awsdocs/aws-cloudformation-user-guide"]
+note = "日本語のネイティブ執筆は解説書に偏っている。手順書型が不足している。"
+
+# 日本語。native は人間のネイティブ執筆、ai は4モデルの実測範囲。
+[ja.mattr100]
+human_native = [0.569, 0.581]
+human_translated = [0.557, 0.600]
+ai = [0.629, 0.665]
+
+[ja.prose_ratio]
+human_native = [0.816, 0.847]
+ai = [0.480, 0.711]
+
+[ja.renyo_te_ratio]
+human_native = [1.79, 2.00]
+ai = [3.62, 15.94]
+
+[ja.renyo_per_1k]
+human_native = [2.289, 2.711]
+ai = [4.805, 6.747]
+
+[ja.keishiki_meishi_per_1k]
+human_native = [11.095, 11.163]
+ai = [4.990, 6.953]
+note = "ジャンル感度が高い。手順書では AI 側が 8.11 まで上がる"
+
+[ja.demonstrative_per_1k]
+human_native = [5.685, 6.469]
+ai = [1.380, 3.388]
+
+[ja.kango_ratio]
+human_native = [0.326, 0.397]
+ai = [0.455, 0.519]
+note = "ジャンルとトピックへの感度が高い。概念解説では AI 側が 0.435 まで下がる"
+
+[ja.list_ratio]
+human_native = [0.159, 0.172]
+ai = [0.322, 0.433]
+
+# 英語
+[en.mattr100]
+human = [0.58, 0.69]
+ai = [0.72, 0.82]
+
+[en.prose_ratio]
+human = [0.66, 0.97]
+ai = [0.31, 0.56]
+
+[en.simile_marker_per_1k]
+human = [0.84, 2.54]
+ai = [0.00, 0.60]
+
+# 棄却した指標。再導入しないための記録。
+[rejected]
+"ja.sentence_length_cv" = "翻訳日本語と区別できない"
+"ja.gairaigo_ratio" = "人間と重なる"
+"ja.sahen_wo_suru" = "人間の方が多い"
+"ja.ten_per_sentence" = "著者差が大きい"
+"en.participial_per_1k" = "人間帯と重なる。Reinhart の 5.3 倍はこのタスクに転移しない"
+"en.nominalization_per_1k" = "人間帯と重なる。モデル依存の参考値にとどめる"

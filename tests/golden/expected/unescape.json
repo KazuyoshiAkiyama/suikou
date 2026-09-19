@@ -1,0 +1,7 @@
+{
+ "en_escaped.md": {
+  "sentences_without_unescape": 6,
+  "sentences_with_unescape": 11,
+  "note": "バックスラッシュを解除しないと文分割が成立しない。AWS の doc_source がこの形式で、解除しないと平均文長が3倍以上に膨らむ"
+ }
+}

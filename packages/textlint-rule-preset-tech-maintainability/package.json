@@ -1,0 +1,8 @@
+{
+  "name": "textlint-rule-preset-tech-maintainability",
+  "version": "0.1.0",
+  "description": "Maintainability rules for technical documentation (ja/en)",
+  "main": "src/index.js",
+  "keywords": ["textlint", "textlintrule", "technical-writing", "maintainability"],
+  "license": "MIT"
+}

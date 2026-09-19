@@ -1,0 +1,9 @@
+/target
+node_modules/
+__pycache__/
+.venv/
+/corpus/cache/
+/.suikou/
+
+# Cargo.lock は**コミットする**。バイナリを配布するワークスペースであり、
+# 再現可能なビルドのために必要。無視しないこと。

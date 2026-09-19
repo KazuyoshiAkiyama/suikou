@@ -1,0 +1,69 @@
+name = "oss"
+
+# 頑健な指標。ジャンルが変わっても人間帯と重ならない。
+[thresholds."ja.mattr100"]
+value = 0.60
+direction = "above"
+severity = "warning"
+guidance = "同じ対象は同じ語で呼ぶ。言い換えを止める"
+
+[thresholds."ja.prose_ratio"]
+value = 0.75
+direction = "below"
+severity = "warning"
+guidance = "箇条書きに分解した内容を地の文に戻す"
+
+[thresholds."ja.renyo_te_ratio"]
+value = 3.0
+direction = "above"
+severity = "warning"
+guidance = "「〜し、」で繋いだ節を分割するか「〜して、」に変える"
+
+[thresholds."ja.renyo_per_1k"]
+value = 4.0
+direction = "above"
+severity = "warning"
+guidance = "連用中止を減らし、文を分ける"
+
+[thresholds."ja.demonstrative_per_1k"]
+value = 4.5
+direction = "below"
+severity = "warning"
+guidance = "段落間の接続に指示詞を使い、名詞の再掲を減らす"
+
+[thresholds."ja.list_ratio"]
+value = 0.25
+direction = "above"
+severity = "warning"
+guidance = "箇条書きを地の文に戻す"
+
+# ジャンルとトピックへの感度が高い。ベースラインが揃うまで info に置く。
+[thresholds."ja.keishiki_meishi_per_1k"]
+value = 8.5
+direction = "below"
+severity = "info"
+guidance = "漢語の名詞化を「〜すること」等の和語表現に戻す"
+
+[thresholds."ja.kango_ratio"]
+value = 0.42
+direction = "above"
+severity = "info"
+guidance = "漢語を和語動詞に開く"
+
+[thresholds."en.mattr100"]
+value = 0.71
+direction = "above"
+severity = "warning"
+guidance = "Use the same word for the same thing. Stop varying the vocabulary"
+
+[thresholds."en.prose_ratio"]
+value = 0.65
+direction = "below"
+severity = "warning"
+guidance = "Move content out of bullet lists back into prose"
+
+[thresholds."en.simile_marker_per_1k"]
+value = 0.8
+direction = "below"
+severity = "warning"
+guidance = "If you use a comparison, mark it as a simile or an example"

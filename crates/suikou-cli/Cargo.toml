@@ -1,0 +1,23 @@
+[package]
+name = "suikou-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "suikou"
+path = "src/main.rs"
+
+[features]
+# 既定では辞書を含めない。既定に入れると `cargo test --all` が辞書を引き込み、
+# 辞書なしで本体のロジックを検証できるという前提が壊れる。
+# リリース用のバイナリはこの feature を有効にして作る。
+default = []
+lindera-unidic = ["suikou-core/lindera-unidic"]
+
+[dependencies]
+suikou-core = { path = "../suikou-core" }
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+clap.workspace = true

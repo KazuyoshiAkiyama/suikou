@@ -1,0 +1,28 @@
+{
+ "en_prose.md": {
+  "MATTR100": 0.663,
+  "agentless_passive_1k": 13.48,
+  "bad_list_lead": 0,
+  "bold_1k": 0.0,
+  "clausal_cc_1k": 13.48,
+  "count_declaration": 0,
+  "csubj_1k": 2.247,
+  "emdash_1k": 0.0,
+  "good_list_lead": 0,
+  "kobak_1k": 0.0,
+  "list_ratio": 0.0,
+  "mean_dep_dist": 2.16,
+  "mean_sent_len": 14.5,
+  "modifier_stack_1k": 0.0,
+  "name": "en_prose.md",
+  "nominalization_1k": 17.98,
+  "participial_1k": 0.0,
+  "phrasal_cc_1k": 8.99,
+  "phrasal_cc_ratio": 0.4,
+  "sent_len_cv": 0.378,
+  "sents": 33,
+  "simile_marker_1k": 2.25,
+  "timeless_violation_1k": 0.0,
+  "words": 445
+ }
+}

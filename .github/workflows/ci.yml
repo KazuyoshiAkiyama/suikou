@@ -1,0 +1,36 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      # 既定の feature には形態素解析が入らない。辞書を落とさずに本体を検証できる。
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test --all
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install fugashi unidic-lite
+      # 参照実装がゴールデンテストの期待値を再生成できることを確認する。
+      - run: |
+          cd tests/golden
+          python ../../research/mcheck.py 'input/*.md' > /tmp/rules.json
+          python - <<'PY'
+          import json
+          a = {k: v for k, v in json.load(open('expected/rules.json')).items()}
+          b = {__import__('os').path.basename(r['name']): r for r in json.load(open('/tmp/rules.json'))}
+          for k in a:
+              for f in ('m1_ok','m1_ng','m2','m3','m4','m5_mixed','m5_blocks','m6','m7'):
+                  assert a[k][f] == b[k][f], (k, f, a[k][f], b[k][f])
+          print('golden ok')
+          PY

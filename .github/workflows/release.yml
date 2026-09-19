@@ -1,0 +1,143 @@
+name: release
+
+# タグを打つまで何も公開されない。手動実行では成果物の確認だけを行う。
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # 辞書ありの検証。日本語のゴールデンテストは既定の feature では走らないため、
+  # リリースの前に必ず一度通す。
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - id: version
+        name: タグと Cargo.toml の版が一致するかを確かめる
+        shell: bash
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            tag="${{ github.ref_name }}"
+            if [ "$tag" != "v$version" ]; then
+              echo "タグ $tag と Cargo.toml の $version が食い違っている" >&2
+              exit 1
+            fi
+          fi
+          echo "version: $version"
+
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets --features lindera-unidic -- -D warnings
+      - run: cargo test --all --features lindera-unidic
+
+  build:
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            archive: tar.xz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive: tar.xz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            archive: zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # musl は純 Rust だけでリンクできる想定だが、C 依存が混ざったときのために入れておく。
+      - if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: ビルド
+        run: cargo build --release --locked --target ${{ matrix.target }} -p suikou-cli --features lindera-unidic
+
+      # 辞書が入っているかを実際に読ませて確かめる。
+      #
+      # `--version` の表示は cfg による分岐であり、辞書の実在を確かめない。
+      # 到達経路のない辞書はリンカに落とされるため、cfg が真でも実体がないことがある。
+      # `selftest` は実際に辞書を読んで解析させるので、落ちた辞書を検出できる。
+      - name: 辞書を読めることを確かめる
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            bin="target/${{ matrix.target }}/release/suikou.exe"
+          else
+            bin="target/${{ matrix.target }}/release/suikou"
+          fi
+          "$bin" --version
+          "$bin" selftest
+          "$bin" selftest | grep -q "UniDic 同梱"
+
+      - name: 梱包
+        shell: bash
+        run: |
+          name="suikou-v${{ needs.verify.outputs.version }}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp "target/${{ matrix.target }}/release/suikou.exe" "dist/$name/"
+          else
+            cp "target/${{ matrix.target }}/release/suikou" "dist/$name/"
+          fi
+          cp README.md LICENSE-MIT LICENSE-APACHE "dist/$name/"
+          cp skills/suikou/SKILL.md "dist/$name/"
+          cd dist
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a -tzip "$name.zip" "$name" > /dev/null
+          else
+            tar -cJf "$name.tar.xz" "$name"
+          fi
+          ls -lh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: dist/*.${{ matrix.archive }}
+          if-no-files-found: error
+
+  release:
+    needs: [verify, build]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: チェックサムを作る
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS && cat SHA256SUMS
+
+      # 下書きとして作る。中身を見てから手で公開する。
+      - name: 下書きのリリースを作る
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --draft \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            dist/*
