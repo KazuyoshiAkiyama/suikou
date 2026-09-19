@@ -10,7 +10,7 @@
 use anyhow::{Context, Result};
 use std::collections::BTreeMap;
 use std::io::Write as _;
-use suikou_core::baseline::{calibrate, MIN_SAMPLES};
+use suikou_core::baseline::{calibrate, CalibrationError, MIN_SAMPLES};
 use suikou_core::check::measure;
 use suikou_core::markdown::Document;
 use suikou_core::profile::{Profile, Threshold};
@@ -49,21 +49,32 @@ fn collect_samples(paths: &[String], lang_spec: &str) -> Result<Samples> {
 /// 標本から閾値を較正し、oss プロファイルの guidance と direction と severity を添えて
 /// 新しいプロファイルに仕立てる。
 ///
-/// 標本数が `MIN_SAMPLES` に満たない指標は較正できない。
-/// 較正できない指標を 0 や仮の値で埋めて出すと、使う人が根拠のない閾値に気づけない。
-/// そのため、その指標は出力から外して標準エラーに理由を出す。
+/// 較正できない指標が2種類ある。標本数が `suikou_core::baseline::MIN_SAMPLES` に満たない
+/// 指標と、below 方向の境界が指標の値域の外（0以下）まで下がって永久に発火しなくなった
+/// 指標である。後者は `suikou_core::baseline` のモジュール文書に経緯が書いてある。
+/// どちらも 0 や仮の値で埋めて出すと、使う人が根拠のない閾値、あるいは
+/// 死んだ閾値に気づけない。そのため、その指標は出力から外して標準エラーに理由を出す。
 fn build_profile(name: String, spec: &Profile, samples: &Samples) -> Profile {
     let mut thresholds = BTreeMap::new();
     for (metric, t) in &spec.thresholds {
         let Some(values) = samples.get(metric) else {
             continue;
         };
-        let Some(value) = calibrate(values, t.direction) else {
-            eprintln!(
-                "{metric}: 標本が {} 件しかなく較正できない。最低 {MIN_SAMPLES} 件が要る",
-                values.len()
-            );
-            continue;
+        let value = match calibrate(values, t.direction) {
+            Ok(value) => value,
+            Err(CalibrationError::TooFewSamples { count }) => {
+                eprintln!(
+                    "{metric}: 標本が {count} 件しかなく較正できない。最低 {MIN_SAMPLES} 件が要る"
+                );
+                continue;
+            }
+            Err(CalibrationError::Unreachable { threshold }) => {
+                eprintln!(
+                    "{metric}: 較正した境界 {threshold} が値域の外に出て、\
+                     この閾値は永久に発火しない。較正しない"
+                );
+                continue;
+            }
         };
         thresholds.insert(
             metric.clone(),
@@ -146,5 +157,84 @@ mod tests {
         let samples: Samples = BTreeMap::new();
         let profile = build_profile("custom".into(), &spec(), &samples);
         assert!(profile.thresholds.is_empty());
+    }
+
+    /// 実際にコーパスへ走らせて見つかった欠陥の再現。
+    /// `ja.demonstrative_per_1k` は below 方向で、値域が0以上の千字あたりの出現数である。
+    /// 標本がひとかたまりに寄っていると Q1 - 1.5*IQR が0を下回り、その境界は
+    /// どんな実測値も下回れなくなる。較正せずに外すこと。
+    #[test]
+    fn metrics_with_an_unreachable_fence_are_skipped() {
+        let mut samples: Samples = BTreeMap::new();
+        // Q1=1.0、Q3=3.0、IQR=2.0 なので below の境界は 1.0 - 1.5*2.0 = -2.0 になる。
+        samples.insert(
+            "ja.demonstrative_per_1k".into(),
+            vec![0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0],
+        );
+        let profile = build_profile("custom".into(), &spec(), &samples);
+        assert!(
+            !profile.thresholds.contains_key("ja.demonstrative_per_1k"),
+            "発火しえない閾値が出力に紛れ込んでいる: {:?}",
+            profile.thresholds.get("ja.demonstrative_per_1k")
+        );
+    }
+
+    /// 較正できた below 方向の閾値が、実際に `evaluate` を通して発火することを確かめる。
+    /// 指摘ゼロだけでは、較正が正しく働いたのか、閾値が死んでいて何も引っかからなかった
+    /// だけなのかを区別できない。ここでは閾値を跨ぐ文書を用意し、跨いだ側では発火し、
+    /// 跨がない側では発火しないことを両方見る。
+    #[test]
+    fn a_calibrated_below_threshold_fires_when_a_document_crosses_it() {
+        use suikou_core::lang::Lang;
+        use suikou_core::markdown::Document;
+        use suikou_core::report::Direction as Dir;
+        use suikou_core::tokenizer::{FakeMorphology, Morphology};
+
+        // 指示詞が多い標本と少ない標本を混ぜ、below の境界が0より大きくなるようにする。
+        let mut samples: Samples = BTreeMap::new();
+        samples.insert(
+            "ja.demonstrative_per_1k".into(),
+            vec![40.0, 42.0, 44.0, 46.0, 48.0, 50.0, 52.0, 54.0],
+        );
+        let profile = build_profile("custom".into(), &spec(), &samples);
+        let t = profile
+            .thresholds
+            .get("ja.demonstrative_per_1k")
+            .expect("この標本なら較正できるはずである");
+        assert_eq!(t.direction, Dir::Below);
+        assert!(
+            t.value > 0.0,
+            "below の閾値が発火しうる値域に入っていない: {}",
+            t.value
+        );
+
+        // 「これ」を指示詞として認識させる。ほかの語は自立語として数えない設定にする。
+        let morph = FakeMorphology::from_spec("これ|代名詞|||和 設定|名詞|普通名詞||漢");
+        assert!(!morph.tokenize("これ").is_empty(), "テスト設定を確かめる");
+
+        // 境界を下回る（指示詞が少ない）文書。findings に出るはずである。
+        let sparse = Document::parse("設定を確認する。\n");
+        let r = suikou_core::check::evaluate(&sparse, Lang::Ja, &morph, &profile);
+        assert!(
+            r.document
+                .iter()
+                .any(|m| m.metric == "ja.demonstrative_per_1k"),
+            "境界を下回ったのに発火していない: {:?}",
+            r.document
+        );
+
+        // 境界を上回る（指示詞が多い）文書。findings に出ないはずである。
+        let dense = Document::parse(
+            "これ。これ。これ。これ。これ。これ。これ。これ。これ。これ。\
+             これ。これ。これ。これ。これ。これ。これ。これ。これ。これ。\n",
+        );
+        let r = suikou_core::check::evaluate(&dense, Lang::Ja, &morph, &profile);
+        assert!(
+            !r.document
+                .iter()
+                .any(|m| m.metric == "ja.demonstrative_per_1k"),
+            "境界を上回ったのに発火している: {:?}",
+            r.document
+        );
     }
 }

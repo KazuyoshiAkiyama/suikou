@@ -381,6 +381,29 @@ value rather than the shape of the distribution. Filling an uncalibrated metric 
 or a placeholder would hide the missing evidence from whoever reads the profile, so that
 metric is left out of the output, and the reason goes to standard error instead.
 
+That first implementation carried a defect. A below-direction metric is a ratio or a
+per-thousand count, and both stay at or above zero by construction. When the samples
+cluster tightly, Q1 - 1.5*IQR can fall below zero. Calibrating against this project's own
+Japanese documents (`docs/content/ja/*.md`, `README.ja.md`, `CLAUDE.md`, `TASKS.md`)
+produced exactly that: a fence of -4.96 for `ja.demonstrative_per_1k` and -4.98 for
+`ja.keishiki_meishi_per_1k`. Since a density or a ratio never goes negative, no real
+document can satisfy the below check (`value < threshold`) against a negative threshold,
+so the rule can never fire. The profile still parses as valid TOML, so running
+`suikou check` against it reports nothing, and a check that only reads "nothing reported"
+mistakes this defect for a successful calibration.
+
+Clamping the fence to zero was not the fix. A density or a ratio is already bounded at
+zero, so a threshold of exactly zero still asks for a value strictly less than zero, which
+still never happens; clamping trades one unreachable threshold for another. Instead, a
+below fence at or under zero is now treated as a calibration failure, the same way too few
+samples is: that metric is dropped from the output and the reason goes to standard error.
+
+The above direction gets no matching treatment. Every metric shares the same lower bound
+(zero), but metrics do not share an upper bound: a ratio tops out at 1, while a
+per-thousand count has no fixed ceiling. Bringing a per-metric ceiling into the
+calibration logic would mix metric-specific knowledge into code that otherwise stays
+generic, so the fix stays on the below side only.
+
 `guidance`, `direction`, and `severity` all carry over from the bundled oss profile
 unchanged. Rewriting that text on every baseline run would leave the baseline output
 stale the next time someone edits oss.toml, so calibration touches only `value`.
@@ -392,3 +415,9 @@ bundled profiles' order of magnitude, unverified. The documents under
 there reaches the four-sample minimum. TASKS.md records this as open until someone runs
 `suikou baseline` against a real human corpus and checks the result against
 `corpus/baselines.toml`.
+
+A below-direction threshold that does survive calibration has been confirmed to work.
+Calibrating against the documents above left `ja.prose_ratio` (fence 0.69) in the profile,
+and running `suikou check --profile` with it against a document that is mostly bullet
+lists fires the rule, while running it against a prose-only document does not, both
+confirmed against real command output.
