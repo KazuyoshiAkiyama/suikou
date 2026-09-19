@@ -166,7 +166,7 @@ hooks から高頻度で起動する用途で要る。
 
 WSL2 での動作確認が必要になる。
 
-## T10 リリースと配布（ワークフローは整備済み。公開は未実施）
+## T10 リリースと配布（ワークフローは検証済み。公開は未実施）
 
 `.github/workflows/release.yml` がタグ `v*` の push で動く。
 検証、3ターゲットのビルド、梱包、下書きのリリース作成までを行う。
@@ -189,11 +189,26 @@ macOS と Windows のランナーは act では動かせないため、この二
 既存の `ci.yml` も `act` で通した。rust と python の両ジョブが成功し、
 参照実装が `rules.json` の期待値を再現することも確認できている。
 
-### GitHub でしか分からないこと
+### GitHub Actions で確認した範囲
 
-- `aarch64-apple-darwin` のビルドと `tar -cJf` の可用性
-- `x86_64-pc-windows-msvc` のビルドと `7z` の可用性
-- `actions/upload-artifact` と `gh release create` の実際の挙動
+`workflow_dispatch` で一度走らせ、`verify` と3ターゲットの `build` がすべて成功した。
+
+| ターゲット | アーカイブ | バイナリ |
+|---|---|---|
+| x86_64-unknown-linux-musl | 27 MB | ELF 静的 200.9 MB |
+| aarch64-apple-darwin | 28 MB | Mach-O arm64 202.2 MB |
+| x86_64-pc-windows-msvc | 42 MB | PE32+ 200.3 MB |
+
+辞書を読めることの確認は3プラットフォームすべてで通った。
+macOS の `tar -cJf` と Windows の `7z` はどちらも使える。
+Windows の zip は xz より圧縮率が落ちるため大きい。
+
+`release` ジョブはタグがないため skip された。
+
+### まだ確認していないこと
+
+`gh release create` はタグを打たないと走らない。
+サブコマンドが `todo!()` のうちはタグを打たないため、ここは開いたままになる。
 
 ## 保留している判断
 
