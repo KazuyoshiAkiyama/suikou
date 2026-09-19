@@ -1,0 +1,29 @@
+# suikou の文書サイト。既定の言語は英語とする。
+#
+# テーマを外部から取らない。依存を増やさないためであり、
+# 版の固定という本体の方針を文書側でも保つためでもある。
+
+baseURL = "https://kazuyoshiakiyama.github.io/suikou/"
+title = "suikou"
+defaultContentLanguage = "en"
+defaultContentLanguageInSubdir = false
+enableGitInfo = false
+
+[languages]
+  [languages.en]
+    languageName = "English"
+    languageCode = "en"
+    contentDir = "content/en"
+    weight = 1
+  [languages.ja]
+    languageName = "日本語"
+    languageCode = "ja"
+    contentDir = "content/ja"
+    weight = 2
+
+[markup.goldmark.renderer]
+  unsafe = false
+
+[markup.tableOfContents]
+  startLevel = 2
+  endLevel = 3

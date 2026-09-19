@@ -1,175 +1,133 @@
 # suikou
 
-技術文書の lint とハーネス。日本語と英語に対応する。
+A linter and harness for technical documentation. It handles Japanese and English.
 
-生成AIが書いた技術文書には、単語の選び方にとどまらない特徴がある。
-比喩の多用、文末表現の偏り、接続のこなれなさ、
-そして必要以上に具体的で保守しにくい構造がこれにあたる。
-suikou はこれらを検出し、同時に文書の保守性を高める。
+Technical documentation written by generative AI carries habits that go beyond word choice.
+It leans on figures of speech, it repeats the same sentence endings, it joins sentences
+awkwardly, and it spells out details that make the document hard to maintain later.
+suikou finds these habits in the document.
+It then moves the document toward a shape that stays maintainable.
 
-## 設計の要点
+[日本語](README.ja.md) · [Documentation](docs/)
 
-### 規則はすべて実測か明文の規範に基づく
+## How it is built
 
-直感で決めた規則は入れていない。
-直感に基づく文体特徴は、実証すると大半が外れる。
-翻訳調の研究とAI文の研究という独立した二つの領域で、同じことが確認されている。
+### Every rule rests on a measurement or on a written standard
 
-閾値の根拠は `corpus/baselines.toml` にある。
-採用しなかった指標と、その理由も記録してある。
+Not one rule here came from a hunch.
+Hunches about style turn out to be wrong most of the time once someone measures them.
+Research on translationese and research on AI prose found this same result, and the two
+lines of research were separate.
 
-### 検出対象は二つに分かれる
+The measurements behind each threshold live in `corpus/baselines.toml`.
+The metrics that were rejected are recorded there as well, together with the reason.
+They stay on record so that nobody has to test the same hunch twice.
 
-行や文の単位で真偽が決まり位置を持つものと、
-文書全体でしか計算できず位置を持たないものがある。
-後者の多くは欠落の指摘であり、原理的に位置がない。
+### What the tool finds splits into two groups
 
-この分割が「一度の実行で、一度の修正で済ませる」という要件の実装形になっている。
-局所指摘がどこを直すかを伝え、文書指標から合成した方針がどう直すかを伝える。
+Some problems are true or false at the level of a line or a sentence, and those problems
+carry a position. Other problems can only be measured across the whole document, and
+those problems carry no position. Most of the problems in the second group report
+something that is missing from the document, and something that is missing has nowhere
+to point.
 
-### 保守性の層は AI 臭さと独立している
+That split is what lets one run and one edit finish the work.
+The findings that carry a position say where to edit.
+The guidance built from the whole document says how to edit.
+Because both arrive together, no layer has to be linted and fixed in a separate pass.
 
-M1 から M7 は Google developer documentation style guide の明文規定に基づく。
-AI 以前から存在する問題であり、モデルの世代交代でも陳腐化しない。
-この層だけを単体で使うこともできる。
+### The maintainability layer stands apart from AI style
 
-## 文書
+Rules M1 through M7 come from the Google developer documentation style guide.
+Those rules describe a problem that predates generative AI, so those rules do not age as
+models change. That is why this layer can be used on its own. A document written before
+generative AI existed, for example, breaks the same rules in the same way.
 
-| 文書 | 内容 |
-|---|---|
-| `CLAUDE.md` | 作業を始めるときに最初に読む。守るべき制約 |
-| `TASKS.md` | 作業の順序と完了条件 |
-| `docs/DESIGN.md` | 設計の全体。実測値と根拠を含む |
-| `docs/METRICS.md` | 指標の厳密な定義。移植に使う |
-| `docs/DECISIONS.md` | 決定の経緯 |
+## Installing
 
-## 構成
-
-| 場所 | 内容 |
-|---|---|
-| `crates/suikou-core` | 解析の中核 |
-| `crates/suikou-cli` | CLI と MCP サーバ |
-| `packages/` | textlint の局所ルール |
-| `skills/suikou` | エージェント向けのスキル |
-| `research/` | 較正と探索に使う Python 実装 |
-| `corpus/` | ベースラインの実測値と取得スクリプト |
-
-## インストール
-
-### ビルド済みバイナリ
-
-GitHub Releases に OS ごとのアーカイブを置いてある。
-辞書を同梱してあるため、取得したあとはネットワークを必要としない。
-
-| OS | アーカイブ |
-|---|---|
-| Linux (x86_64) | `suikou-v<version>-x86_64-unknown-linux-musl.tar.xz` |
-| macOS (Apple Silicon) | `suikou-v<version>-aarch64-apple-darwin.tar.xz` |
-| Windows (x86_64) | `suikou-v<version>-x86_64-pc-windows-msvc.zip` |
-
-Linux は musl で静的にリンクしてあるため、glibc の版に依存せずに動く。
+GitHub Releases carries an archive for each operating system.
+Each archive embeds the dictionary, so nothing has to be downloaded afterward.
+The Linux build links musl statically, so it runs whatever version of glibc is present.
 
 ```sh
 tar xf suikou-v<version>-<target>.tar.xz
 cd suikou-v<version>-<target>
 install -m 755 suikou ~/.local/bin/
-```
-
-Windows では zip を展開し、`suikou.exe` を PATH の通った場所に置く。
-
-取得したファイルは同じリリースにある `SHA256SUMS` で検証できる。
-
-```sh
-sha256sum -c SHA256SUMS --ignore-missing
-```
-
-入ったバイナリが期待どおりかは `suikou selftest` で確かめられる。
-辞書を実際に読んで解析させるため、辞書の欠けた版を掴んでいれば分かる。
-
-```sh
 suikou selftest
 ```
 
-アーカイブには `SKILL.md` を入れてある。
-エージェントから使う場合は、これをスキルとして取り込む。
+On Windows, open the zip and put `suikou.exe` somewhere on the PATH.
 
-### ソースから入れる
+`suikou selftest` loads the dictionary and asks the dictionary to analyze a sentence.
+If the binary you hold is missing the dictionary, the command fails there.
+The check works this way because a printed flag can claim a dictionary that was never
+linked into the binary.
+
+To install from source, name the feature.
 
 ```sh
 cargo install --git https://github.com/KazuyoshiAkiyama/suikou suikou-cli --features lindera-unidic
 ```
 
-`--features lindera-unidic` を省くと辞書を含まない版が入る。
-その版は英語だけを扱い、日本語を指定すると明示的に落ちる。
-黙って空の解析結果を返すと、漢語率も連用中止も 0 になり「指摘なし」という誤った結論が出るためである。
+Leaving the feature out installs a build with no dictionary.
+That build handles English only. Asking that build for Japanese makes it fail on the spot.
+Returning an empty analysis would drive every Japanese metric to zero.
+Zero sits below the thresholds, so the run would end in a false report of nothing to fix.
 
-どちらの版が入っているかは `suikou --version` で判別できる。
-辞書の有無でバイナリの大きさが変わる。同梱版は約190MB、辞書なしは約1MBである。
-
-## 使い方
+## Using it
 
 ```sh
-# 書き始める前に
-suikou brief --profile oss --lang ja
-
-# 書いた後に
 suikou check docs/guide.md
-
-# 自前のコーパスから閾値を作り直す
-suikou baseline 'docs/**/*.md'
 ```
 
-## 開発
+The [documentation](docs/) covers installation and use in full.
+
+## Documentation
+
+The documentation lives in `docs/`. The documentation builds with Hugo, and it carries
+both English and Japanese. English is the default language.
 
 ```sh
-cargo test --all          # 形態素解析なしで本体のロジックを検証する
-cargo test --all --features lindera-unidic
+cd docs && hugo server
 ```
 
-既定の feature には lindera を含めていない。
-辞書を落とさずに本体のテストが回るため、変更の検証が速い。
-
-### バージョンの固定
-
-依存は `=` で厳密に固定してある。`Cargo.lock` もコミットする。
-
-lindera は特に厳密に扱う。API の形と UniDic の素性の並びがバージョンで変わり、
-並びがずれると語種と活用形が静かに壊れるためである。
-漢語率と連用中止がこの二つに依存しているため、
-壊れた値のまま動くと、指摘の内容そのものが誤りになる。
-
-### 形態素解析の扱い
-
-バージョンに依存するコードは `crates/suikou-core/src/tokenizer.rs` の
-`LinderaMorphology` だけに閉じ込めてある。
-ほかのモジュールは `Morphology` トレイト越しにしか形態素解析を使わない。
-テストでは `FakeMorphology` を使うため、辞書がなくてもロジックを検証できる。
-
-`LinderaMorphology::new` は起動時に `verify_schema` を呼ぶ。
-既知の語を流して、品詞、語種、活用形が想定の位置から取れることを確かめる。
-ずれていれば、どの定数を直すべきかを示して落ちる。
-黙って誤った値を返すより落ちる方がよい。
-
-### 指標の仕様とゴールデンテスト
-
-指標の厳密な定義は `docs/METRICS.md` にある。
-`research/` の Python 実装が参照実装であり、
-`tests/golden/` がその出力を固定している。
-
-## 状態
-
-解析の中核まで。CLI はまだ動かない。
-test、fmt、clippy が既定の feature でも `--features lindera-unidic` でも通る。
-ゴールデンテストが、M 系の件数と文書指標を `research/` の参照実装と突き合わせている。
-
-| 部分 | 状態 |
+| Page | Content |
 |---|---|
-| ブロック抽出と前処理 | 実装済み。単体テストあり |
-| M1 から M7 | 実装済み。単体テストあり |
-| 日本語の文書指標 | 実装済み。`Morphology` 越しに動く |
-| 英語の文書指標 | 実装済み |
-| 出力スキーマと Markdown 整形 | 実装済み |
-| lindera の接続 | 実装済み。lindera 6.0.0 で検証済み |
-| ゴールデンテスト | M 系と文書指標は接続済み |
-| CLI の各サブコマンド | 未実装。`main.rs` の `todo!` |
-| textlint の局所ルール | 未実装 |
+| design | The design as a whole, with the measurements behind it |
+| metrics | The strict definition of each metric, for anyone porting them |
+| decisions | The reasoning behind each decision |
+| development | How to build, how versions are pinned, how the tokenizer is handled |
+
+`CLAUDE.md` records the constraints, and `TASKS.md` records the order of work.
+
+## Layout
+
+| Path | Content |
+|---|---|
+| `crates/suikou-core` | The analysis core |
+| `crates/suikou-cli` | The CLI and the MCP server |
+| `packages/` | The textlint rules that carry a position |
+| `skills/suikou` | The skill for agents |
+| `research/` | The Python used for calibration and exploration |
+| `corpus/` | The measurements and the script that fetches the corpus |
+
+## State
+
+The analysis core and `check` are written. The other subcommands are not.
+Tests, fmt, and clippy pass under the default features and under
+`--features lindera-unidic`.
+
+| Part | State |
+|---|---|
+| Block extraction and preprocessing | Written, with unit tests |
+| Rules M1 through M7 | Written, with unit tests |
+| Japanese and English document metrics | Written |
+| The `check` subcommand | Written |
+| The lindera binding | Written and checked against lindera 6.0.0 |
+| Golden tests | Wired up for the rules and the document metrics |
+| The other subcommands | Not written |
+| The textlint rules | Not written |
+
+## License
+
+MIT or Apache-2.0, whichever you prefer.

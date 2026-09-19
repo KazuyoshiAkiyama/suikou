@@ -4,6 +4,8 @@ __pycache__/
 .venv/
 /corpus/cache/
 /.suikou/
+/docs/public/
+/docs/.hugo_build.lock
 
 # Cargo.lock は**コミットする**。バイナリを配布するワークスペースであり、
 # 再現可能なビルドのために必要。無視しないこと。

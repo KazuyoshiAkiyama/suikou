@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="{{ .Site.Language.LanguageCode }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ if .IsHome }}{{ .Site.Title }}{{ else }}{{ .Title }} — {{ .Site.Title }}{{ end }}</title>
+<style>
+:root { --fg: #1a1a1a; --bg: #fff; --muted: #666; --rule: #e0e0e0; --link: #1a4f8a; }
+@media (prefers-color-scheme: dark) {
+  :root { --fg: #e8e8e8; --bg: #16181c; --muted: #9aa0a6; --rule: #2e3238; --link: #7fb3ec; }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0 auto; padding: 2rem 1.25rem; max-width: 48rem;
+  background: var(--bg); color: var(--fg);
+  font-family: system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  line-height: 1.8; font-size: 16px;
+}
+a { color: var(--link); }
+header { border-bottom: 1px solid var(--rule); margin-bottom: 2rem; padding-bottom: 1rem; }
+header nav a { margin-right: 1rem; }
+h1, h2, h3 { line-height: 1.4; }
+h2 { margin-top: 2.5rem; border-bottom: 1px solid var(--rule); padding-bottom: .3rem; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; }
+pre { background: rgba(127,127,127,.12); padding: 1rem; overflow-x: auto; border-radius: 4px; }
+table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--rule); padding: .4rem .6rem; text-align: left; }
+footer { margin-top: 4rem; border-top: 1px solid var(--rule); padding-top: 1rem; color: var(--muted); font-size: .9em; }
+</style>
+</head>
+<body>
+<header>
+<nav>
+<a href="{{ "/" | relLangURL }}">{{ .Site.Title }}</a>
+{{ range .Site.Home.Translations }}<a href="{{ .RelPermalink }}">{{ .Site.Language.LanguageName }}</a>{{ end }}
+</nav>
+</header>
+<main>{{ block "main" . }}{{ end }}</main>
+<footer>MIT OR Apache-2.0</footer>
+</body>
+</html>
