@@ -30,10 +30,11 @@ test と fmt と clippy が、既定の feature でも `--features lindera-unidi
 | 日本語と英語の文書指標 | 書いてある |
 | 出力の形と Markdown の整形 | 書いてある |
 | lindera の接続 | 書いてある。lindera 6.0.0 で確かめた |
-| `check` と `selftest` | 書いてある |
+| `check`、`brief`、`baseline`、`terms`、`selftest` | 書いてある |
 | ゴールデンテスト | M 系と文書指標をつないである |
-| ほかのサブコマンド | まだ書いていない。`todo!` が置いてある |
-| textlint の規則 | まだ書いていない |
+| `mcp` | 書いてある。依存を足さず JSON-RPC を自分で書いた |
+| `daemon` | 置かない。起動が数ミリ秒で済むと測ったため |
+| textlint の規則 | 書いてある。ゴールデンの件数が Rust と一致する |
 | 配る用のワークフロー | 3つの対象で確かめた。タグを打つまで配られない |
 
 ## 作りとテスト

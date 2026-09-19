@@ -121,7 +121,7 @@ cd docs && hugo server
 
 ## 状態
 
-解析の中核と `check` まで書いてある。ほかのサブコマンドはまだ書いていない。
+サブコマンドはすべて書いてある。ただし `daemon` は置かないと決めた。起動が数ミリ秒で済むためである。
 test と fmt と clippy は、既定の feature でも `--features lindera-unidic` でも通る。
 
 | 部分 | 状態 |
@@ -132,8 +132,8 @@ test と fmt と clippy は、既定の feature でも `--features lindera-unidi
 | `check` サブコマンド | 書いてある |
 | lindera の接続 | 書いてある。lindera 6.0.0 で確かめた |
 | ゴールデンテスト | M 系と文書指標をつないである |
-| ほかのサブコマンド | まだ書いていない |
-| textlint の局所ルール | まだ書いていない |
+| `brief`、`baseline`、`terms`、`mcp` | 書いてある |
+| textlint の局所ルール | 書いてある |
 
 ## ライセンス
 

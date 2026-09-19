@@ -125,7 +125,8 @@ cd docs && hugo server
 
 ## State
 
-The analysis core and `check` are written. The other subcommands are not.
+Every subcommand is written, except that `daemon` was decided against. Launching the
+binary takes a few milliseconds, which leaves a resident process nothing to save.
 Tests, fmt, and clippy pass under the default features and under
 `--features lindera-unidic`.
 
@@ -137,8 +138,8 @@ Tests, fmt, and clippy pass under the default features and under
 | The `check` subcommand | Written |
 | The lindera binding | Written and checked against lindera 6.0.0 |
 | Golden tests | Wired up for the rules and the document metrics |
-| The other subcommands | Not written |
-| The textlint rules | Not written |
+| `brief`, `baseline`, `terms`, and `mcp` | Written |
+| The textlint rules | Written |
 
 ## License
 
