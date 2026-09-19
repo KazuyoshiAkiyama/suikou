@@ -4,6 +4,7 @@
 //! 文書指標を textlint の中に収めない理由は、収めると解析基盤が JS に縛られ、
 //! 検証済みの指標を実装の都合で捨てることになるためである。
 
+mod baseline;
 mod brief;
 mod check;
 mod morphology;
@@ -62,7 +63,17 @@ enum Command {
         quiet: bool,
     },
     /// コーパスから閾値を較正しプロファイルを生成する
-    Baseline { paths: Vec<String> },
+    Baseline {
+        paths: Vec<String>,
+        #[arg(long, default_value = "auto")]
+        lang: String,
+        /// 生成するプロファイルの名前
+        #[arg(long, default_value = "custom")]
+        name: String,
+        /// 出力先。省略時は標準出力に出す
+        #[arg(long)]
+        out: Option<String>,
+    },
     /// 文書群から用語集と allowlist を抽出する
     Terms { paths: Vec<String> },
     /// MCP サーバとして起動する
@@ -132,7 +143,17 @@ fn main() -> Result<()> {
             })?;
             std::process::exit(code);
         }
-        Command::Baseline { .. } => todo!("baseline"),
+        Command::Baseline {
+            paths,
+            lang,
+            name,
+            out,
+        } => baseline::run(baseline::Options {
+            paths,
+            lang,
+            name,
+            out,
+        }),
         Command::Terms { .. } => todo!("terms"),
         Command::Mcp => todo!("mcp"),
         Command::Daemon => todo!("daemon"),

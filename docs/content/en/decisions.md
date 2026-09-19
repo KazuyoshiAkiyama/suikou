@@ -350,3 +350,45 @@ sentences form further, and detailed adds the reasoning behind each rule.
 The profile-based option stays on the list of open questions. Whether to move detail
 onto a profile is a call this project can make once a real request for a per-project
 default shows up, not before.
+
+## D-22 The baseline threshold uses the Tukey outlier fence
+
+Implementing `suikou baseline` called for a way to pick the threshold value.
+`docs/content/en/design.md` places each threshold between the top of the human range and
+the bottom of the AI range, for example the 0.60 line drawn for `ja.mattr100`. Baseline,
+though, only ever sees a human corpus, so it never learns where the AI range sits.
+
+The approach chosen derives a boundary from the human distribution alone: a point that
+the distribution itself would call an outlier.
+
+That boundary follows the Tukey outlier fence. The interquartile range is the gap between
+the first and third quartiles, and the fence sits `FENCE_K` times that range beyond the
+nearer quartile. The coefficient 1.5 comes from Tukey's definition of an "outlier" and is
+a standard choice in statistics, easier to justify than an ad-hoc margin invented for this
+project. A looser coefficient of 3.0 defines Tukey's "far out" points, but with the small
+sample counts baseline typically works with, that wider fence would push the threshold too
+far out to mean much, so this project does not use that coefficient.
+
+The quartiles come from the hinge method: split the sorted sample at the median into two
+halves and take the median of each half as Q1 and Q3. An odd-length sample excludes the
+middle value from both halves. A percentile method with linear interpolation exists too,
+but the hinge method is simple enough that its expected values can be checked by hand in a
+test.
+
+A metric with fewer than four samples goes uncalibrated. With three samples or fewer, one
+half of the split collapses to a single value, so the interquartile range tracks that one
+value rather than the shape of the distribution. Filling an uncalibrated metric with zero
+or a placeholder would hide the missing evidence from whoever reads the profile, so that
+metric is left out of the output, and the reason goes to standard error instead.
+
+`guidance`, `direction`, and `severity` all carry over from the bundled oss profile
+unchanged. Rewriting that text on every baseline run would leave the baseline output
+stale the next time someone edits oss.toml, so calibration touches only `value`.
+
+The corpus that `corpus/fetch.sh` would fetch is not available here; licensing keeps it
+out of the repository. That leaves the reproduction of `corpus/baselines.toml`, and of the
+bundled profiles' order of magnitude, unverified. The documents under
+`tests/golden/input/` are too few to substitute either, for instance no single metric
+there reaches the four-sample minimum. TASKS.md records this as open until someone runs
+`suikou baseline` against a real human corpus and checks the result against
+`corpus/baselines.toml`.

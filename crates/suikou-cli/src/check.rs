@@ -40,7 +40,9 @@ pub(crate) fn load_profile(name: &str) -> Result<Profile> {
     toml::from_str(&src).with_context(|| format!("{name} を解釈できない"))
 }
 
-fn resolve_lang(spec: &str, text: &str) -> Result<Lang> {
+// `baseline` サブコマンドも同じ集め方と言語判定を要るため、crate 内に公開する。
+// 重複させると、パスの集め方が check と baseline で黙って食い違う経路ができる。
+pub(crate) fn resolve_lang(spec: &str, text: &str) -> Result<Lang> {
     match spec {
         "auto" => Ok(detect_lang(text)),
         "ja" => Ok(Lang::Ja),
@@ -49,7 +51,7 @@ fn resolve_lang(spec: &str, text: &str) -> Result<Lang> {
     }
 }
 
-fn collect(paths: &[String]) -> Result<Vec<PathBuf>> {
+pub(crate) fn collect(paths: &[String]) -> Result<Vec<PathBuf>> {
     let mut out = Vec::new();
     for p in paths {
         let path = PathBuf::from(p);
