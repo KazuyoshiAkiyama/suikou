@@ -13,6 +13,18 @@ use suikou_core::report::{Report, Severity};
 
 use crate::morphology;
 
+/// 1つの文書を解析してレポートを作る。
+///
+/// `run` のループと `mcp` サブコマンドの `check` ツールから共有して使う。
+/// 判定のロジックを CLI と MCP で二重に書かないための関数である。
+pub(crate) fn analyze(src: &str, lang_spec: &str, profile: &Profile) -> Result<(Lang, Report)> {
+    let doc = Document::parse(src);
+    let lang = resolve_lang(lang_spec, src)?;
+    let morph = morphology::load(lang)?;
+    let report = evaluate(&doc, lang, morph.as_ref(), profile);
+    Ok((lang, report))
+}
+
 pub struct Options {
     pub paths: Vec<String>,
     pub format: String,
@@ -118,10 +130,7 @@ pub fn run(opts: Options) -> Result<i32> {
     for path in &files {
         let src = std::fs::read_to_string(path)
             .with_context(|| format!("{} を読めない", path.display()))?;
-        let doc = Document::parse(&src);
-        let lang = resolve_lang(&opts.lang, &src)?;
-        let morph = morphology::load(lang)?;
-        let mut report = evaluate(&doc, lang, morph.as_ref(), &profile);
+        let (_lang, mut report) = analyze(&src, &opts.lang, &profile)?;
         if let Some(b) = opts.budget {
             report.trim_to(b / files.len().max(1));
         }

@@ -80,6 +80,18 @@ Zero sits below the thresholds, so the run would end in a false report of nothin
 suikou check docs/guide.md
 ```
 
+`suikou mcp` starts an MCP server that speaks JSON-RPC 2.0 over stdio and answers
+`initialize`, `tools/list`, and `tools/call`. It exposes `check` and `brief` as tools,
+so an agent that supports MCP calls the same judgment the CLI uses, without parsing
+text meant for a terminal.
+
+```sh
+suikou mcp
+```
+
+Point an MCP client at that command by naming `suikou` and `mcp` as the command and
+its argument in the client's server configuration.
+
 The [documentation](docs/) covers installation and use in full.
 
 ## Documentation

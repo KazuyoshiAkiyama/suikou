@@ -7,6 +7,7 @@
 mod baseline;
 mod brief;
 mod check;
+mod mcp;
 mod morphology;
 mod terms;
 
@@ -88,7 +89,7 @@ enum Command {
     },
     /// MCP サーバとして起動する
     Mcp,
-    /// 常駐モードで起動する
+    /// 常駐モードについて、置かないと決めた理由を出す
     Daemon,
     /// インストールされたバイナリが期待どおりかを確かめる
     Selftest,
@@ -175,7 +176,20 @@ fn main() -> Result<()> {
             lang,
             min_count,
         }),
-        Command::Mcp => todo!("mcp"),
-        Command::Daemon => todo!("daemon"),
+        Command::Mcp => mcp::run(),
+        Command::Daemon => {
+            // T9 で、辞書の読み込み（0.7 ミリ秒）に続いてプロセス起動そのものの
+            // 費用を測った。release ビルドで `check` が数ミリ秒、`--version` が
+            // 1 ミリ秒台であり、hooks から Write や Edit のたびに起動する使い方でも
+            // 頭打ちにならない。常駐の形を置く根拠がないため実装しない。
+            // 測った値と判断の経緯は decisions.md の D-25 にある。
+            println!(
+                "daemon は用意しない。release ビルドでの起動は check で数ミリ秒、\n\
+                 --version で1ミリ秒台に収まり、辞書の読み込みを合わせても\n\
+                 hooks から都度起動する使い方で頭打ちにならないと測ってある。\n\
+                 測った値と判断は docs/content/ja/decisions.md の D-25 にある。"
+            );
+            Ok(())
+        }
     }
 }

@@ -76,6 +76,18 @@ feature を省くと辞書を含まない版が入る。
 suikou check docs/guide.md
 ```
 
+`suikou mcp` は、標準入出力で JSON-RPC 2.0 を話す MCP サーバとして起動する。
+`initialize`・`tools/list`・`tools/call` に応じ、`check` と `brief` を道具として出す。
+MCP に対応したエージェントは、端末向けの文字列を解釈し直さずに、CLI と同じ判定を
+そのまま呼び出せる。
+
+```sh
+suikou mcp
+```
+
+MCP クライアントの設定では、サーバの起動コマンドとして `suikou`、引数として `mcp`
+を指定する。
+
 詳しい入れ方と使い方は[文書](docs/)にある。
 
 ## 文書

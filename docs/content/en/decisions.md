@@ -607,3 +607,47 @@ The occurrence floor defaults to two. A word seen once gives no way to tell a te
 the field apart from an incidental phrase, and checking a term for consistency needs
 the same word to appear more than once in the first place. This default comes from
 that pair of goals rather than from measurement.
+
+## D-25 MCP hand-writes JSON-RPC instead of adding a dependency, and no daemon
+
+T9 needed two judgment calls: how to implement the MCP server, and whether to build a
+daemon.
+
+**MCP is implemented with `serde_json` alone.** The choice stood between adding a
+dedicated crate such as `rmcp` and hand-writing the three methods this server answers:
+`initialize`, `tools/list`, and `tools/call`. The set of requests it handles stops at
+those three; it uses none of resources, prompts, or server-initiated notifications. A
+dedicated crate would pin a crate version for features the server never calls, out of
+step with this repository's habit of pinning dependencies with `=` and rerunning
+`verify_schema` on every update. `serde_json` is already a dependency of both crates,
+so the new dependency count is zero. The stdio transport also reduces to one JSON-RPC
+message per line, a shape simple enough that hand-writing the transport carried little
+risk. The implementation lives in `crates/suikou-cli/src/mcp.rs`; the implementation
+calls `check::analyze` and `brief::run` and nothing else, so the judgment logic is not
+written twice between the CLI and the MCP paths.
+
+**No daemon.** The daemon's original justification was capping the cost of loading
+the dictionary once. The cost measured in T2, 0.68-0.70 ms in release, did not
+support that justification, and TASKS.md called for measuring the cost of process
+startup itself before deciding either way. A release build (`--features
+lindera-unidic`) ran `suikou check` against a short document fifty times, measuring
+wall-clock cost per run; `suikou --version` served as a comparison, its cost also
+measured over fifty runs. The table below lists the measured cost, from WSL2.
+
+| command | average cost | max cost |
+|---|---|---|
+| `suikou --version` | about 1.5-1.6 ms | about 1.9-2.4 ms |
+| `suikou check` (with the dictionary, short document) | about 3.7-3.9 ms | about 4.3-4.7 ms |
+
+`suikou --version` never loads the dictionary, so its cost stands for the cost of
+process startup on its own: reading the roughly 200 MB executable, linking the
+executable, and parsing its arguments. The added cost in `suikou check` runs a couple
+of milliseconds, the combined cost of loading the dictionary (0.7 ms) and measuring
+one short document. Both costs are negligible next to the seconds an LLM turn takes,
+the setting a hook that fires on every Write and Edit runs in. A daemon would add
+complexity of its own — for example, managing a socket or a named pipe, deciding how
+to detect file changes, and serializing concurrent callers — for a cost saving too
+small to justify that complexity. `suikou daemon` stays as a subcommand; running it
+prints the measured cost and this judgment instead of doing work. Keeping the
+subcommand, rather than removing the subcommand outright, lets a user who types it
+see directly why it does nothing.
