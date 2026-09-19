@@ -425,7 +425,9 @@ confirmed against real command output.
 ## D-23 Judgment calls in the textlint preset
 
 Writing `packages/textlint-rule-preset-tech-maintainability` (T7) raised several
-judgment calls that did not fit under one heading. They are laid out below.
+judgment calls that did not fit under one heading. Each judgment call is laid out below,
+and each judgment call gets its own paragraph so that the reasoning for one judgment call
+does not blur into the reasoning for the next judgment call.
 
 **textlint does not print `maint/` as the rule prefix under a standard config.** The
 brief for this task asked for rule IDs that match the Rust side, `maint/list-lead-in`
