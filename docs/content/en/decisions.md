@@ -651,3 +651,76 @@ small to justify that complexity. `suikou daemon` stays as a subcommand; running
 prints the measured cost and this judgment instead of doing work. Keeping the
 subcommand, rather than removing the subcommand outright, lets a user who types it
 see directly why it does nothing.
+
+## D-26 Off-register native words are found by comparing frequencies against a reference corpus
+
+A generative model translating English into Japanese sometimes swaps a Sino-Japanese
+word for a native one. 確認する becomes 確かめる, and 必要である becomes 要る.
+The result reads too soft for technical documentation, and it slows the reader down.
+
+What counts as the right register was settled without building a table of word pairs.
+A table would mean enumerating every difference in phrasing across every field.
+The rule compares frequencies against a corpus of professional Japanese translation
+instead.
+
+Measurement backs that decision.
+Looking at Kubernetes alone, 使う appears 320 times in the Sonnet translation against 33
+in the professional one, which invites a rule saying 使う should become 使用.
+Widening the corpus to Kubernetes, MDN, and Vue shows 使う 461 times in professional
+translation. Candidates such as 次 for 以下, 仕組み for メカニズム, and 既定 for
+デフォルト fell the same way. MDN uses 既定, so the convention differs by field.
+
+Two statistics decide a finding.
+The log-likelihood ratio from Dunning (1993) says whether the difference is significant,
+and the Log Ratio from Hardie (2014) says how large it is.
+Significance alone is not enough, because using an ordinary word slightly more often
+reaches significance on a corpus this size.
+
+The Log Ratio floor came from measurement.
+Twelve professional pages held out of the reference were compared against this
+repository's Japanese pages.
+A floor of 4 reports 9 words in the professional pages, a floor of 6 reports 1, and a
+floor of 7 reports none.
+The design treats a warning on human-written text as a false positive, so the floor sits
+where the professional pages come back clean, at the cost of missing some findings.
+
+Building the reference carries two conditions of its own.
+A tutorial must stay out: the Rust Book translation carries 確かめる 36 times, which would
+pull it into the reference. That agrees with the measured finding that the kind of
+document moves the metrics more than the register does.
+A word also has to appear in two fields or more, because a word confined to one field
+belongs to that field rather than to the reference.
+
+`.suikou/register-allow.toml` carries the words a project accepts.
+The reference is built from web documentation, which is thin on the vocabulary of
+measurement and arithmetic, and the project covers that gap itself.
+That is the same shape as D-11, where the glossary is built from the documents at hand.
+
+## D-27 The guidance attached to the kango ratio was wrong
+
+D7 told the writer to open kango into native verbs. Measurement contradicts that advice.
+
+Comparing the word origin of content words between professional translation and this
+repository gives the table below.
+
+| | Native | Sino-Japanese | Loanword | Mixed |
+|---|---|---|---|---|
+| Professional translation | 0.384 | 0.329 | 0.280 | 0.007 |
+| This repository | 0.470 | 0.463 | 0.050 | 0.017 |
+
+Professionals do not hold the kango ratio down by reaching for native verbs.
+They hold it down by using the established loanword, and their native share is in fact
+lower than this repository's.
+The guidance now reads: reach for the established loanword, and stop stacking kango nouns.
+
+The wrong guidance did real damage.
+Following it through a rewrite turned 検証 into 確かめ, 制約 into 縛り, and 抽出 into
+取り出し, and the register collapsed.
+The rule in D-26 exists to catch that collapse.
+
+Driving a metric to zero is not the goal.
+D7 carries the severity info, which marks it as advisory, and treating it as a gate was
+the original mistake.
+A document in this repository has to come back free of errors and warnings.
+Anything at info is read as advice and nothing more.
+

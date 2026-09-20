@@ -289,6 +289,37 @@ For English, a line ending in `etc.` `and so on` or `and more`.
 
 Both prose and list items are covered.
 
+## The register rule
+
+### register/rare-wago, a native word out of register
+
+The rule reports a native content word used far more often here than in professional
+Japanese translation.
+It covers content words whose origin is native, and it skips numerals and single
+katakana characters.
+Field terminology leans on Sino-Japanese words and loanwords, so covering native words
+alone keeps that terminology out of the findings.
+
+A word has to appear three times or more.
+A word used once cannot be told apart from a turn of phrase.
+
+Two statistics decide a finding.
+The log-likelihood ratio from Dunning (1993) has to reach 15.13, which is p < 0.0001 at
+one degree of freedom, and the Log Ratio from Hardie (2014) has to reach 7.0, which is
+128 times the reference rate. Significance alone is not enough, because using an ordinary
+word slightly more often reaches significance on a corpus this size.
+
+The reference lives in `crates/suikou-core/data/register_ja.toml`.
+It is a frequency table built from 652 pages of Kubernetes, MDN, and Vue in Japanese,
+holding roughly 290,000 content words.
+A tutorial stays out, because its register differs, and a word has to appear in two
+fields or more to be listed.
+`research/lexshift/build_reference.py` rebuilds it.
+
+Words listed in `.suikou/terms.toml` and `.suikou/register-allow.toml` are skipped.
+The reference is built from web documentation, which is thin on the vocabulary of
+measurement and arithmetic.
+
 ## Golden tests
 
 The expected values for each file under `tests/golden/input/` sit in

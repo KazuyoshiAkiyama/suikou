@@ -458,7 +458,7 @@ into native verbs.
 | D3 and D4, renyo is heavy | Split the clauses or switch to the te-form |
 | D5, formal nouns are scarce | Unpack nominalized kango into native phrasing |
 | D6, demonstratives are scarce | Link paragraphs with demonstratives instead of repeating nouns |
-| D7, kango ratio is high | Open kango into native verbs |
+| D7, kango ratio is high | Reach for the established loanword; stop stacking kango nouns |
 | D8, lists are heavy | Fold the lists back into prose |
 | D9, simile markers are scarce | Mark a comparison as a simile or as an example |
 

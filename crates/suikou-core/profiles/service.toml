@@ -48,7 +48,7 @@ guidance = "漢語の名詞化を「〜すること」等の和語表現に戻�
 value = 0.42
 direction = "above"
 severity = "info"
-guidance = "漢語を和語動詞に開く"
+guidance = "定着したカタカナ語を使い、漢語の名詞を重ねない。和語の動詞に置き換えてはならない"
 
 [thresholds."en.mattr100"]
 value = 0.71

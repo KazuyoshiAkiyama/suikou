@@ -3,7 +3,9 @@ node_modules/
 __pycache__/
 .venv/
 /corpus/cache/
-/.suikou/
+# 思考のメモと生成物は版管理しない。ただし文体の許可語は設定なので残す。
+/.suikou/*
+!/.suikou/register-allow.toml
 /.claude/
 /docs/public/
 /docs/.hugo_build.lock

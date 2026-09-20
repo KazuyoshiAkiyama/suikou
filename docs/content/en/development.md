@@ -166,5 +166,12 @@ The documentation in this repository follows the rules the tool enforces.
 - Avoid a word that depends on a moment in time.
 - Avoid a bare metaphor, reaching for a simile or a worked example instead.
 
+- Do not repeat a native word that professional technical Japanese avoids.
+
 Run `suikou check` over a page before committing that page.
-A tool whose own documentation breaks its own rules carries no weight at all.
+The bar is a page free of errors and warnings. Anything at info is advice.
+
+Driving a metric to zero is not the goal.
+The kango ratio sits at info, and an attempt to zero it turned 検証 into 確かめ and wrecked
+the register of every Japanese page. D-27 records what happened.
+To lower the kango ratio, reach for the established loanword rather than a native verb.

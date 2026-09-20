@@ -9,10 +9,11 @@ use crate::lang::Lang;
 use crate::markdown::Document;
 use crate::metrics;
 use crate::profile::Profile;
+use crate::register::{self, Reference};
 use crate::report::{Direction, DocumentMetric, Report};
 use crate::rules;
 use crate::tokenizer::Morphology;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 /// 指標の名前から値へ。名前はプロファイルの鍵と一致させる。
 pub fn measure(doc: &Document, lang: Lang, morph: &dyn Morphology) -> BTreeMap<String, f64> {
@@ -56,6 +57,18 @@ fn out_of_range(value: f64, threshold: f64, direction: Direction) -> bool {
 }
 
 pub fn evaluate(doc: &Document, lang: Lang, morph: &dyn Morphology, profile: &Profile) -> Report {
+    evaluate_with_glossary(doc, lang, morph, profile, &HashSet::new())
+}
+
+/// 分野で定まった語を渡して判定する。`suikou terms` の出力を渡せば、
+/// 分野の語が文体の指摘に出てこなくなる。
+pub fn evaluate_with_glossary(
+    doc: &Document,
+    lang: Lang,
+    morph: &dyn Morphology,
+    profile: &Profile,
+    glossary: &HashSet<String>,
+) -> Report {
     let values = measure(doc, lang, morph);
     let mut document = Vec::new();
     for (name, t) in &profile.thresholds {
@@ -74,10 +87,12 @@ pub fn evaluate(doc: &Document, lang: Lang, morph: &dyn Morphology, profile: &Pr
             guidance: t.guidance.clone(),
         });
     }
-    Report {
-        document,
-        local: rules::check_all(doc, lang, morph),
+    let mut local = rules::check_all(doc, lang, morph);
+    // 文体の規則は日本語だけに当てる。英語の参照コーパスはまだ作っていない。
+    if lang == Lang::Ja {
+        local.extend(register::check(doc, morph, Reference::builtin(), glossary));
     }
+    Report { document, local }
 }
 
 #[cfg(test)]

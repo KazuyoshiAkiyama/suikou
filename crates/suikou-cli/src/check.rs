@@ -5,7 +5,7 @@
 
 use anyhow::{bail, Context, Result};
 use std::path::{Path, PathBuf};
-use suikou_core::check::evaluate;
+use suikou_core::check::evaluate_with_glossary;
 use suikou_core::lang::{detect_lang, Lang};
 use suikou_core::markdown::Document;
 use suikou_core::profile::Profile;
@@ -17,11 +17,37 @@ use crate::morphology;
 ///
 /// `run` のループと `mcp` サブコマンドの `check` ツールから共有して使う。
 /// 判定のロジックを CLI と MCP で二重に書かないための関数である。
+#[derive(serde::Deserialize, Default)]
+struct AllowFile {
+    #[serde(default)]
+    words: Vec<String>,
+}
+
+/// 文体の指摘から外す語を集める。
+///
+/// `.suikou/terms.toml` は `suikou terms` が作る分野の語である。
+/// `.suikou/register-allow.toml` は、参照コーパスに無いが正しいと
+/// プロジェクトが判断した語を書く。参照コーパスの分野が偏っている分を補う。
+fn glossary() -> std::collections::HashSet<String> {
+    let mut out = std::collections::HashSet::new();
+    if let Ok(src) = std::fs::read_to_string(".suikou/terms.toml") {
+        if let Ok(t) = toml::from_str::<suikou_core::terms::Terms>(&src) {
+            out.extend(t.terms.into_iter().map(|x| x.word));
+        }
+    }
+    if let Ok(src) = std::fs::read_to_string(".suikou/register-allow.toml") {
+        if let Ok(a) = toml::from_str::<AllowFile>(&src) {
+            out.extend(a.words);
+        }
+    }
+    out
+}
+
 pub(crate) fn analyze(src: &str, lang_spec: &str, profile: &Profile) -> Result<(Lang, Report)> {
     let doc = Document::parse(src);
     let lang = resolve_lang(lang_spec, src)?;
     let morph = morphology::load(lang)?;
-    let report = evaluate(&doc, lang, morph.as_ref(), profile);
+    let report = evaluate_with_glossary(&doc, lang, morph.as_ref(), profile, &glossary());
     Ok((lang, report))
 }
 
