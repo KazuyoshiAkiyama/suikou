@@ -658,7 +658,7 @@ lindera-unidic is enough to compute it.
 D5 and D7 come next at info severity.
 Their thresholds get revisited once human baselines exist per kind of document.
 
-The English side, MCP, and resident mode come last.
+The English side and MCP come last. Resident mode is not built; D-25 records why.
 
 `jametrics.py`, `enmetrics.py`, and `mcheck.py` in the exploratory tier are the reference
 implementation for every metric.
