@@ -9,7 +9,7 @@
 ## 規則の中身
 
 規則の出典は Google developer documentation style guide の Lists、Headings、Timeless
-documentation の各節である。生成AI以前からある問題を扱うため、模型が世代を重ねても古びない。
+documentation の各節である。生成AI以前からある問題を扱うため、モデルが世代を重ねても古びない。
 規則の厳密な定めは
 [`docs/content/ja/metrics.md`](../../docs/content/ja/metrics.md)（「M 系の規則」の節）にある。
 
@@ -91,7 +91,7 @@ suikou の解析の中核は Rust の crate
 自身が持つ Markdown の AST は歩かない。ソフトラップで複数行にまたがる段落は、textlint
 の中ではひとつの結合したノードになる。結合後の文字列に対して判定すると、Rust 側では
 決して結び付けない語同士が正規表現の一致範囲に入ってしまう。行ベースの手順を移植した
-ことで、二つの道具の指摘の件数が一致する。このリポジトリの
+ことで、二つのツールの指摘の件数が一致する。このリポジトリの
 [ゴールデンテスト](../../tests/golden/)は、そのファイルごとの一致を確認ている。
 
 日本語の形態素解析も、もう一つの違いである。suikou-core は lindera 経由で UniDic を

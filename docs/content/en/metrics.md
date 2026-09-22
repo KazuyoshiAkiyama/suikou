@@ -320,6 +320,28 @@ Words listed in `.suikou/terms.toml` and `.suikou/register-allow.toml` are skipp
 The reference is built from web documentation, which is thin on the vocabulary of
 measurement and arithmetic.
 
+### register/prefer-katakana, a Sino-Japanese word where the loanword wins
+
+Some concepts are written either as a Sino-Japanese word or as a katakana loanword.
+Where professional Japanese translation prefers the loanword, the table carries the pair
+and the rule reports the Sino-Japanese side. A table decides this rather than a
+statistic, so every occurrence is reported.
+
+The table lives in `crates/suikou-core/data/kata_pairs_ja.toml`.
+Candidates were listed by hand, and measurement across fields decided which ones to keep:
+the loanword has to outnumber the Sino-Japanese word at least two to one, the pair has to
+reach twenty occurrences, and the Sino-Japanese side has to stay at or below sixty.
+
+That last condition avoids words with more than one sense.
+Professionals use 対象, 対応, and 状態 often, but not always in the sense the loanword
+carries. Restricting the table to words professionals barely use keeps each pair
+trustworthy as a substitution.
+
+A word preceded by a noun is skipped as part of a compound, since rewriting the 版 inside
+英語版 or 第3版 would be wrong.
+
+`.suikou/register-allow.toml` exempts a word a project uses in another sense.
+
 ## Golden tests
 
 The expected values for each file under `tests/golden/input/` sit in

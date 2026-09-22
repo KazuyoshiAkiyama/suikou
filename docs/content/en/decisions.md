@@ -766,3 +766,38 @@ MATTR, the prose ratio, and the simile markers measure something else, and they 
 back-translation.
 The failed side is kept so that nobody runs the same experiment twice.
 
+## D-29 A Sino-Japanese word loses to the loanword when the corpus says so
+
+D-26 decided against a table of word pairs, because the convention reverses between
+fields. That decision is revised for pairs of a Sino-Japanese word and a katakana
+loanword. A counter-example no longer disqualifies a pair: the side that wins across the
+fields as a whole is the side to follow.
+
+Several mechanical routes to synonymy were tried and dropped.
+Using an English word as a pivot and linking whatever co-occurs in the aligned paragraph
+finds collocations rather than synonyms, producing pairs such as 永続 with ボリューム and
+番号 with ポート. Lift and the Dice coefficient behave the same way.
+Substitution is about alternation, not co-occurrence, and a paragraph is the wrong unit
+to see it.
+
+Listing the candidates and deciding among them were therefore separated. A person lists
+them and measurement decides, which is the shape D-26 already used. Of 97 candidates, 53
+were kept.
+
+Three conditions decide. The loanword has to outnumber the Sino-Japanese word at least
+two to one, the pair has to reach twenty occurrences, and the Sino-Japanese side has to
+stay at or below sixty.
+
+That third condition keeps words with more than one sense out.
+Measurement shows professionals using 対象, 対応, 状態, and 場合 heavily, and not always
+in the sense the loanword carries. This repository uses 対象 for the scope a metric
+covers, which is not an object at all.
+Restricting the table to words professionals barely use keeps each pair trustworthy.
+
+A word preceded by a noun is skipped as part of a compound, since rewriting the 版 inside
+英語版 or 第3版 would be wrong.
+
+`.suikou/register-allow.toml` exempts a word a project uses in another sense. This
+repository exempts 記録, 一覧, 比率, 経路, 分岐, and 実体; 比率 means a ratio such as the
+kango ratio, not a rate.
+

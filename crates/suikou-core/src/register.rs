@@ -26,6 +26,7 @@ use std::collections::HashSet;
 use std::sync::OnceLock;
 
 pub const RULE_RARE_WAGO: &str = "register/rare-wago";
+pub const RULE_PREFER_KATAKANA: &str = "register/prefer-katakana";
 
 /// 同じ語がこの回数以上出たときだけ指摘する。
 /// 一度きりの語は、文体から外れているのか言い回しの綾なのかを判別できない。
@@ -52,6 +53,83 @@ const CONTENT: [&str; 5] = ["名詞", "動詞", "形容詞", "形状詞", "副�
 struct RawReference {
     meta: RawMeta,
     words: std::collections::HashMap<String, u64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawPairs {
+    pairs: std::collections::HashMap<String, String>,
+}
+
+/// 漢語よりカタカナ語が優勢な対応表。
+///
+/// プロの日本語訳で測ると、同じ意味に漢語とカタカナ語の両方が使われる組がある。
+/// 分野ごとに逆転する語もあるが、合計で優勢な側に従う。
+/// 多義語を避けるため、プロがその漢語をほとんど使っていない組だけを載せてある。
+/// 作り直す手順は `research/lexshift/kata_pairs.py` にある。
+pub fn katakana_pairs() -> &'static std::collections::HashMap<String, String> {
+    static P: OnceLock<std::collections::HashMap<String, String>> = OnceLock::new();
+    P.get_or_init(|| {
+        let raw: RawPairs = toml::from_str(include_str!("../data/kata_pairs_ja.toml"))
+            .expect("同梱の kata_pairs_ja.toml を読めない");
+        raw.pairs
+    })
+}
+
+/// 対応表に載る漢語を見つけて、カタカナ語を示す。
+///
+/// 統計ではなく対応表で判定するため、出現ごとに指摘する。
+/// 文書の分野で別の意味に使っている語は `.suikou/register-allow.toml` で外す。
+pub fn check_katakana(
+    doc: &Document,
+    morph: &dyn Morphology,
+    pairs: &std::collections::HashMap<String, String>,
+    allow: &HashSet<String>,
+) -> Option<LocalFinding> {
+    let mut positions = Vec::new();
+    for b in body_blocks(doc) {
+        let tokens = morph.tokenize(&b.text);
+        for (i, t) in tokens.iter().enumerate() {
+            if t.pos1 != "名詞" || t.goshu != "漢" {
+                continue;
+            }
+            // 直前が名詞なら複合語の一部とみなして見送る。
+            // 「英語版」「第3版」の「版」を「バージョン」に替えると誤りになる。
+            if i > 0 && tokens[i - 1].pos1 == "名詞" {
+                continue;
+            }
+            let lemma = if t.lemma.is_empty() {
+                &t.surface
+            } else {
+                &t.lemma
+            };
+            if allow.contains(lemma) || allow.contains(&t.surface) {
+                continue;
+            }
+            if let Some(kata) = pairs.get(lemma.as_str()) {
+                let excerpt: String = b.text.chars().take(44).collect();
+                positions.push(Position {
+                    line: b.line,
+                    column: 1,
+                    text: format!("{lemma}→{kata}｜{excerpt}"),
+                });
+            }
+        }
+    }
+    if positions.is_empty() {
+        return None;
+    }
+    let total = positions.len();
+    let kept: Vec<Position> = positions
+        .into_iter()
+        .take(crate::report::Report::MAX_POSITIONS_PER_RULE)
+        .collect();
+    Some(LocalFinding {
+        rule_id: RULE_PREFER_KATAKANA.to_string(),
+        severity: Severity::Warning,
+        message: "プロの技術文書ではカタカナ語の方が優勢である。示した語に置き換える".to_string(),
+        truncated: total - kept.len(),
+        positions: kept,
+    })
 }
 
 #[derive(Debug, Deserialize)]
@@ -273,6 +351,48 @@ mod tests {
     fn numerals_are_not_reported() {
         let d = doc_of("三を見る。\n\n三を見る。\n\n三を見る。\n");
         assert!(check(&d, &morph(), &reference(), &HashSet::new()).is_none());
+    }
+
+    #[test]
+    fn a_kango_in_the_pair_table_is_reported_with_its_katakana() {
+        let m = FakeMorphology::from_spec(
+            "版|名詞|普通名詞||漢 を|助詞|格助詞||和 見る|動詞|一般|終止形-一般|和",
+        );
+        let d = Document::parse("版を見る。\n");
+        let pairs = [("版".to_string(), "バージョン".to_string())]
+            .into_iter()
+            .collect();
+        let f = check_katakana(&d, &m, &pairs, &HashSet::new()).expect("指摘が出ていない");
+        assert_eq!(f.rule_id, RULE_PREFER_KATAKANA);
+        assert!(
+            f.positions[0].text.starts_with("版→バージョン"),
+            "{:?}",
+            f.positions[0].text
+        );
+    }
+
+    #[test]
+    fn a_kango_the_project_uses_in_another_sense_can_be_excluded() {
+        let m = FakeMorphology::from_spec(
+            "版|名詞|普通名詞||漢 を|助詞|格助詞||和 見る|動詞|一般|終止形-一般|和",
+        );
+        let d = Document::parse("版を見る。\n");
+        let pairs = [("版".to_string(), "バージョン".to_string())]
+            .into_iter()
+            .collect();
+        let allow: HashSet<String> = ["版".to_string()].into_iter().collect();
+        assert!(check_katakana(&d, &m, &pairs, &allow).is_none());
+    }
+
+    #[test]
+    fn the_builtin_pair_table_prefers_katakana_for_measured_words() {
+        let p = katakana_pairs();
+        assert_eq!(p.get("版").map(String::as_str), Some("バージョン"));
+        assert_eq!(p.get("利用者").map(String::as_str), Some("ユーザー"));
+        // 多義語は載せない。プロも別の意味で使うためである。
+        for w in ["対象", "対応", "場合", "設定", "状態"] {
+            assert!(!p.contains_key(w), "{w} が対応表にある");
+        }
     }
 
     #[test]

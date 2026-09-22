@@ -92,6 +92,12 @@ pub fn evaluate_with_glossary(
     // 同じ方法を英語で試したが、話題の語と文体の語を分けられず成立しなかった（D-28）。
     if lang == Lang::Ja {
         local.extend(register::check(doc, morph, Reference::builtin(), glossary));
+        local.extend(register::check_katakana(
+            doc,
+            morph,
+            register::katakana_pairs(),
+            glossary,
+        ));
     }
     Report { document, local }
 }
