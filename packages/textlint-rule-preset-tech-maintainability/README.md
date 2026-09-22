@@ -98,6 +98,11 @@ one noun category with a finer subcategory instead. The taigen check used by
 result. The reasoning and the probe that confirmed it are written up as D-23 in
 [`docs/content/en/decisions.md`](../../docs/content/en/decisions.md).
 
+The structural rules stay out of this package. `structure/missing-section` and the rules
+beside it ask whether a section is absent from the document, and an absent section has no
+node to report against. This is the same reason the document-wide metrics stay out, which
+D-01 records. The `suikou` binary carries those rules.
+
 One more difference is not structural but deliberate: `suikou check` always prints its
 explanation in Japanese, even for an English document. This package picks the explanation
 language to match the language it detects, because a message nobody in the room can read
