@@ -917,8 +917,11 @@ a document and the language of a heading need not agree.
 | English task pages | 120 | 9 (7.5%) |
 | Japanese task pages | 111 | 6 (5.4%) |
 | English concept pages run as `howto` | 120 | 117 (97.5%) |
+| Japanese concept pages run as `howto` | 120 | 116 (96.7%) |
 
-The two languages land in the same band. Reading the pages that fire, they genuinely
+The two languages land in the same band. Against documents of another type the rule fires
+on nearly every page, and against documents of its own type it stays nearly silent. That
+gap is what shows the type doing its work. Reading the pages that fire, they genuinely
 carry no `Before you begin`, and several declare `task` while reading as explanation:
 `Dependency on Docker explained` is one. These are places where Kubernetes departs from
 its own template, not false positives here.
