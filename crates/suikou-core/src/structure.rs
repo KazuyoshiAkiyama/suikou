@@ -61,6 +61,16 @@ pub struct Section {
     pub id: String,
     #[serde(default)]
     pub required: bool,
+    /// 標題の直下に置いた地の文で、この節を代えられるかどうか。
+    ///
+    /// 主題を述べる節にだけ与える。
+    /// RFC 7322 の abstract が標題と目次の間に見出し無しで入る前例であり、
+    /// README も同じ形を取る。見出しを強いると、かえって読みにくくなる。
+    ///
+    /// 前提や文脈のような節は、導入では代えられない。
+    /// 位置だけで決めると、最初の節が何であっても代えられてしまう。
+    #[serde(default)]
+    pub lead_ok: bool,
     /// その節が答える問い。書く前に示すために持つ。
     #[serde(default)]
     question: String,
@@ -102,10 +112,18 @@ impl Section {
     }
 
     /// 見出しがこの節にあたるかどうか。表記の揺れを同義語で吸収する。
-    pub fn matches(&self, heading: &str, lang: Lang) -> bool {
+    ///
+    /// 照合は両方の言語の同義語に対して行う。
+    /// 日本語の文書が英語の見出しを持つことがあるためである。
+    /// Kubernetes の日本語訳は `{{% heading "prerequisites" %}}` をそのまま使っており、
+    /// 日本語の同義語だけで照合すると111件中110件で節が無いと出た。
+    ///
+    /// 表示に使う名前は言語ごとに選ぶ。照合と表示で別の関数を使う。
+    pub fn matches(&self, heading: &str, _lang: Lang) -> bool {
         let h = heading.to_lowercase();
-        self.names(lang)
+        self.ja
             .iter()
+            .chain(self.en.iter())
             .any(|n| h.contains(&n.to_lowercase()))
     }
 }
@@ -319,9 +337,7 @@ pub fn check_universal(doc: &Document, lang: Lang) -> Vec<LocalFinding> {
 
 /// 標題の直後に、最初の節の見出しより前の地の文があるかどうか。
 ///
-/// ここに置いた段落は、見出しを持たなくても最初の節の役目を果たす。
-/// RFC 7322 の abstract が標題と目次の間に見出し無しで入る前例であり、
-/// README も同じ形を取る。見出しを強いると、かえって読みにくくなる。
+/// ここに置いた段落は、`lead_ok` を持つ節の役目を果たす。
 fn has_lead(doc: &Document) -> bool {
     let first_section = sections(doc).first().map(|o| o.block.line);
     doc.paragraphs()
@@ -339,8 +355,8 @@ pub fn check_doctype(doc: &Document, lang: Lang, dt: &DocType) -> Vec<LocalFindi
     for (i, sec) in dt.sections.iter().enumerate() {
         match heads.iter().position(|h| sec.matches(&h.block.text, lang)) {
             Some(at) => found.push((i, at)),
-            // 最初の節だけは、標題の直下の導入で代えられる。
-            None if i == 0 && lead => {}
+            // 主題を述べる節だけは、標題の直下の導入で代えられる。
+            None if i == 0 && lead && sec.lead_ok => {}
             None if sec.required => {
                 // 指摘は欠落を告げるだけにせず、何を書くかまで示す。
                 let name = sec.names(lang).first().cloned().unwrap_or_default();
@@ -479,6 +495,21 @@ mod tests {
         assert!(check_doctype(&doc(src), Lang::Ja, dt).is_empty());
     }
 
+    // 日本語の文書が英語の見出しを持つことがある。両方の同義語で照合する。
+    #[test]
+    fn an_english_heading_satisfies_a_section_in_a_japanese_document() {
+        let dt = doctypes().get("howto").unwrap();
+        let src = "# 手順\n\n## Before you begin\n\n用意する。\n\n## やり方\n\n操作する。\n";
+        assert!(check_doctype(&Document::parse(src), Lang::Ja, dt).is_empty());
+    }
+
+    #[test]
+    fn a_japanese_heading_satisfies_a_section_in_an_english_document() {
+        let dt = doctypes().get("howto").unwrap();
+        let src = "# Procedure\n\n## 前提\n\nSet up.\n\n## Steps\n\nRun it.\n";
+        assert!(check_doctype(&Document::parse(src), Lang::En, dt).is_empty());
+    }
+
     #[test]
     fn section_order_is_a_warning() {
         let dt = doctypes().get("decision").unwrap();
@@ -584,6 +615,24 @@ mod tests {
         let dt = doctypes().get("overview").unwrap();
         let src = "# suikou\n\n何であるかをここで述べる。\n\n## 使い方\n\n手順である。\n";
         assert!(check_doctype(&Document::parse(src), Lang::Ja, dt).is_empty());
+    }
+
+    // 導入で代えられるのは、主題を述べる節だけとする。
+    // 位置だけで決めると、最初の節が何であっても代えられてしまう。
+    #[test]
+    fn a_lead_paragraph_does_not_stand_in_for_a_section_that_is_not_the_subject() {
+        let dt = doctypes().get("howto").unwrap();
+        let src = "# 手順\n\n本文である。\n\n## やり方\n\n操作する。\n";
+        let f = check_doctype(&Document::parse(src), Lang::Ja, dt);
+        let m = f
+            .iter()
+            .find(|x| x.rule_id == RULE_MISSING_SECTION)
+            .unwrap();
+        assert!(
+            m.positions[0].text.starts_with("前提"),
+            "{:?}",
+            m.positions[0].text
+        );
     }
 
     // 代えられるのは最初の節だけとする。ほかの節は見出しを求める。

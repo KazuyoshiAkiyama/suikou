@@ -887,8 +887,41 @@ them. Forcing that heading would strip from the outline the one thing it carries
 is what each step does. That works against the guidance that the headings alone should
 carry the line of the argument.
 
-So `steps` and `verify` are no longer required. `prerequisites` stays required, and all
-120 pages satisfied it.
+So `steps` and `verify` are no longer required. `prerequisites` stays required.
+
+### Measuring again turned up two more defects
+
+The first run had all 120 pages satisfying `prerequisites`. They were not satisfying it;
+the rule was too loose to notice.
+
+Which section the lead paragraph could stand in for was decided by position. Any document
+with an opening paragraph therefore satisfied its first required section, whatever that
+section was. Running `howto` against 120 concept pages reported nothing on any of them,
+which is a type doing no work at all.
+
+Whether a section can be answered by an opening paragraph is a property of the section,
+not of its position. Only a section that states the subject now carries `lead_ok`.
+Prerequisites and context are not answered by an opening paragraph. After the change, 117
+of the 120 concept pages report a missing section, and the type discriminates.
+
+Section synonyms were matched against the document's own language alone. The Japanese
+translation of Kubernetes keeps the `{{%/* heading "prerequisites" */%}}` shortcode as
+written, so matching Japanese synonyms alone reported a missing section on 110 of 111
+pages. Matching now runs against the synonyms of both languages, because the language of
+a document and the language of a heading need not agree.
+
+### Rates after the repairs
+
+| Corpus | Pages | Missing a required section |
+|---|---|---|
+| English task pages | 120 | 9 (7.5%) |
+| Japanese task pages | 111 | 6 (5.4%) |
+| English concept pages run as `howto` | 120 | 117 (97.5%) |
+
+The two languages land in the same band. Reading the pages that fire, they genuinely
+carry no `Before you begin`, and several declare `task` while reading as explanation:
+`Dependency on Docker explained` is one. These are places where Kubernetes departs from
+its own template, not false positives here.
 
 ### Out of the detection, still in the guidance
 

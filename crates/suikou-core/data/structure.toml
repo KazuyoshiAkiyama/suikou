@@ -11,13 +11,16 @@
 # 節の名前だけは言語ごとに持つ。
 #
 # question と writes は、検出ではなく誘導のために持つ。言語ごとに持つ。
+#
+# lead_ok は、標題の直下の導入でその節を代えられることを示す。
+# 主題を述べる節にだけ与える。前提や文脈は導入では代えられない。
 # `suikou plot` と `suikou brief` が、書く前にこれを型枠として示す。
 
 [doctype.design]
 description = "提案と設計。何を作るか、なぜ要るか、どこまでやるかを示す"
 description_en = "A proposal or design: what is being built, why it is needed, and how far it goes"
 sections = [
-  { id = "summary",      required = true,  ja = ["概要", "要約", "何を作るか"], en = ["Summary", "Overview", "Abstract"] , question = "何についての文書か", writes = "読み手が最初の数行で主題をつかめるように、一段落で書く。詳細は後の節に置く" , question_en = "What is this document about?", writes_en = "Give the subject in one paragraph, so the reader has it within a few lines. Leave the detail to the later sections" },
+  { id = "summary",      required = true, lead_ok = true,  ja = ["概要", "要約", "何を作るか"], en = ["Summary", "Overview", "Abstract"] , question = "何についての文書か", writes = "読み手が最初の数行で主題をつかめるように、一段落で書く。詳細は後の節に置く" , question_en = "What is this document about?", writes_en = "Give the subject in one paragraph, so the reader has it within a few lines. Leave the detail to the later sections" },
   { id = "motivation",   required = true,  ja = ["動機", "背景", "解こうとしている問題", "目的"], en = ["Motivation", "Background", "Problem"] , question = "なぜ必要なのか", writes = "解こうとしている問題と、放置した場合に何が困るかを書く。解き方はここでは書かない" , question_en = "Why is it needed?", writes_en = "State the problem and what goes wrong if it is left alone. Do not give the solution here" },
   { id = "scope",        required = true,  ja = ["扱う範囲", "目標", "適用範囲"], en = ["Scope", "Goals", "What is covered"] , question = "どこまでやるのか", writes = "扱う対象と、どの場面で使うかを書く" , question_en = "How far does it go?", writes_en = "State what it covers and where it applies" },
   { id = "non_goals",    required = true,  ja = ["扱わない範囲", "非目標", "やらないこと"], en = ["Non-goals", "Non-Goals", "Out of scope"] , question = "何をやらないのか", writes = "扱わないものを明示する。境界を書かないと、読み手が期待を広げる" , question_en = "What does it not do?", writes_en = "Name what is left out. Without the boundary the reader will expand the expectation" },
@@ -59,7 +62,7 @@ sections = []
 description = "入口の文書。何であるかから始める"
 description_en = "An entry point: it starts by saying what the thing is"
 sections = [
-  { id = "what",  required = true,  ja = ["何であるか", "概要", "これは何か"], en = ["What it is", "Overview", "Introduction"] , question = "これは何か", writes = "何であるかを最初の一段落で示す" , question_en = "What is it?", writes_en = "Say what it is in the first paragraph" },
+  { id = "what",  required = true, lead_ok = true, ja = ["何であるか", "概要", "これは何か"], en = ["What it is", "Overview", "Introduction"] , question = "これは何か", writes = "何であるかを最初の一段落で示す" , question_en = "What is it?", writes_en = "Say what it is in the first paragraph" },
   { id = "why",   required = false, ja = ["なぜ", "動機", "考え方"], en = ["Why", "Motivation", "How it is built"] , question = "なぜこれがあるのか", writes = "解く問題と、ほかとの違いを書く" , question_en = "Why does it exist?", writes_en = "State the problem it solves and how it differs from the alternatives" },
   { id = "usage", required = true,  ja = ["使い方", "入れ方"], en = ["Usage", "Using it", "Installing"] , question = "どう使うのか", writes = "最短の使い方を示す。網羅は参照の文書に譲る" , question_en = "How is it used?", writes_en = "Show the shortest path to using it. Leave the exhaustive detail to the reference" },
 ]

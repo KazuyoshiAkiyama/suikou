@@ -428,9 +428,18 @@ considered. A leading level-one heading is the title of the document rather than
 section, so it is dropped. What a doctype fixes is the top-level outline; a subheading
 inside a section is not a section.
 
-Only the first section can be answered by the lead paragraph instead of a heading. The
-abstract in RFC 7322 sits between the title and the table of contents without a heading
-of its own, and a README takes the same shape. Forcing a heading there reads worse.
+A section that states the subject can be answered by the lead paragraph instead of a
+heading, which the doctype marks with `lead_ok`. The abstract in RFC 7322 sits between
+the title and the table of contents without a heading of its own, and a README takes the
+same shape. Forcing a heading there reads worse.
+
+The exemption was once given to whichever section came first. That let the lead paragraph
+satisfy any first required section, whatever it was, and all 120 Kubernetes concept pages
+came out satisfying the `howto` type. Prerequisites and context are not answered by an
+opening paragraph.
+
+Matching runs against the synonyms of both languages, because a document in one language
+may carry a heading in the other.
 
 The report does not stop at naming what is absent. It carries the question that section
 answers and what belongs in it.
