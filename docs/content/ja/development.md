@@ -121,6 +121,14 @@ python research/structure/fetch_rfcs.py corpus/cache/rfcs 200
 
 型の出どころそのものに当てるため、最も厳しい確認になる。
 
+`decision` の型は公開されている ADR で計測する。
+
+```sh
+python research/structure/fetch_adrs.py corpus/cache/adrs 200 12
+```
+
+設定は `research/structure/structure-adr.toml` にある。
+
 ## ゴールデンテスト
 
 ゴールデンテストは、参照の実装と値を統一するためのものである。

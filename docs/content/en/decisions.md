@@ -1002,3 +1002,48 @@ use a section name of their own, such as `Proposed additions` or `Solution`.
 Adding synonyms stops here. Keep adding section names and the count approaches zero, but
 that is fitting the corpus rather than describing a template. A name earns its place by
 appearing in a published template.
+
+## D-33 The decision type held up, and section order became measurable
+
+The required sections of `decision` were taken from Michael Nygard's Architecture
+Decision Record. Testing that meant running the type against 190 ADRs drawn from 28
+repositories. `research/structure/fetch_adrs.py` finds them from the first record
+`adr-tools` writes, and leaves out the indexes and the templates, which are not decision
+records.
+
+| Rule | Out of 190 |
+|---|---|
+| Missing a required section | 20 (10.5%) |
+| Sections out of order | 0 |
+| Long paragraph | 6 (3.2%) |
+| Empty leaf section | 2 (1.1%) |
+
+Where `howto` and `design` failed, this type held. The difference is whether one template
+was taken whole or several were merged. `design` had merged the Rust RFC with the
+Kubernetes Enhancement Proposal, and `howto` had read a description in Diátaxis as a set
+of section names. `decision` takes the ADR as it stands.
+
+### Section order could finally be measured
+
+Judging an order needs two of the doctype's sections present. On Kubernetes task pages
+only 7 of 120 carried two, so the run said nothing. Among the ADRs, 189 of 190 carry two,
+and the rule fires on none of them.
+
+Context, then decision, then consequences matches what people write. That is the evidence
+for keeping the order as a recommendation.
+
+### What the remaining 20 are
+
+Eleven follow MADR, which uses `Context and Problem Statement` and `Decision Outcome` and
+puts the consequences a level below `Decision Outcome`. Section matching stops at the top
+level, so a consequence section nested under another heading is invisible to it.
+
+That limit stays. Looking deeper lets a subheading inside one section match another and
+throws the order check off, which is what happened in D-31. Supporting MADR means a
+separate doctype rather than a deeper search.
+
+Of the other nine, some carry nothing but `Status` and `Context`: a decision record
+stating neither the decision nor what follows from it, which is a real gap. Others write
+`Proposal` where the template says `Decision`.
+
+Adding synonyms stops here, on the same line drawn in D-32.

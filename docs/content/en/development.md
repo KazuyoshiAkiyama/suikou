@@ -132,6 +132,14 @@ python research/structure/fetch_rfcs.py corpus/cache/rfcs 200
 
 Running a type against its own source is the strictest test available.
 
+The `decision` type is measured against published ADRs.
+
+```sh
+python research/structure/fetch_adrs.py corpus/cache/adrs 200 12
+```
+
+`research/structure/structure-adr.toml` holds that configuration.
+
 ## Golden tests
 
 The golden tests exist to keep the values in line with the reference implementation.

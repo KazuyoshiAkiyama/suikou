@@ -1,0 +1,10 @@
+# 公開されている ADR に `suikou check` を当てるための設定。
+#
+# ADR にはフロントマターが無い。集めた先のパスで型を宣言する。
+# `research/structure/fetch_adrs.py` が集めた中身はすべて ADR であるため、
+# 宣言はこちらの見立てではなく、集め方そのものから決まる。
+#
+# 使い方は、集めたディレクトリに `.suikou/structure.toml` として置き、
+# そのディレクトリで `suikou check .` を実行する。
+[paths]
+"./" = "decision"
