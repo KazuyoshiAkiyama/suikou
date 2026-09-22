@@ -81,7 +81,7 @@ fn quartiles(values: &[f64]) -> (f64, f64) {
     sorted.sort_by(|a, b| a.partial_cmp(b).expect("較正の対象に NaN が混じっている"));
     let n = sorted.len();
     let mid = n / 2;
-    let (lower, upper) = if n % 2 == 0 {
+    let (lower, upper) = if n.is_multiple_of(2) {
         (&sorted[..mid], &sorted[mid..])
     } else {
         (&sorted[..mid], &sorted[mid + 1..])

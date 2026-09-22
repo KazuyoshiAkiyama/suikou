@@ -1,6 +1,7 @@
-# 手元の `rustc --version` に合わせて具体的な版に固定する。
-# 例: channel = "1.90.0"
-# 固定しないと、将来の lint 追加で clippy が落ちるなど、コード以外の理由で CI が壊れる。
+# 具体的な版に固定する。stable のままにすると、将来の lint の追加で clippy が落ちて、
+# コード以外の理由で CI が壊れる。実際に一度壊れている。
+# 版を上げるときは、手元で clippy と test を通してから上げる。
+# .github/workflows/ の dtolnay/rust-toolchain も同じ版に合わせる。
 [toolchain]
-channel = "stable"
+channel = "1.98.1"
 components = ["rustfmt", "clippy"]
