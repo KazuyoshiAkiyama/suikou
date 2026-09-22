@@ -124,6 +124,14 @@ That collects Kubernetes pages grouped by their own `content_type:`. Map those v
 onto the doctypes under `[front_matter]` in `.suikou/structure.toml`, then run `check`
 as usual. `research/structure/structure.toml` holds that configuration.
 
+The `design` type is measured against the Rust RFCs.
+
+```sh
+python research/structure/fetch_rfcs.py corpus/cache/rfcs 200
+```
+
+Running a type against its own source is the strictest test available.
+
 ## Golden tests
 
 The golden tests exist to keep the values in line with the reference implementation.

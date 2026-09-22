@@ -948,3 +948,57 @@ declares `content_type`, whose values are `task`, `concept`, `reference`, and `t
 and only `task` lines up with a type defined here. Diátaxis explanation and tutorial
 would be the types for the other two, and a type will not be added until there is
 something to measure it against.
+
+## D-32 The design type failed against the Rust RFCs it was taken from
+
+The required sections of `design` were said to come from the Rust RFC template. Testing
+that claim meant running the type against 200 RFCs from the top level of `text/` in
+`rust-lang/rfcs`, taken from the highest numbers down so that the template had settled.
+Running a type against its own source is the strictest test available.
+
+The first run reported `Design` absent on all 200, `Non-goals` on 199, and `Scope` on 198.
+Each of the three had a different cause.
+
+### A mismatch of names
+
+The 200 for `Design` were not a wrong requirement but a wrong name.
+
+The Rust RFC template calls that section `Guide-level explanation` and
+`Reference-level explanation`, and the corpus carries 157 of the first and 148 of the
+second. `Explanation` went into the synonyms, since both names contain it.
+`Implementation` and `Proposal` went in beside it, as names design documents use widely.
+
+### Requiring a section the template has no room for
+
+`Scope` and `Non-goals` are absent from the Rust RFC template. They belong to the
+Kubernetes Enhancement Proposal, so two templates had been merged into one requirement.
+
+Both are now optional, and both keep their question and their note on what belongs there.
+`plot` and `brief` go on asking how far it goes and what it will not do, as in D-31.
+
+### Two defects in the parser
+
+Heading indentation had no ceiling. Four spaces or more make a line code, and CommonMark
+does not read a heading there. A `#` inside an indented code block became a level-one
+heading, which made level one the top level of that document and left its real sections
+invisible. Indentation is now capped at three spaces.
+
+Fenced code blocks were removed with a regular expression. A long fence holding a shorter
+one inside it closed at the inner fence, and the code past that point was read as prose,
+which turned `# [dependencies]` into a heading. A line scan replaces it: a fence closes
+only on a line of the same marker, at least as long, with nothing after it. That is what
+CommonMark specifies.
+
+Both fixes are ported into the textlint preset, and the two implementations return
+identical M-rule counts on real RFCs.
+
+### The rate after the repairs
+
+21 of the 200 report a missing section, or 10.5 percent. Eighteen of those are not
+feature proposals at all: roadmaps, project group charters, team changes, and policy
+RFCs, which sit in `text/` without following the feature template. The remaining three
+use a section name of their own, such as `Proposed additions` or `Solution`.
+
+Adding synonyms stops here. Keep adding section names and the count approaches zero, but
+that is fitting the corpus rather than describing a template. A name earns its place by
+appearing in a published template.

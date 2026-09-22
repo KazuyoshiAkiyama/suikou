@@ -113,6 +113,14 @@ Kubernetes の `content_type:` ごとに頁を集める。
 `.suikou/structure.toml` の `[front_matter]` でこちらの型に読み替えてから `check` を当てる。
 その設定は `research/structure/structure.toml` にある。
 
+`design` の型は Rust RFC で計測する。
+
+```sh
+python research/structure/fetch_rfcs.py corpus/cache/rfcs 200
+```
+
+型の出どころそのものに当てるため、最も厳しい確認になる。
+
 ## ゴールデンテスト
 
 ゴールデンテストは、参照の実装と値を統一するためのものである。

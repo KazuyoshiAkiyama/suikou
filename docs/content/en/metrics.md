@@ -24,6 +24,11 @@ The order changes the result. The steps run in the order below.
 6. Sort the lines into blocks.
 7. Strip inline markup, meaning links, code spans, and emphasis.
 
+Fenced code blocks are found by scanning lines. A fence closes only on a line of the same
+marker, at least as long as the opening one, with nothing after it, as CommonMark
+specifies. A long fence can hold a shorter one, and closing at the inner fence would let
+the code past that point be read as prose.
+
 The third step covers `highlight`, `mermaid`, and a `tab` that declares `codelang`. In
 each case the document itself declares the content to be code. A shortcode such as `note`
 or `caution` wraps prose, so removing it would remove the body itself. An opening tag whose
@@ -44,11 +49,14 @@ finding nobody can act on.
 
 | Kind | Test |
 |---|---|
-| Heading | The line opens with one to six `#` followed by a space |
+| Heading | Up to three spaces, then one to six `#` followed by a space |
 | List item | Leading space, then `-` `*` `+`, or a number with `.` or `)`, then a space |
 | Table | The line opens with `\|` |
 | Quote | The line opens with `>` |
 | Prose | Any other line that is not empty |
+
+The three-space ceiling on a heading follows CommonMark. Four spaces or more make the
+line code, and a `#` inside an indented code block is not a heading.
 
 ### What each metric covers
 

@@ -55,14 +55,16 @@ macro_rules! re {
 }
 
 re!(re_frontmatter, r"(?s)\A---\n.*?\n---\n");
-re!(re_fence, r"(?s)```.*?```|~~~.*?~~~");
 re!(re_escape, r"\\([.\-+*_#`\[\]()<>|])");
 re!(re_html, r"<[^>]+>");
 re!(re_link, r"!?\[([^\]]*)\]\([^)]*\)");
 re!(re_code_span, r"`[^`]*`");
 re!(re_emphasis, r"\*\*([^*]*)\*\*|\*([^*]*)\*");
 re!(re_list, r"^(\s*)([-*+]|\d+[.)])\s+(.*)$");
-re!(re_heading, r"^#{1,6}\s+(.*)$");
+// 見出しの字下げは3桁までとする。CommonMark がそう定めている。
+// 4桁以上の字下げはコードであり、その中の `#` を見出しとして読んではならない。
+// Rust RFC の本文でこの誤読が起き、節がひとつも見つからなくなった。
+re!(re_heading, r"^ {0,3}#{1,6}\s+(.*)$");
 
 /// 取り除いた範囲を、同じ数の改行に置き換える。
 ///
@@ -85,7 +87,7 @@ const CODE_SHORTCODES: [&str; 2] = ["highlight", "mermaid"];
 /// エスケープ解除を飛ばすと文分割が成立しない。
 pub fn preprocess(source: &str) -> String {
     let s = re_frontmatter().replace(source, blank_out);
-    let s = re_fence().replace_all(&s, blank_out);
+    let s = blank_lines(&s, &code_fence_lines(&s));
     let s = blank_code_shortcodes(&s);
     let s = re_escape().replace_all(&s, "$1");
     let s = re_html().replace_all(&s, blank_out);
@@ -157,22 +159,63 @@ fn has_shortcode_close(line: &str, name: &str) -> bool {
     })
 }
 
-/// 囲みのコードブロックが占める行を返す。
+/// 指定した行を、同じ数の改行に置き換える。
+fn blank_lines(source: &str, drop: &[usize]) -> String {
+    let drop: std::collections::HashSet<usize> = drop.iter().copied().collect();
+    let mut out = String::with_capacity(source.len());
+    for (i, line) in source.lines().enumerate() {
+        if !drop.contains(&(i + 1)) {
+            out.push_str(line);
+        }
+        out.push('\n');
+    }
+    out
+}
+
+/// 囲みのコードブロックの開きなら、その記号と長さを返す。
+///
+/// CommonMark は記号3個以上を開きとし、字下げは3桁までを認める。
+fn fence_open(line: &str) -> Option<(char, usize)> {
+    let indent = line.len() - line.trim_start().len();
+    if indent > 3 {
+        return None;
+    }
+    let t = line.trim_start();
+    let c = t.chars().next()?;
+    if c != '`' && c != '~' {
+        return None;
+    }
+    let n = t.chars().take_while(|x| *x == c).count();
+    (n >= 3).then_some((c, n))
+}
+
+/// 囲みのコードブロックが占める行を、1 始まりで返す。
 ///
 /// 前処理はコードを取り除くため、そのままでは「本文の無い節」と見分けがつかない。
 /// コードだけを載せる節は正しい形なので、行を覚えておいて判定に使う。
+///
+/// 閉じは、開きと同じ記号で、開き以上の長さで、そのあとに何も無い行だけとする。
+/// CommonMark がそう定めている。短い囲みを長い囲みの中に入れる書き方が実際にあり、
+/// 内側の囲みで閉じたことにすると、そこから先のコードが本文として読まれる。
+/// Rust RFC の `` ```` `` の中に `` ``` `` を入れた例で、コードの `#` が見出しになった。
 fn code_fence_lines(source: &str) -> Vec<usize> {
     let mut out = Vec::new();
-    let mut in_code = false;
+    let mut open: Option<(char, usize)> = None;
     for (i, line) in source.lines().enumerate() {
-        let t = line.trim_start();
-        if t.starts_with("```") || t.starts_with("~~~") {
-            in_code = !in_code;
-            out.push(i + 1);
-            continue;
-        }
-        if in_code {
-            out.push(i + 1);
+        match open {
+            Some((c, n)) => {
+                out.push(i + 1);
+                let t = line.trim();
+                if t.chars().all(|x| x == c) && t.chars().count() >= n && !t.is_empty() {
+                    open = None;
+                }
+            }
+            None => {
+                if let Some(f) = fence_open(line) {
+                    open = Some(f);
+                    out.push(i + 1);
+                }
+            }
         }
     }
     out
@@ -218,7 +261,7 @@ impl Document {
             }
             non_empty += 1;
 
-            if let Some(c) = re_heading().captures(trimmed) {
+            if let Some(c) = re_heading().captures(raw_line) {
                 blocks.push(Block {
                     kind: BlockKind::Heading,
                     line: line_no,
@@ -598,5 +641,45 @@ mod tests {
         let src = "# 題\n\n## 図\n\n{{< mermaid >}}\ngraph TD;\n{{< /mermaid >}}\n";
         let doc = Document::parse(src);
         assert!(doc.code_lines.contains(&6));
+    }
+
+    // 4桁以上の字下げはコードである。その中の `#` を見出しとして読んではならない。
+    #[test]
+    fn an_indented_hash_is_not_a_heading() {
+        let doc = Document::parse("## 節\n\n本文である。\n\n    # これはコードである\n");
+        assert_eq!(doc.headings().len(), 1);
+    }
+
+    // CommonMark は3桁までの字下げを見出しとして認める。
+    #[test]
+    fn a_heading_indented_up_to_three_spaces_is_a_heading() {
+        let doc = Document::parse("   ## 節\n\n本文である。\n");
+        assert_eq!(doc.headings().len(), 1);
+    }
+
+    // 長い囲みの中に短い囲みを入れる書き方が実際にある。
+    // 内側で閉じたことにすると、そこから先のコードが本文として読まれる。
+    #[test]
+    fn a_short_fence_inside_a_long_one_does_not_close_it() {
+        let src = "## 節\n\n````rust\n# ```cargo\n# [dependencies]\n# ```\n\
+                   fn main() {}\n````\n\n本文である。\n";
+        let doc = Document::parse(src);
+        assert_eq!(doc.headings().len(), 1);
+        assert!(doc.body().contains("本文である。"));
+    }
+
+    #[test]
+    fn a_fence_closes_on_an_equal_or_longer_marker() {
+        let doc = Document::parse("```\ncode\n```\n\n本文である。\n");
+        assert!(doc.body().contains("本文である。"));
+        assert_eq!(doc.code_lines, vec![1, 2, 3]);
+    }
+
+    // 閉じの無い囲みは、そこから先をすべてコードとして扱う。
+    // 開いたままの囲みの中身を本文として読むほうが害が大きい。
+    #[test]
+    fn an_unclosed_fence_runs_to_the_end() {
+        let doc = Document::parse("## 節\n\n```\ncode\n# not a heading\n");
+        assert_eq!(doc.headings().len(), 1);
     }
 }

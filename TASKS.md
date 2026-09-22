@@ -481,7 +481,7 @@ Kubernetes の実際の文書2件で、M 系の件数が両実装で一致する
 
 Kubernetes は `content_type:` をフロントマターに持つ。
 この宣言は書いた側が付けたものであり、こちらの見立てではない。
-`research/structure/fetch_typed.py` がこの宣言ごとに頁を集める。
+`research/structure/fetch_typed.py` がこの宣言ごとに頁を取得する。
 
 ```sh
 python research/structure/fetch_typed.py corpus/cache/typed 120
@@ -529,12 +529,41 @@ Kubernetes の日本語訳は前提の見出しにショートコードをその
 発火した頁は `Before you begin` を本当に置いていない。
 `task` と宣言しながら解説になっている頁があり、これは Kubernetes の側の逸脱である。
 
+### design の型を Rust RFC で計測した
+
+`design` の必須の節は Rust RFC テンプレートから取った。
+その出どころそのものに当てるのが、最も厳しい確認になる。
+`research/structure/fetch_rfcs.py` が `rust-lang/rfcs` の `text/` 直下を取得する。
+
+```sh
+python research/structure/fetch_rfcs.py corpus/cache/rfcs 200
+```
+
+最初の結果は、`Design` が200件すべて、`Non-goals` が199件、`Scope` が198件であった。
+
+| 原因 | 対応 |
+|---|---|
+| 節の名前の取り違え（`Guide-level explanation` を知らない） | 同義語に `Explanation`、`Implementation`、`Proposal` を追加 |
+| KEP の様式の節を Rust RFC の型に入れていた | `scope` と `non_goals` を必須から外す |
+| 字下げしたコードの `#` を見出しとして読んでいた | 見出しの字下げを3桁までとする |
+| 長いコードブロックの中の短いもので閉じていた | CommonMark どおりの行走査に置き換える |
+
+修正したあとは200件中21件（10.5%）である。
+そのうち18件はロードマップ、プロジェクトグループの憲章、チーム編成、方針の RFC で、
+`text/` に置かれてはいるが機能の様式に従っていない。
+残る3件は一度きりの節の名前を使っている。経緯は D-32 にある。
+
+同義語の追加はここで打ち切った。
+節の名前を増やし続ければ発火はゼロに近づくが、それはコーパスに合わせているだけである。
+
 ### 検証できていないこと
 
-- `design`、`decision`、`overview` の必須の節は、このリポジトリの文書でしか確かめていない。
+- `decision` と `overview` の必須の節は、このリポジトリの文書でしか確かめていない。
   その文書の見出しは、こちらが型に合わせて書いたものである。
-  Kubernetes の `concept` と `tutorial` に当たる型を置いていないため、外から測れない。
-  置くとすれば Diátaxis の explanation と tutorial になる。
+  ADR を公開している文書群を取得すれば `decision` を計測できる。まだ着手していない。
+- Kubernetes の `concept` と `tutorial` に当たる型を置いていない。
+  置くとすれば Diátaxis の explanation と tutorial になるが、
+  当てる相手を用意せずに型だけを増やすことはしない。
 - 節の順序の発火率は、計測しても意味のある値にならなかった。
 
   task 頁231件（英語120、日本語111）で発火はゼロだが、これは較正の証拠にならない。

@@ -17,7 +17,6 @@
 // エスケープ解除 → HTML タグの順。
 
 const RE_FRONTMATTER = /^---\n[\s\S]*?\n---\n/;
-const RE_FENCE = /```[\s\S]*?```|~~~[\s\S]*?~~~/g;
 const RE_ESCAPE = /\\([.\-+*_#`[\]()<>|])/g;
 const RE_HTML = /<[^>]+>/g;
 
@@ -26,12 +25,69 @@ const RE_CODE_SPAN = /`[^`]*`/g;
 const RE_EMPHASIS = /\*\*([^*]*)\*\*|\*([^*]*)\*/g;
 
 const RE_LIST = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
-const RE_HEADING = /^#{1,6}\s+(.*)$/;
+// 見出しの字下げは3桁までとする。CommonMark がそう定めている。
+// 4桁以上の字下げはコードであり、その中の `#` を見出しとして読んではならない。
+const RE_HEADING = /^ {0,3}(#{1,6})\s+(.*)$/;
 
 /** 取り除いた範囲を、同じ数の改行に置き換える。行番号を保つため。 */
 function blankOut(match) {
     const n = (match.match(/\n/g) || []).length;
     return "\n".repeat(n);
+}
+
+/** 指定した行（1 始まり）を、同じ数の改行に置き換える。 */
+function blankLines(source, drop) {
+    const set = new Set(drop);
+    return source
+        .split("\n")
+        .map((l, i) => (set.has(i + 1) ? "" : l))
+        .join("\n");
+}
+
+/** 囲みのコードブロックの開きなら、その記号と長さを返す。 */
+function fenceOpen(line) {
+    const t = line.replace(/^\s+/, "");
+    if (line.length - t.length > 3) {
+        return null;
+    }
+    const c = t[0];
+    if (c !== "`" && c !== "~") {
+        return null;
+    }
+    let n = 0;
+    while (t[n] === c) {
+        n += 1;
+    }
+    return n >= 3 ? { c, n } : null;
+}
+
+/**
+ * 囲みのコードブロックが占める行を、1 始まりで返す。
+ *
+ * 閉じは、開きと同じ記号で、開き以上の長さで、そのあとに何も無い行だけとする。
+ * 短い囲みを長い囲みの中に入れる書き方が実際にあり、
+ * 内側の囲みで閉じたことにすると、そこから先のコードが本文として読まれる。
+ */
+function codeFenceLines(source) {
+    const lines = source.split("\n");
+    const out = [];
+    let open = null;
+    for (let i = 0; i < lines.length; i += 1) {
+        if (open) {
+            out.push(i + 1);
+            const t = lines[i].trim();
+            if (t.length >= open.n && t.split("").every((x) => x === open.c)) {
+                open = null;
+            }
+        } else {
+            const f = fenceOpen(lines[i]);
+            if (f) {
+                open = f;
+                out.push(i + 1);
+            }
+        }
+    }
+    return out;
 }
 
 // 中身がコードである Hugo のショートコード。
@@ -101,7 +157,7 @@ function blankCodeShortcodes(source) {
 /** 前処理。順序を変えてはならない。 */
 function preprocess(source) {
     let s = source.replace(RE_FRONTMATTER, blankOut);
-    s = s.replace(RE_FENCE, blankOut);
+    s = blankLines(s, codeFenceLines(s));
     s = blankCodeShortcodes(s);
     s = s.replace(RE_ESCAPE, "$1");
     s = s.replace(RE_HTML, blankOut);
@@ -144,12 +200,12 @@ function parseDocument(source) {
             continue;
         }
 
-        const heading = RE_HEADING.exec(trimmed);
+        const heading = RE_HEADING.exec(rawLine);
         if (heading) {
             blocks.push({
                 kind: "Heading",
                 line: lineNo,
-                text: stripInline(heading[1]),
+                text: stripInline(heading[2]),
                 depth: 0,
                 ordered: false,
                 raw: rawLine,

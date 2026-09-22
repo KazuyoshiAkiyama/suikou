@@ -125,3 +125,28 @@ test("keeps a tab without codelang", () => {
     const { blocks } = parseDocument(src);
     assert.ok(blocks.some((b) => b.text.includes("Prose here.")));
 });
+
+// Rust 側の markdown.rs と同じ振る舞いを保つ。
+test("does not read an indented hash as a heading", () => {
+    const { blocks } = parseDocument("## Section\n\nBody.\n\n    # this is code\n");
+    assert.equal(blocks.filter((b) => b.kind === "Heading").length, 1);
+});
+
+test("reads a heading indented up to three spaces", () => {
+    const { blocks } = parseDocument("   ## Section\n\nBody.\n");
+    assert.equal(blocks.filter((b) => b.kind === "Heading").length, 1);
+});
+
+test("a short fence inside a long one does not close it", () => {
+    const src =
+        "## Section\n\n````rust\n# ```cargo\n# [dependencies]\n# ```\nfn main() {}\n" +
+        "````\n\nBody here.\n";
+    const { blocks } = parseDocument(src);
+    assert.equal(blocks.filter((b) => b.kind === "Heading").length, 1);
+    assert.ok(blocks.some((b) => b.text.includes("Body here.")));
+});
+
+test("an unclosed fence runs to the end", () => {
+    const { blocks } = parseDocument("## Section\n\n```\ncode\n# not a heading\n");
+    assert.equal(blocks.filter((b) => b.kind === "Heading").length, 1);
+});
