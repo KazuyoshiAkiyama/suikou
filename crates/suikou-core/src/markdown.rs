@@ -73,14 +73,88 @@ fn blank_out(caps: &regex::Captures) -> String {
     "\n".repeat(m.matches('\n').count())
 }
 
+/// 中身がコードである Hugo のショートコード。
+///
+/// これ以外のショートコード（`note`、`caution` など）は地の文を包むため、
+/// 取り除くと本文そのものが消える。ここに挙げるものだけを対象とする。
+/// `code_sample` は外部のファイルを参照するだけで、中身を持たないため含めない。
+/// `tab` は名前では決まらない。`codelang` を宣言したものだけを対象とする。
+const CODE_SHORTCODES: [&str; 2] = ["highlight", "mermaid"];
+
 /// 前処理。順序を変えてはならない。
 /// エスケープ解除を飛ばすと文分割が成立しない。
 pub fn preprocess(source: &str) -> String {
     let s = re_frontmatter().replace(source, blank_out);
     let s = re_fence().replace_all(&s, blank_out);
+    let s = blank_code_shortcodes(&s);
     let s = re_escape().replace_all(&s, "$1");
     let s = re_html().replace_all(&s, blank_out);
     s.into_owned()
+}
+
+/// コードを持つショートコードが占める行を、1 始まりで返す。
+///
+/// 閉じが見つからない開きは対象にしない。
+/// 対応が崩れている文書で、そこから先の本文をすべて落とすことになるためである。
+fn code_shortcode_lines(source: &str) -> Vec<usize> {
+    let lines: Vec<&str> = source.lines().collect();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < lines.len() {
+        let Some(name) = shortcode_open(lines[i]) else {
+            i += 1;
+            continue;
+        };
+        match (i + 1..lines.len()).find(|j| has_shortcode_close(lines[*j], name)) {
+            Some(end) => {
+                out.extend(i + 1..=end + 1);
+                i = end + 1;
+            }
+            None => i += 1,
+        }
+    }
+    out
+}
+
+/// コードを持つショートコードの中身を、同じ数の改行に置き換える。
+///
+/// 囲みのコードブロックと同じ扱いにする。
+/// 取り除かないと、YAML のコメントの `#` が見出しとして読まれる。
+/// Kubernetes の英語文書で、本文の無い節の指摘77件はすべてこれを出どころとしていた。
+fn blank_code_shortcodes(source: &str) -> String {
+    if !source.contains("{{<") {
+        return source.to_string();
+    }
+    let drop: std::collections::HashSet<usize> = code_shortcode_lines(source).into_iter().collect();
+    let mut out = String::with_capacity(source.len());
+    for (i, line) in source.lines().enumerate() {
+        if !drop.contains(&(i + 1)) {
+            out.push_str(line);
+        }
+        out.push('\n');
+    }
+    out
+}
+
+/// コードを持つショートコードの開きなら、閉じを探すための名前を返す。
+///
+/// 名前で決まるもののほかに、`codelang` を宣言した `tab` がある。
+/// どちらも文書の側が中身をコードだと宣言しているため、推測にはならない。
+fn shortcode_open(line: &str) -> Option<&'static str> {
+    let t = line.trim_start().strip_prefix("{{<")?.trim_start();
+    if let Some(n) = CODE_SHORTCODES.into_iter().find(|n| t.starts_with(n)) {
+        return Some(n);
+    }
+    (t.starts_with("tab ") && t.contains("codelang")).then_some("tab")
+}
+
+/// 閉じは行の途中にも現れる。行の先頭に限定しない。
+fn has_shortcode_close(line: &str, name: &str) -> bool {
+    line.split("{{<").skip(1).any(|t| {
+        t.trim_start()
+            .strip_prefix('/')
+            .is_some_and(|t| t.trim_start().starts_with(name))
+    })
 }
 
 /// 囲みのコードブロックが占める行を返す。
@@ -125,7 +199,11 @@ pub fn is_kanji(c: char) -> bool {
 
 impl Document {
     pub fn parse(source: &str) -> Self {
-        let code_lines = code_fence_lines(source);
+        // ショートコードの中身も、節が本文を持つかどうかの判定ではコードとして数える。
+        let mut code_lines = code_fence_lines(source);
+        code_lines.extend(code_shortcode_lines(source));
+        code_lines.sort_unstable();
+        code_lines.dedup();
         let text = preprocess(source);
         let mut blocks = Vec::new();
         let mut non_empty = 0usize;
@@ -461,5 +539,64 @@ mod tests {
         let p = doc.paragraphs();
         assert_eq!(p[0].1, "前の段落である。");
         assert!(p.iter().all(|(_, t)| !t.contains("前の段落である。 ")));
+    }
+
+    // Hugo のショートコードの中の YAML コメントが見出しとして読まれていた。
+    #[test]
+    fn a_code_shortcode_is_blanked() {
+        let src = "# 題\n\n{{< highlight yaml >}}\n# CAUTION: not a heading\nkey: value\n                   {{< /highlight >}}\n\n本文である。\n";
+        let doc = Document::parse(src);
+        assert_eq!(doc.headings().len(), 1);
+        // 行番号は元のファイルに一致したままとする。
+        assert_eq!(doc.blocks.last().unwrap().line, 8);
+    }
+
+    // 中身のあるショートコードを消すと本文が落ちる。対象を限る。
+    #[test]
+    fn a_prose_shortcode_is_kept() {
+        let src = "# 題\n\n{{< note >}}\n本文である。\n{{< /note >}}\n";
+        let doc = Document::parse(src);
+        assert!(doc.body().contains("本文である。"));
+    }
+
+    // 閉じの無い開きで、そこから先の本文をすべて落としてはならない。
+    #[test]
+    fn an_unclosed_shortcode_leaves_the_document_alone() {
+        let src = "# 題\n\n{{< highlight yaml >}}\n\n本文である。\n";
+        let doc = Document::parse(src);
+        assert!(doc.body().contains("本文である。"));
+    }
+
+    // 閉じが行の途中に現れる書き方が実際のコーパスにある。
+    #[test]
+    fn a_close_inside_a_line_ends_the_shortcode() {
+        let src = "# 題\n\n{{< highlight text >}}\n# not a heading\nx{{< /highlight >}}.\n\n                   本文である。\n";
+        let doc = Document::parse(src);
+        assert_eq!(doc.headings().len(), 1);
+        assert!(doc.body().contains("本文である。"));
+    }
+
+    // tab は名前では決まらない。codelang を宣言したものだけがコードを持つ。
+    #[test]
+    fn a_tab_with_codelang_is_blanked() {
+        let src = "# 題\n\n{{< tab name=\"Linux\" codelang=\"yaml\" >}}\n                   # not a heading\n{{< /tab >}}\n\n本文である。\n";
+        let doc = Document::parse(src);
+        assert_eq!(doc.headings().len(), 1);
+        assert!(doc.body().contains("本文である。"));
+    }
+
+    #[test]
+    fn a_tab_without_codelang_is_kept() {
+        let src = "# 題\n\n{{< tab name=\"手順\" >}}\n本文である。\n{{< /tab >}}\n";
+        let doc = Document::parse(src);
+        assert!(doc.body().contains("本文である。"));
+    }
+
+    // ショートコードだけを含む節は、本文を持つものとして数える。
+    #[test]
+    fn a_shortcode_counts_as_a_body() {
+        let src = "# 題\n\n## 図\n\n{{< mermaid >}}\ngraph TD;\n{{< /mermaid >}}\n";
+        let doc = Document::parse(src);
+        assert!(doc.code_lines.contains(&6));
     }
 }

@@ -99,6 +99,21 @@ place inflates the mean sentence length by a factor of three or more.
 Each removal leaves the same number of newlines behind, so a finding points at the line
 the user has open. A correct value at the wrong position is a finding nobody can use.
 
+## Measuring how often a rule fires
+
+Adding a rule or moving a threshold calls for a measurement against the reference corpus.
+
+```sh
+cargo run --release --example structure_rate -- corpus/cache/pro_en en
+cargo run --release --example structure_rate -- corpus/cache/pro_ja ja
+```
+
+`suikou check` truncates the positions it prints per rule, so the count cannot be read
+off the CLI output. The example calls the rules directly. What comes out is recorded in
+`TASKS.md`.
+
+`corpus/fetch.sh` fetches the corpus, which licensing keeps out of the repository.
+
 ## Golden tests
 
 The golden tests exist to keep the values in line with the reference implementation.

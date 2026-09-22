@@ -13,7 +13,8 @@
 // textlint のノード情報は使わない。
 //
 // 前処理の順序は変えてはならない（CLAUDE.md）。フロントマター → コード
-// フェンス → バックスラッシュのエスケープ解除 → HTML タグの順。
+// フェンス → コードを持つ Hugo のショートコード → バックスラッシュの
+// エスケープ解除 → HTML タグの順。
 
 const RE_FRONTMATTER = /^---\n[\s\S]*?\n---\n/;
 const RE_FENCE = /```[\s\S]*?```|~~~[\s\S]*?~~~/g;
@@ -33,10 +34,75 @@ function blankOut(match) {
     return "\n".repeat(n);
 }
 
+// 中身がコードである Hugo のショートコード。
+// note や caution は地の文を包むため対象にしない。取り除くと本文が消える。
+const CODE_SHORTCODES = ["highlight", "mermaid"];
+
+/** コードを持つショートコードの開きなら、その名前を返す。 */
+function shortcodeOpen(line) {
+    const t = line.replace(/^\s+/, "");
+    if (!t.startsWith("{{<")) {
+        return null;
+    }
+    const rest = t.slice(3).replace(/^\s+/, "");
+    const named = CODE_SHORTCODES.find((n) => rest.startsWith(n));
+    if (named) {
+        return named;
+    }
+    // tab は名前では決まらない。codelang を宣言したものだけがコードを持つ。
+    return rest.startsWith("tab ") && rest.includes("codelang") ? "tab" : null;
+}
+
+/** 閉じは行の途中にも現れる。行の先頭に限定しない。 */
+function hasShortcodeClose(line, name) {
+    return line
+        .split("{{<")
+        .slice(1)
+        .some((t) => {
+            const r = t.replace(/^\s+/, "");
+            return r.startsWith("/") && r.slice(1).replace(/^\s+/, "").startsWith(name);
+        });
+}
+
+/**
+ * コードを持つショートコードの中身を、同じ数の改行に置き換える。
+ * 閉じが見つからない開きは対象にしない。対応が崩れている文書で、
+ * そこから先の本文をすべて落とすことになるため。
+ */
+function blankCodeShortcodes(source) {
+    if (!source.includes("{{<")) {
+        return source;
+    }
+    const lines = source.split("\n");
+    const drop = new Set();
+    for (let i = 0; i < lines.length; i += 1) {
+        const name = shortcodeOpen(lines[i]);
+        if (name === null) {
+            continue;
+        }
+        let end = -1;
+        for (let j = i + 1; j < lines.length; j += 1) {
+            if (hasShortcodeClose(lines[j], name)) {
+                end = j;
+                break;
+            }
+        }
+        if (end === -1) {
+            continue;
+        }
+        for (let k = i; k <= end; k += 1) {
+            drop.add(k);
+        }
+        i = end;
+    }
+    return lines.map((l, i) => (drop.has(i) ? "" : l)).join("\n");
+}
+
 /** 前処理。順序を変えてはならない。 */
 function preprocess(source) {
     let s = source.replace(RE_FRONTMATTER, blankOut);
     s = s.replace(RE_FENCE, blankOut);
+    s = blankCodeShortcodes(s);
     s = s.replace(RE_ESCAPE, "$1");
     s = s.replace(RE_HTML, blankOut);
     return s;

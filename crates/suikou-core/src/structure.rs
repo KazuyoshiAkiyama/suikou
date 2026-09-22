@@ -2,8 +2,8 @@
 //!
 //! 文体の規則と違い、構造の規則は言語を問わない。
 //! 節の構成、順序、段落の単位は文書の論理の性質であって、語彙の体系の外にあるためである。
-//! 実際に測ると、7文以上の段落はプロの英語で 0.4〜0.9%、プロの日本語で 0.7% と、
-//! 言語をまたいで同じ幅に収まる。言語ごとに持つのは節の名前と文の切り方だけとする。
+//! 実際に測ると、7文以上の段落はプロの英語で 0.27%、プロの日本語で 0.59% と、
+//! 言語をまたいで同じ桁に収まる。言語ごとに持つのは節の名前と文の切り方だけとする。
 //!
 //! 出典は次のとおり。
 //!
@@ -215,7 +215,11 @@ pub fn outline(doc: &Document) -> Vec<Outline<'_>> {
     out
 }
 
-fn split_sentences(text: &str, lang: Lang) -> usize {
+/// 段落の文の数。
+///
+/// 公開しているのは、コーパスに対する発火率をこの定義のまま測るためである。
+/// 測る側で数え方を写すと、実装とずれたまま気付かない。
+pub fn sentence_count(text: &str, lang: Lang) -> usize {
     match lang {
         Lang::Ja => crate::markdown::split_sentences_ja(text).len(),
         // 英語の文の切り分けは spaCy に及ばない。数えるだけの用途であり、
@@ -282,7 +286,7 @@ pub fn check_universal(doc: &Document, lang: Lang) -> Vec<LocalFinding> {
         .paragraphs()
         .into_iter()
         .filter_map(|(line, text)| {
-            let n = split_sentences(&text, lang);
+            let n = sentence_count(&text, lang);
             (n > MAX_SENTENCES_PER_PARAGRAPH).then(|| {
                 pos(
                     line,
@@ -515,7 +519,7 @@ mod tests {
         let src = "# Heading\n\nThe value is 11.095 and the other is 8.5 in the same run.\n";
         assert!(!rules(&check_universal(&doc(src), Lang::En)).contains(&RULE_LONG_PARAGRAPH));
         assert_eq!(
-            split_sentences("The value is 11.095 and 8.5 here. Then it ends.", Lang::En),
+            sentence_count("The value is 11.095 and 8.5 here. Then it ends.", Lang::En),
             2
         );
     }

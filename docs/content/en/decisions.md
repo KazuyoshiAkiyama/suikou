@@ -815,8 +815,8 @@ once: none of these are visible while reading one sentence at a time.
 The structural rules apply to both languages.
 The set of sections, their order, and the unit of a paragraph are properties of the
 argument a document makes, and they sit outside the vocabulary of any one language.
-Measurement bears this out. Paragraphs of seven sentences or more run at 0.4 to 0.9
-percent in professional English and at 0.7 percent in professional Japanese.
+Measurement bears this out. Paragraphs of seven sentences or more run at 0.27 percent
+in professional English and at 0.59 percent in professional Japanese.
 This is where the result parts from D-28, where the register rule failed to carry over.
 
 The doctypes and their required sections were taken from existing standards rather than

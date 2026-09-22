@@ -88,6 +88,12 @@ joins. Porting the line-based parser keeps the count of findings identical betwe
 two tools; the [golden tests](../../tests/golden/) in this repository check that
 identical count file by file.
 
+The preprocessing that parser runs is ported step for step, down to the Hugo shortcodes
+whose content is code. A `{{< highlight yaml >}}` block holds YAML comments, and a `#`
+at the start of one reads as a heading unless the block comes out first. Both
+implementations remove `highlight`, `mermaid`, and a `tab` that declares `codelang`, and
+both leave a shortcode alone when its closing tag is never found.
+
 Japanese morphology is the other point of difference. suikou-core reads one dictionary
 through lindera; this package reads a different one, IPADIC, through
 [kuromojin](https://github.com/azu/kuromojin), the standard morphological analyzer in

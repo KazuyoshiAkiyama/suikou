@@ -16,13 +16,21 @@ the question of which implementation is right gets settled case by case.
 
 The order changes the result. The steps run in the order below.
 
-1. Strip the YAML front matter. 2. Strip fenced code blocks. 3. **Undo backslash escapes**,
-turning `\.` back into `.`.
+1. Strip the YAML front matter.
+2. Strip fenced code blocks.
+3. Strip the Hugo shortcodes whose content is code.
+4. **Undo backslash escapes**, turning `\.` back into `.`.
+5. Strip HTML tags.
+6. Sort the lines into blocks.
+7. Strip inline markup, meaning links, code spans, and emphasis.
 
-4. Strip HTML tags. 5. Sort the lines into blocks. 6. Strip inline markup, meaning links,
-code spans, and emphasis.
+The third step covers `highlight`, `mermaid`, and a `tab` that declares `codelang`. In
+each case the document itself declares the content to be code. A shortcode such as `note`
+or `caution` wraps prose, so removing it would remove the body itself. An opening tag whose
+close is never found is left alone, since treating it as open would drop every line below
+it in a document whose tags do not balance.
 
-Skipping the third step breaks sentence splitting.
+Skipping the fourth step breaks sentence splitting.
 The AWS doc_source corpus is written in that escaped form, and leaving the escapes in
 place inflates the mean sentence length by a factor of three or more.
 `tests/golden/input/en_escaped.md` pins this behavior.
@@ -347,8 +355,8 @@ A word preceded by a noun is skipped as part of a compound, since rewriting the 
 Unlike the style rules, the structural rules do not depend on the language.
 The set of sections, their order, and the unit of a paragraph are properties of the
 argument a document makes, and they sit outside the vocabulary of any one language.
-Measurement bears this out. Paragraphs of seven sentences or more run at 0.4 to 0.9
-percent in professional English and at 0.7 percent in professional Japanese, so the two
+Measurement bears this out. Paragraphs of seven sentences or more run at 0.27 percent
+in professional English and at 0.59 percent in professional Japanese, so the two
 languages land in the same band. Only the section names and the sentence splitter are
 held per language.
 

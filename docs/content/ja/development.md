@@ -89,6 +89,20 @@ AWS の doc_source がこの形式であり、戻さない場合の平均文長�
 そうすることで、指摘が使う人の開いている行を指すようになる。
 値が正しくても、位置が一致せずいればその指摘は役に立たない。
 
+## 発火率を測る
+
+規則を追加したり閾値を変更したりした場合は、参照コーパスに対する発火率を測る。
+
+```sh
+cargo run --release --example structure_rate -- corpus/cache/pro_en en
+cargo run --release --example structure_rate -- corpus/cache/pro_ja ja
+```
+
+`suikou check` は規則ごとに示す位置を打ち切るため、CLI の出力からは件数を数えられない。
+この例は規則を直に呼ぶ。測った値は `TASKS.md` に記録する。
+
+コーパスは `corpus/fetch.sh` で取得する。ライセンスの都合でリポジトリには入れない。
+
 ## ゴールデンテスト
 
 ゴールデンテストは、参照の実装と値を統一するためのものである。

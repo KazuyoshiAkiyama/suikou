@@ -78,3 +78,50 @@ test("a heading or list item right before a list is not treated as a lead-in", (
     const before = blockBefore(blocks, group[0].line);
     assert.equal(before.kind, "Heading");
 });
+
+// Rust 側の markdown.rs と同じ振る舞いを保つ。
+// Hugo のショートコードの中の YAML コメントが見出しとして読まれていた。
+test("blanks a Hugo shortcode whose content is code", () => {
+    const src =
+        "# Title\n\n{{< highlight yaml >}}\n# CAUTION: not a heading\nkey: value\n" +
+        "{{< /highlight >}}\n\nProse here.\n";
+    const { blocks } = parseDocument(src);
+    assert.equal(blocks.filter((b) => b.kind === "Heading").length, 1);
+    assert.equal(blocks[blocks.length - 1].line, 8);
+});
+
+test("keeps a shortcode that wraps prose", () => {
+    const src = "# Title\n\n{{< note >}}\nProse here.\n{{< /note >}}\n";
+    const { blocks } = parseDocument(src);
+    assert.ok(blocks.some((b) => b.text.includes("Prose here.")));
+});
+
+test("leaves an unclosed shortcode alone", () => {
+    const src = "# Title\n\n{{< highlight yaml >}}\n\nProse here.\n";
+    const { blocks } = parseDocument(src);
+    assert.ok(blocks.some((b) => b.text.includes("Prose here.")));
+});
+
+test("ends a shortcode at a close found inside a line", () => {
+    const src =
+        "# Title\n\n{{< highlight text >}}\n# not a heading\nx{{< /highlight >}}.\n\n" +
+        "Prose here.\n";
+    const { blocks } = parseDocument(src);
+    assert.equal(blocks.filter((b) => b.kind === "Heading").length, 1);
+    assert.ok(blocks.some((b) => b.text.includes("Prose here.")));
+});
+
+test("blanks a tab that declares codelang", () => {
+    const src =
+        '# Title\n\n{{< tab name="Linux" codelang="yaml" >}}\n# not a heading\n' +
+        "{{< /tab >}}\n\nProse here.\n";
+    const { blocks } = parseDocument(src);
+    assert.equal(blocks.filter((b) => b.kind === "Heading").length, 1);
+    assert.ok(blocks.some((b) => b.text.includes("Prose here.")));
+});
+
+test("keeps a tab without codelang", () => {
+    const src = '# Title\n\n{{< tab name="Steps" >}}\nProse here.\n{{< /tab >}}\n';
+    const { blocks } = parseDocument(src);
+    assert.ok(blocks.some((b) => b.text.includes("Prose here.")));
+});
