@@ -24,16 +24,25 @@ pub fn plan_path(target: &Path) -> PathBuf {
     Path::new(".suikou/plans").join(target)
 }
 
-fn render(dt: &DocType, lang: Lang, target: &str) -> String {
+/// プロットの先頭に置く、型の id の印。
+///
+/// `check` がここから型を読む。説明の文だけでは機械が読み戻せない。
+/// HTML のコメントにしてあるのは、Markdown として表示したときに見えないためである。
+const DOCTYPE_MARK: &str = "<!-- suikou:doctype";
+
+fn render(dt: &DocType, dt_id: &str, lang: Lang, target: &str) -> String {
     match lang {
-        Lang::Ja => render_ja(dt, target),
-        Lang::En => render_en(dt, target),
+        Lang::Ja => render_ja(dt, dt_id, target),
+        Lang::En => render_en(dt, dt_id, target),
     }
 }
 
-fn render_ja(dt: &DocType, target: &str) -> String {
+fn render_ja(dt: &DocType, dt_id: &str, target: &str) -> String {
     let lang = Lang::Ja;
-    let mut out = format!("# {target} のプロット\n\n型: {}\n\n", dt.description(lang));
+    let mut out = format!(
+        "# {target} のプロット\n\n{DOCTYPE_MARK} {dt_id} -->\n型: {}\n\n",
+        dt.description(lang)
+    );
     out.push_str(
         "各節に、その節で述べる主張を一行で書く。書けない節は、まだ考えが足りていない。\n\
          承認を得てから本文を書く。本文を書いたあとに構成を変えた場合は、この文書も直す。\n\n",
@@ -55,10 +64,10 @@ fn render_ja(dt: &DocType, target: &str) -> String {
     out
 }
 
-fn render_en(dt: &DocType, target: &str) -> String {
+fn render_en(dt: &DocType, dt_id: &str, target: &str) -> String {
     let lang = Lang::En;
     let mut out = format!(
-        "# Plot for {target}\n\nDoctype: {}\n\n",
+        "# Plot for {target}\n\n{DOCTYPE_MARK} {dt_id} -->\nDoctype: {}\n\n",
         dt.description(lang)
     );
     out.push_str(
@@ -108,13 +117,25 @@ pub fn run(opts: Options) -> Result<()> {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("{} を作れない", parent.display()))?;
     }
-    std::fs::write(&dest, render(dt, lang, &opts.path))
+    std::fs::write(&dest, render(dt, &opts.doctype, lang, &opts.path))
         .with_context(|| format!("{} に書けない", dest.display()))?;
     println!(
         "{} を作った。主張を書き込んで、承認を得てから本文に進む。",
         dest.display()
     );
     Ok(())
+}
+
+/// プロットが宣言した型を読む。
+///
+/// フロントマターを持てない文書でも、プロットがあれば型が決まる。
+/// プロットは `--doctype` を与えて作るため、型はそこに既にある。
+pub fn plot_doctype(target: &Path) -> Option<String> {
+    let src = std::fs::read_to_string(plan_path(target)).ok()?;
+    src.lines()
+        .find_map(|l| l.trim().strip_prefix(DOCTYPE_MARK))
+        .map(|v| v.trim().trim_end_matches("-->").trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 /// プロットから見出しを読む。突き合わせに使う。
@@ -146,7 +167,7 @@ mod tests {
     #[test]
     fn the_plot_holds_a_heading_for_every_section() {
         for lang in [Lang::Ja, Lang::En] {
-            let out = render(dt("design"), lang, "docs/x.md");
+            let out = render(dt("design"), "design", lang, "docs/x.md");
             for s in &dt("design").sections {
                 let name = &s.names(lang)[0];
                 assert!(
@@ -164,14 +185,14 @@ mod tests {
     // プロットは主張を書く枠であって、本文ではない。空欄で出す。
     #[test]
     fn the_claim_line_is_left_blank() {
-        assert!(render(dt("decision"), Lang::Ja, "x.md").contains("主張: \n"));
-        assert!(render(dt("decision"), Lang::En, "x.md").contains("Claim: \n"));
+        assert!(render(dt("decision"), "decision", Lang::Ja, "x.md").contains("主張: \n"));
+        assert!(render(dt("decision"), "decision", Lang::En, "x.md").contains("Claim: \n"));
     }
 
     #[test]
     fn the_plot_carries_the_writing_rules() {
         for lang in [Lang::Ja, Lang::En] {
-            let out = render(dt("howto"), lang, "x.md");
+            let out = render(dt("howto"), "howto", lang, "x.md");
             for line in writing_rules(lang).lines() {
                 assert!(out.contains(line), "{lang:?} missing {line}");
             }
@@ -182,7 +203,7 @@ mod tests {
     #[test]
     fn headings_read_back_match_the_section_names() {
         for lang in [Lang::Ja, Lang::En] {
-            let src = render(dt("design"), lang, "x.md");
+            let src = render(dt("design"), "design", lang, "x.md");
             let heads: Vec<String> = src
                 .lines()
                 .filter_map(|l| l.strip_prefix("## "))
@@ -222,5 +243,32 @@ mod tests {
             force: false,
         });
         assert!(err.is_err());
+    }
+
+    // プロットは型を機械が読める形で持つ。文書の側に書き足さずに済む。
+    #[test]
+    fn the_plot_declares_its_doctype() {
+        for lang in [Lang::Ja, Lang::En] {
+            let out = render(dt("decision"), "decision", lang, "x.md");
+            assert!(out.contains("<!-- suikou:doctype decision -->"), "{out}");
+        }
+    }
+
+    #[test]
+    fn the_declared_doctype_reads_back() {
+        let src = render(dt("howto"), "howto", Lang::Ja, "x.md");
+        let line = src
+            .lines()
+            .find_map(|l| l.trim().strip_prefix(DOCTYPE_MARK))
+            .unwrap();
+        assert_eq!(line.trim().trim_end_matches("-->").trim(), "howto");
+    }
+
+    // 印は HTML のコメントにしてある。Markdown として見たときに出てはならない。
+    #[test]
+    fn the_mark_is_not_read_as_a_heading() {
+        let src = render(dt("design"), "design", Lang::Ja, "x.md");
+        let doc = suikou_core::markdown::Document::parse(&src);
+        assert!(!doc.body().contains("suikou:doctype"));
     }
 }

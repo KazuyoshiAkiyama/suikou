@@ -114,6 +114,16 @@ off the CLI output. The example calls the rules directly. What comes out is reco
 
 `corpus/fetch.sh` fetches the corpus, which licensing keeps out of the repository.
 
+Measuring the required sections needs a corpus that declares a type.
+
+```sh
+python research/structure/fetch_typed.py corpus/cache/typed 120
+```
+
+That collects Kubernetes pages grouped by their own `content_type:`. Map those values
+onto the doctypes under `[front_matter]` in `.suikou/structure.toml`, then run `check`
+as usual. `research/structure/structure.toml` holds that configuration.
+
 ## Golden tests
 
 The golden tests exist to keep the values in line with the reference implementation.
@@ -219,6 +229,7 @@ their recommended order.
 - Do not repeat a native word that professional technical Japanese avoids.
 - Make one claim per paragraph, splitting the paragraph once it passes six sentences.
 - Write each section as an answer to the question its heading raises.
+- Quote a Hugo shortcode in its escaped form; Hugo runs it even inside a code span.
 
 Run `suikou check` over a page before committing that page.
 The bar is a page free of errors and warnings. Anything at info is advice.

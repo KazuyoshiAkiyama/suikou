@@ -865,3 +865,50 @@ body exists. The text of the guidance lives in one place, `structure::writing_ru
 that it cannot drift from the text of the findings.
 
 Token output does not grow. The template appears only when `--doctype` is given.
+
+## D-31 Measurement took two required sections out of the how-to type
+
+The required sections of each doctype were taken from an existing framework rather than
+invented. Diátaxis describes a how-to guide, and prerequisites, steps, and a check became
+the three required sections. Two of the three fell the moment they met professional
+documentation.
+
+Running `howto` against 120 Kubernetes task pages reported `Steps` absent on all 120 and
+`Verify` absent on 113. Not one page came back clean.
+
+Counting the headings explains it. Of the H2 headings on those pages, 111 are
+`{{%/* heading "prerequisites" */%}}` and 84 are `{{%/* heading "whatsnext" */%}}`. The rest are
+particular to the page: `Create a namespace`, `Edit a Secret`, and so on, each naming the
+operation it covers.
+
+The steps of a how-to are its body, not a section of it. What Diátaxis says is that a
+how-to guide is a sequence of steps, not that a heading reading `Steps` has to sit above
+them. Forcing that heading would strip from the outline the one thing it carries, which
+is what each step does. That works against the guidance that the headings alone should
+carry the line of the argument.
+
+So `steps` and `verify` are no longer required. `prerequisites` stays required, and all
+120 pages satisfied it.
+
+### Out of the detection, still in the guidance
+
+The question and the note on what belongs there stay in the doctype. `suikou plot` and
+`suikou brief --doctype howto` still ask how it is done and how the reader knows it
+worked.
+
+What can be detected and what is worth asking before writing are not the same set.
+Telling the reader how to confirm the result is a mark of a good procedure; the presence
+of a heading reading `Verify` is not a way to measure it. Separating those two is what
+this decision turns on.
+
+### Only the how-to type could be measured from outside
+
+The required sections of `design`, `decision`, and `overview` have been tried against the
+documents in this repository and nowhere else. Those documents were written to match the
+doctype, so the exercise confirms nothing.
+
+Measuring against an outside corpus needs documents that declare a type. Kubernetes
+declares `content_type`, whose values are `task`, `concept`, `reference`, and `tutorial`,
+and only `task` lines up with a type defined here. Diátaxis explanation and tutorial
+would be the types for the other two, and a type will not be added until there is
+something to measure it against.

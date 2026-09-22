@@ -35,13 +35,19 @@ sections = [
   { id = "consequences", required = true,  ja = ["帰結", "影響", "結果"], en = ["Consequences", "Impact"] , question = "決めた結果どうなるのか", writes = "良い面と悪い面の両方を書く。悪い面を書かない決定記録は信用されない" , question_en = "What follows from the decision?", writes_en = "Give both the good and the bad. A decision record without the bad side is not trusted" },
 ]
 
+# howto の必須の節は前提だけとする。
+# 手順と確認を必須にしたところ、Kubernetes の task 頁120件すべてで発火した。
+# 手順そのものは本文であって、見出しは頁ごとに固有になる。
+# 見出しを `Steps` にそろえさせるのは、かえって読みにくい。
+# 必須から外しても、問いと書くことは残す。plot と brief はそこを尋ね続ける。
+# 経緯は D-31 にある。
 [doctype.howto]
 description = "手順。前提から始めて、確認で終わる"
 description_en = "A procedure: it starts at the prerequisites and ends at the check"
 sections = [
   { id = "prerequisites", required = true, ja = ["前提", "用意するもの"], en = ["Prerequisites", "Before you begin"] , question = "始める前に何が要るのか", writes = "前提の環境と、読み手が既に知っている必要のあることを書く" , question_en = "What is needed before starting?", writes_en = "State the environment assumed and what the reader must already know" },
-  { id = "steps",         required = true, ja = ["手順", "やり方"], en = ["Steps", "Procedure", "Instructions"] , question = "どうやるのか", writes = "順番に並べる。一つの手順に一つの操作だけを置く" , question_en = "How is it done?", writes_en = "Put the steps in order, with one action per step" },
-  { id = "verify",        required = true, ja = ["確認", "確かめ方"], en = ["Verify", "Verification", "Check your work"] , question = "うまくいったとどう分かるのか", writes = "期待する出力や状態を書く。確かめ方の無い手順は完了を判断できない" , question_en = "How does the reader know it worked?", writes_en = "Give the expected output or state. A procedure with no check cannot be called finished" },
+  { id = "steps",         required = false, ja = ["手順", "やり方"], en = ["Steps", "Procedure", "Instructions"] , question = "どうやるのか", writes = "順番に並べる。一つの手順に一つの操作だけを置く" , question_en = "How is it done?", writes_en = "Put the steps in order, with one action per step" },
+  { id = "verify",        required = false, ja = ["確認", "確かめ方"], en = ["Verify", "Verification", "Check your work"] , question = "うまくいったとどう分かるのか", writes = "期待する出力や状態を書く。確かめ方の無い手順は完了を判断できない" , question_en = "How does the reader know it worked?", writes_en = "Give the expected output or state. A procedure with no check cannot be called finished" },
 ]
 
 [doctype.reference]

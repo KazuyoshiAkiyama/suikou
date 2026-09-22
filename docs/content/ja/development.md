@@ -91,7 +91,7 @@ AWS の doc_source がこの形式であり、戻さない場合の平均文長�
 
 ## 発火率を測る
 
-規則を追加したり閾値を変更したりした場合は、参照コーパスに対する発火率を測る。
+規則を追加したり閾値を変更したりした場合は、参照コーパスに対する発火率を計測する。
 
 ```sh
 cargo run --release --example structure_rate -- corpus/cache/pro_en en
@@ -99,9 +99,19 @@ cargo run --release --example structure_rate -- corpus/cache/pro_ja ja
 ```
 
 `suikou check` は規則ごとに示す位置を打ち切るため、CLI の出力からは件数を数えられない。
-この例は規則を直に呼ぶ。測った値は `TASKS.md` に記録する。
+この例は規則を直に呼ぶ。計測した値は `TASKS.md` に記録する。
 
 コーパスは `corpus/fetch.sh` で取得する。ライセンスの都合でリポジトリには入れない。
+
+必須の節を計測する場合は、型の宣言を持つコーパスが要る。
+
+```sh
+python research/structure/fetch_typed.py corpus/cache/typed 120
+```
+
+Kubernetes の `content_type:` ごとに頁を集める。
+`.suikou/structure.toml` の `[front_matter]` でこちらの型に読み替えてから `check` を当てる。
+その設定は `research/structure/structure.toml` にある。
 
 ## ゴールデンテスト
 
@@ -195,6 +205,8 @@ suikou brief --doctype design --lang ja
 - プロの技術文書で使われない和語を繰り返さない。`register/rare-wago` が検出する。
 - 一段落に一つの主張だけを置く。6文を超えたら分割する。
 - 節は、その見出しが示す問いに答える形で書く。
+- Hugo のショートコードを引用する場合は、逃がした形で書く。
+  Hugo は Markdown より先にショートコードを処理するため、コードの囲みの中でも実行される。
 
 置く前に `suikou check` を適用することにする。
 条件は error と warning が出ないことまでとする。info は参考として読む。

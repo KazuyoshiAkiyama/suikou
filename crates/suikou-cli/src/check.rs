@@ -43,27 +43,84 @@ fn glossary() -> std::collections::HashSet<String> {
     out
 }
 
-/// 文書の型を決める。フロントマターの doctype を先に見て、
-/// 無ければ `.suikou/structure.toml` のパスの表を見る。
-/// どちらにも無ければ型に依る規則は当てない。既存の文書に影響を出さないためである。
-fn resolve_doctype(src: &str, path: &std::path::Path) -> Option<String> {
-    if let Some(fm) = src
-        .strip_prefix("---\n")
+/// `.suikou/structure.toml` の中身。
+///
+/// パスの表と、ほかの道具が付けた宣言の読み替えを持つ。
+#[derive(serde::Deserialize, Default)]
+struct StructureCfg {
+    #[serde(default)]
+    paths: std::collections::HashMap<String, String>,
+    #[serde(default)]
+    front_matter: FrontMatterCfg,
+}
+
+/// フロントマターの別の欄を型の宣言として読む設定。
+///
+/// Hugo の `content_type` のように、型を既に宣言している文書がある。
+/// その場合に `doctype:` を書き足させると、文書を触らずに済む道を閉ざす。
+#[derive(serde::Deserialize, Default)]
+struct FrontMatterCfg {
+    #[serde(default)]
+    field: String,
+    #[serde(default)]
+    map: std::collections::HashMap<String, String>,
+}
+
+fn structure_cfg() -> StructureCfg {
+    std::fs::read_to_string(".suikou/structure.toml")
+        .ok()
+        .and_then(|s| toml::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn front_matter(src: &str) -> Option<&str> {
+    src.strip_prefix("---\n")
         .and_then(|r| r.split_once("\n---"))
-    {
-        for line in fm.0.lines() {
-            if let Some(v) = line.strip_prefix("doctype:") {
-                return Some(v.trim().trim_matches('"').to_string());
+        .map(|x| x.0)
+}
+
+fn field_value<'a>(fm: &'a str, field: &str) -> Option<&'a str> {
+    fm.lines().find_map(|l| {
+        l.strip_prefix(field)?
+            .strip_prefix(':')
+            .map(|v| v.trim().trim_matches('"'))
+    })
+}
+
+/// 文書の型を決める。近いところから順に見る。
+///
+/// フロントマターの `doctype:`、ほかの道具が付けた宣言の読み替え、
+/// `.suikou/structure.toml` のパスの表、そしてプロットが宣言した型の順とする。
+///
+/// プロットは `--doctype` を与えて作るため、型を既に持っている。
+/// 文書の側に書き足さなくても、プロットがあれば型が決まる。
+///
+/// どこにも無ければ型に依る規則は当てない。
+/// 型を宣言していない文書に、後から規則が増えて落ちることがないようにするためである。
+fn resolve_doctype(src: &str, path: &std::path::Path) -> Option<String> {
+    declared_doctype(&structure_cfg(), src, path).or_else(|| crate::plot::plot_doctype(path))
+}
+
+/// 文書と設定だけから型を決める部分。プロットを読む前の段階にあたる。
+fn declared_doctype(cfg: &StructureCfg, src: &str, path: &std::path::Path) -> Option<String> {
+    if let Some(fm) = front_matter(src) {
+        if let Some(v) = field_value(fm, "doctype") {
+            return Some(v.to_string());
+        }
+        if !cfg.front_matter.field.is_empty() {
+            if let Some(v) = field_value(fm, &cfg.front_matter.field) {
+                // 表に無い値は型を決めない。知らない値を黙って落とすほうが、
+                // こちらの見立てで割り当てるより安全である。
+                if let Some(name) = cfg.front_matter.map.get(v) {
+                    return Some(name.clone());
+                }
             }
         }
     }
-    let cfg = std::fs::read_to_string(".suikou/structure.toml").ok()?;
-    #[derive(serde::Deserialize)]
-    struct Cfg {
-        #[serde(default)]
-        paths: std::collections::HashMap<String, String>,
-    }
-    let cfg: Cfg = toml::from_str(&cfg).ok()?;
+    doctype_from_paths(cfg, path)
+}
+
+fn doctype_from_paths(cfg: &StructureCfg, path: &std::path::Path) -> Option<String> {
     let p = path.to_string_lossy();
     // 長い接頭辞を先に見る。細かい指定が大まかな指定に勝つ。
     let mut keys: Vec<&String> = cfg.paths.keys().collect();
@@ -273,4 +330,65 @@ pub fn run(opts: Options) -> Result<i32> {
         Some(Severity::Error) => EXIT_ERROR,
         _ => EXIT_OK,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cfg(src: &str) -> StructureCfg {
+        toml::from_str(src).unwrap()
+    }
+
+    #[test]
+    fn the_front_matter_doctype_wins() {
+        let c = cfg("[paths]\n\"docs/\" = \"reference\"\n");
+        let src = "---\ntitle: \"x\"\ndoctype: \"design\"\n---\n\n本文。\n";
+        let got = declared_doctype(&c, src, Path::new("docs/x.md"));
+        assert_eq!(got.as_deref(), Some("design"));
+    }
+
+    #[test]
+    fn the_path_table_applies_when_the_front_matter_is_silent() {
+        let c = cfg("[paths]\n\"docs/\" = \"reference\"\n\"docs/how/\" = \"howto\"\n");
+        // 長い接頭辞が勝つ。
+        let got = declared_doctype(&c, "本文。\n", Path::new("docs/how/x.md"));
+        assert_eq!(got.as_deref(), Some("howto"));
+    }
+
+    // ほかの道具が付けた宣言を読み替える。文書を書き換えずに型を当てられる。
+    #[test]
+    fn a_foreign_front_matter_field_is_mapped() {
+        let c = cfg("[front_matter]\nfield = \"content_type\"\n\n\
+             [front_matter.map]\ntask = \"howto\"\n");
+        let src = "---\ntitle: \"x\"\ncontent_type: task\n---\n\nBody.\n";
+        let got = declared_doctype(&c, src, Path::new("x.md"));
+        assert_eq!(got.as_deref(), Some("howto"));
+    }
+
+    // 表に無い値は型を決めない。こちらの見立てで割り当てないためである。
+    #[test]
+    fn an_unmapped_value_declares_nothing() {
+        let c = cfg("[front_matter]\nfield = \"content_type\"\n\n\
+             [front_matter.map]\ntask = \"howto\"\n");
+        let src = "---\ncontent_type: feature_gate\n---\n\nBody.\n";
+        assert_eq!(declared_doctype(&c, src, Path::new("x.md")), None);
+    }
+
+    #[test]
+    fn our_own_field_beats_the_foreign_one() {
+        let c = cfg("[front_matter]\nfield = \"content_type\"\n\n\
+             [front_matter.map]\ntask = \"howto\"\n");
+        let src = "---\ncontent_type: task\ndoctype: \"reference\"\n---\n\nBody.\n";
+        let got = declared_doctype(&c, src, Path::new("x.md"));
+        assert_eq!(got.as_deref(), Some("reference"));
+    }
+
+    #[test]
+    fn a_document_declaring_nothing_gets_no_doctype() {
+        assert_eq!(
+            declared_doctype(&StructureCfg::default(), "本文。\n", Path::new("x.md")),
+            None
+        );
+    }
 }

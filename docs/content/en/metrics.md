@@ -382,10 +382,38 @@ a heading, the question each section answers, and what belongs in it.
 | `reference` | A reference: no section is required |
 | `overview` | An entry point: it starts by saying what the thing is |
 
-A document declares its doctype in the front matter, as `doctype:`.
-A document that cannot carry front matter is declared under `[paths]` in
-`.suikou/structure.toml`, where the longest matching prefix wins.
-A document declared in neither place gets no doctype rule, so that a document written
+A declaration is looked for in three places, nearest first.
+
+| Where | How it reads |
+|---|---|
+| The front matter | `doctype: "design"` |
+| A field another tool wrote | `[front_matter]` and `[front_matter.map]` |
+| `[paths]` in `.suikou/structure.toml` | `"README.md" = "overview"` |
+| The head of the plot | `<!-- suikou:doctype design -->` |
+
+Where two prefixes match, the longer one wins.
+
+Some documents already declare a type under another name. Hugo's `content_type` is one.
+Naming that field and mapping its values settles the doctype without touching a single
+document.
+
+```toml
+[front_matter]
+field = "content_type"
+
+[front_matter.map]
+task = "howto"
+reference = "reference"
+```
+
+A value missing from the map declares nothing, rather than being assigned a type on our
+own reading of it.
+
+A plot is created with `--doctype`, so it already holds the type. A document that has a
+plot therefore needs no declaration of its own. The mark is an HTML comment so that it
+stays invisible when the plot is read as Markdown.
+
+A document declared in none of the three gets no doctype rule, so that a document written
 before the rule existed does not start failing once the rule lands.
 
 A doctype name that no doctype defines fails on the spot.
@@ -406,6 +434,15 @@ of its own, and a README takes the same shape. Forcing a heading there reads wor
 
 The report does not stop at naming what is absent. It carries the question that section
 answers and what belongs in it.
+
+Which sections are required differs by doctype. For `howto` only the prerequisites are
+required; steps and verification are not. Running the type against 120 Kubernetes task
+pages reported steps absent on all 120 and verification absent on 113, because the steps
+of a how-to are its body rather than a section of it. D-31 records the reasoning.
+
+Dropping them from the detection leaves them in the guidance. `plot` and `brief` still
+ask how it is done and how the reader knows it worked. What can be detected and what is
+worth asking before writing are not the same set.
 
 ### structure/section-order
 

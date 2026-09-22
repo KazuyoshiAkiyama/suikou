@@ -1,0 +1,14 @@
+# 型を宣言したコーパスに `suikou check` を当てるための設定。
+#
+# Kubernetes が自分で付けた `content_type:` を、こちらの型に読み替える。
+# 読み替えるのは重なる値だけとする。
+# `concept` と `tutorial` に当たる型を置いていないため、その二つは割り当てない。
+#
+# 使い方は、集めたディレクトリに `.suikou/structure.toml` として置き、
+# そのディレクトリで `suikou check .` を実行する。
+[front_matter]
+field = "content_type"
+
+[front_matter.map]
+task = "howto"
+reference = "reference"
