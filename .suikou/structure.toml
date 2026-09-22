@@ -1,0 +1,13 @@
+# このリポジトリの文書の型。フロントマターを持てない文書はここで宣言する。
+#
+# `docs/content/` 以下は Hugo のフロントマターに `doctype:` を書く。
+# 文書を開いた人がその場で型を見られるためである。
+# 接頭辞が重なった場合は長いほうが勝つ。
+[paths]
+"README.md" = "overview"
+"README.ja.md" = "overview"
+"TASKS.md" = "reference"
+"CLAUDE.md" = "reference"
+"skills/suikou/SKILL.md" = "reference"
+"packages/textlint-rule-preset-tech-maintainability/README.md" = "overview"
+"packages/textlint-rule-preset-tech-maintainability/README.ja.md" = "overview"

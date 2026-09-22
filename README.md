@@ -76,6 +76,26 @@ Zero sits below the thresholds, so the run would end in a false report of nothin
 
 ## Using it
 
+A document starts with its outline rather than its prose.
+
+```sh
+suikou plot docs/guide.md --doctype howto
+```
+
+That lays out the section headings and the question each section answers under
+`.suikou/plans/`. Fill in the claim each section makes, one line each, and get that
+approved before the body is written. The plot is kept out of version control, because it
+is a document of the thinking rather than a deliverable.
+
+The instruction handed to a model carries the doctype too, which puts the question behind
+each section and the rules for writing ahead of the prohibitions.
+
+```sh
+suikou brief --doctype howto --lang en
+```
+
+What was written is then checked.
+
 ```sh
 suikou check docs/guide.md
 ```

@@ -9,6 +9,7 @@ mod brief;
 mod check;
 mod mcp;
 mod morphology;
+mod plot;
 mod terms;
 
 use anyhow::Result;
@@ -47,6 +48,9 @@ enum Command {
         /// 指示の詳細度。構造の規則は concise で守られるが、時点依存語は detailed が要る
         #[arg(long, default_value = "balanced")]
         detail: String,
+        /// 文書の型。与えると、節の型枠と書き方の指針を先に出す
+        #[arg(long)]
+        doctype: Option<String>,
     },
     /// 局所指摘と文書指標の統合レポートを出力する
     Check {
@@ -91,6 +95,18 @@ enum Command {
     Mcp,
     /// 常駐モードについて、置かないと決めた理由を出す
     Daemon,
+    /// 書く前に構成を決めるための型枠を出す
+    Plot {
+        path: String,
+        /// 文書の型。design、decision、howto、reference、overview
+        #[arg(long, default_value = "design")]
+        doctype: String,
+        #[arg(long, default_value = "ja")]
+        lang: String,
+        /// 既にあるプロットを作り直す
+        #[arg(long)]
+        force: bool,
+    },
     /// インストールされたバイナリが期待どおりかを確かめる
     Selftest,
 }
@@ -122,16 +138,29 @@ fn selftest() -> Result<()> {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
+        Command::Plot {
+            path,
+            doctype,
+            lang,
+            force,
+        } => plot::run(plot::Options {
+            path,
+            doctype,
+            lang,
+            force,
+        }),
         Command::Selftest => selftest(),
         Command::Brief {
             profile,
             lang,
             detail,
+            doctype,
         } => {
             let text = brief::run(brief::Options {
                 profile,
                 lang,
                 detail,
+                doctype,
             })?;
             print!("{text}");
             Ok(())

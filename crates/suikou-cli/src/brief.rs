@@ -12,9 +12,10 @@
 //! 入れない。M6（時点依存語）だけは簡潔な指示では守られないと実測で分かって
 //! いるため、水準によらず禁じる語をすべて列挙する。
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use suikou_core::lang::Lang;
 use suikou_core::rules::{TIME_DEPENDENT_EN, TIME_DEPENDENT_JA};
+use suikou_core::structure::{doctypes, writing_rules, DocType};
 
 use crate::check::load_profile;
 
@@ -22,6 +23,8 @@ pub struct Options {
     pub profile: String,
     pub lang: String,
     pub detail: String,
+    /// 文書の型。与えると、禁止の一覧の前に節の型枠を出す。
+    pub doctype: Option<String>,
 }
 
 /// `--detail` の水準。
@@ -66,7 +69,83 @@ pub fn run(opts: Options) -> Result<String> {
     load_profile(&opts.profile)?;
     let lang = resolve_lang(&opts.lang)?;
     let detail = Detail::parse(&opts.detail)?;
-    Ok(render(lang, detail))
+    let dt = match &opts.doctype {
+        Some(name) => Some(lookup_doctype(name)?),
+        None => None,
+    };
+    let mut out = String::new();
+    if let Some(dt) = dt {
+        out.push_str(&render_structure(dt, lang));
+        out.push('\n');
+    }
+    out.push_str(&render(lang, detail));
+    Ok(out)
+}
+
+fn lookup_doctype(name: &str) -> Result<&'static DocType> {
+    doctypes().get(name).with_context(|| {
+        let mut names: Vec<&str> = doctypes().keys().map(String::as_str).collect();
+        names.sort_unstable();
+        format!("型 {name} を知らない。使えるのは {}", names.join("、"))
+    })
+}
+
+/// 節の型枠と書き方の指針。禁止の一覧より前に置く。
+///
+/// 禁止だけを渡すと、避けるべき形は分かっても書くべき形が決まらない。
+/// 節ごとに、その節が答える問いと何を書くかを示す。
+/// `suikou plot` が出すものと同じ内容であり、指針は一か所から取る。
+fn render_structure(dt: &DocType, lang: Lang) -> String {
+    let mut out = String::new();
+    match lang {
+        Lang::Ja => {
+            out.push_str(&format!(
+                "# 文書の組み立て\n\n型: {}\n\n",
+                dt.description(lang)
+            ));
+            out.push_str("次の節をこの順に置く。節ごとに、その節が答える問いを示す。\n\n");
+            for s in &dt.sections {
+                let name = s
+                    .names(lang)
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| s.id.clone());
+                let mark = if s.required { "" } else { "（任意）" };
+                out.push_str(&format!(
+                    "- {name}{mark}… {} / {}\n",
+                    s.question(lang),
+                    s.writes(lang)
+                ));
+            }
+            out.push_str("\n# 書き方\n\n");
+        }
+        Lang::En => {
+            out.push_str(&format!(
+                "# Structure\n\nDoctype: {}\n\n",
+                dt.description(lang)
+            ));
+            out.push_str(
+                "Use the sections below, in this order. Each one names the question it \
+                 answers.\n\n",
+            );
+            for s in &dt.sections {
+                let name = s
+                    .names(lang)
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| s.id.clone());
+                let mark = if s.required { "" } else { " (optional)" };
+                out.push_str(&format!(
+                    "- {name}{mark} — {} / {}\n",
+                    s.question(lang),
+                    s.writes(lang)
+                ));
+            }
+            out.push_str("\n# How to write it\n\n");
+        }
+    }
+    out.push_str(&writing_rules(lang));
+    out
 }
 
 fn render(lang: Lang, detail: Detail) -> String {
@@ -293,6 +372,7 @@ mod tests {
             profile: "oss".to_string(),
             lang: "en".to_string(),
             detail: "balanced".to_string(),
+            doctype: None,
         })
         .unwrap();
         assert!(out.contains("currently"));
@@ -304,6 +384,60 @@ mod tests {
             profile: "no-such-profile".to_string(),
             lang: "ja".to_string(),
             detail: "balanced".to_string(),
+            doctype: None,
+        });
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn the_doctype_skeleton_precedes_the_constraints() {
+        for (lang, spec, head) in [
+            (Lang::Ja, "ja", "# 文書の組み立て"),
+            (Lang::En, "en", "# Structure"),
+        ] {
+            let out = run(Options {
+                profile: "oss".to_string(),
+                lang: spec.to_string(),
+                detail: "concise".to_string(),
+                doctype: Some("design".to_string()),
+            })
+            .unwrap();
+            // 書くべき形を先に示し、禁止はその後に置く。
+            assert!(out.starts_with(head), "{lang:?}: {out}");
+            for s in &doctypes()["design"].sections {
+                assert!(
+                    out.contains(&s.names(lang)[0].to_string()),
+                    "{lang:?} section"
+                );
+                assert!(out.contains(s.question(lang)), "{lang:?} question");
+            }
+            for line in writing_rules(lang).lines() {
+                assert!(out.contains(line), "{lang:?} rule {line}");
+            }
+        }
+    }
+
+    #[test]
+    fn without_a_doctype_the_output_is_unchanged() {
+        let opts = |dt| Options {
+            profile: "oss".to_string(),
+            lang: "ja".to_string(),
+            detail: "balanced".to_string(),
+            doctype: dt,
+        };
+        assert_eq!(run(opts(None)).unwrap(), render_ja(Detail::Balanced));
+        assert!(
+            run(opts(Some("design".to_string()))).unwrap().len() > run(opts(None)).unwrap().len()
+        );
+    }
+
+    #[test]
+    fn an_unknown_doctype_is_an_error() {
+        let err = run(Options {
+            profile: "oss".to_string(),
+            lang: "ja".to_string(),
+            detail: "balanced".to_string(),
+            doctype: Some("no-such-type".to_string()),
         });
         assert!(err.is_err());
     }

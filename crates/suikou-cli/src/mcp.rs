@@ -154,6 +154,11 @@ fn tools_list_result() -> Value {
                         "profile": {
                             "type": "string",
                             "default": "oss"
+                        },
+                        "doctype": {
+                            "type": "string",
+                            "enum": ["design", "decision", "howto", "reference", "overview"],
+                            "description": "与えると、節の型枠と書き方の指針を制約より前に置く"
                         }
                     }
                 }
@@ -205,7 +210,7 @@ fn call_check(args: &Value) -> Result<String> {
     let format = args.get("format").and_then(Value::as_str).unwrap_or("md");
 
     let profile = check::load_profile(profile_name)?;
-    let (_lang, report) = check::analyze(&src, lang, &profile)?;
+    let (_lang, report) = check::analyze(&src, lang, &profile, path_arg.map(std::path::Path::new))?;
 
     match format {
         "json" => Ok(serde_json::to_string_pretty(&report)?),
@@ -230,10 +235,15 @@ fn call_brief(args: &Value) -> Result<String> {
         .and_then(Value::as_str)
         .unwrap_or("balanced")
         .to_string();
+    let doctype = args
+        .get("doctype")
+        .and_then(Value::as_str)
+        .map(str::to_string);
     brief::run(brief::Options {
         profile,
         lang,
         detail,
+        doctype,
     })
 }
 
@@ -298,7 +308,7 @@ mod tests {
         let via_mcp = resp["result"]["content"][0]["text"].as_str().unwrap();
 
         let profile = check::load_profile("oss").unwrap();
-        let (_lang, report) = check::analyze(text, "en", &profile).unwrap();
+        let (_lang, report) = check::analyze(text, "en", &profile, None).unwrap();
         assert_eq!(via_mcp, report.to_markdown());
     }
 
@@ -372,6 +382,7 @@ mod tests {
             profile: "oss".to_string(),
             lang: "en".to_string(),
             detail: "balanced".to_string(),
+            doctype: None,
         })
         .unwrap();
         assert_eq!(via_mcp, direct);
@@ -395,7 +406,7 @@ mod tests {
         assert_eq!(resp["result"]["isError"], false);
 
         let profile = check::load_profile("oss").unwrap();
-        let (_lang, report) = check::analyze(text, "ja", &profile).unwrap();
+        let (_lang, report) = check::analyze(text, "ja", &profile, None).unwrap();
         let via_mcp = resp["result"]["content"][0]["text"].as_str().unwrap();
         assert_eq!(via_mcp, report.to_markdown());
     }

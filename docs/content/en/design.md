@@ -1,6 +1,7 @@
 ---
 title: "Design"
 weight: 10
+doctype: "design"
 ---
 
 A layered linter and a harness that strip AI style out of technical documentation and
@@ -9,9 +10,7 @@ leave the result easier to maintain. The languages covered are Japanese and Engl
 This page follows the rules it sets out. Every list opens with a complete sentence, the
 prose never states how many items a list holds, and no bare metaphor appears.
 
-## Scope and purpose
-
-### The problem being solved
+## Motivation
 
 Technical documentation written by generative AI carries habits that reach past the level
 of the single word. It leans on metaphor and on indirect phrasing, it repeats the same
@@ -20,14 +19,29 @@ document becomes hard to maintain. Existing tools cover a word list or a notatio
 and nothing else, so none of them reach these habits. A spell checker, for example,
 never sees that a document leans on metaphor.
 
-### What is covered
+## Scope
 
 The scope is technical documentation and technical writing.
-Fiction, advertising, and social posts fall outside it.
 What counts as good prose depends on the setting, so no rule can be fixed until the
 setting is fixed.
 
-### The heaviest constraint
+The languages covered are Japanese and English.
+The style rules carry a measurement per language; the structural rules apply to both.
+
+## Non-goals
+
+Fiction, advertising, and social posts fall outside the scope, because the style rules
+change with the setting.
+
+The tool does not rewrite a document. It reports positions and it states a direction
+drawn from the whole document, and the writer decides what to change. Mechanical
+substitution has broken the meaning of a sentence more than once in this repository's own
+documents.
+
+The tool does not judge whether the content is factually correct. Style and structure can
+be measured against a corpus; the truth of a claim cannot.
+
+## The heaviest constraint
 
 The tool does not report one layer at a time and ask the model to fix each report in turn.
 To hold down token use, one run reports every layer, and one edit clears the report.
@@ -357,7 +371,7 @@ That figure does not support building a resident mode for the sake of dictionary
 | `suikou terms <glob>` | Extract a glossary and an allowlist from a set of documents |
 | `suikou selftest` | Check that the installed binary is what it claims to be |
 | `suikou mcp` | Start as an MCP server |
-| `suikou daemon` | Start in resident mode |
+| `suikou plot <path> --doctype T` | Write the structure into `.suikou/plans/` before writing |
 
 The main options on `check` are listed below.
 
@@ -558,11 +572,11 @@ design.
 
 ### The workflow
 
-1. Put the output of `suikou brief` into the prompt.
-2. Generate, producing a deliverable and a set of notes.
-3. Run `suikou check` once and read the combined report.
-4. Apply every edit in one pass.
-5. Confirm with `suikou check --quiet`.
+1. Put the output of `suikou brief` into the prompt. 2. Generate, producing a deliverable
+and a set of notes. 3.
+
+Run `suikou check` once and read the combined report. 4. Apply every edit in one pass. 5.
+Confirm with `suikou check --quiet`.
 
 No layer gets linted and fixed on its own.
 The positional findings say where to edit, and the guidance built from the document
@@ -677,13 +691,12 @@ These get settled after the code is written and evaluated.
 
 - Decide whether the skill calls `suikou brief` every time or embeds the output in SKILL.md.
 - Decide how the level of detail in brief is expressed as a profile setting.
-- Decide the protocol for resident mode.
 - Decide how finely thresholds split by kind of document.
 - Decide how to add the Japanese AWS and Google documentation to the corpus.
 - Thicken the Japanese native corpus.
 
 The level of detail in brief needs a judgment call, because a short instruction shrinks
-the output. Resident mode needs a check under WSL2. Splitting thresholds includes
+the output. Splitting thresholds includes
 deciding how the kind of document is detected. The Japanese AWS and Google documentation
 is not on GitHub, so adding it needs another route. The Japanese corpus draws on two
 sources today, and both are expository books.
@@ -696,6 +709,7 @@ Measurement settled the items below, so none of them needs revisiting.
 - Data collected from one batched prompt is usable.
 - Structural maintainability rules hold under a short instruction.
 - Document metrics do not belong inside textlint.
+- Resident mode is not built. Startup was measured in milliseconds.
 - Rust is the implementation language.
 
 Vocabulary rules, unlike the structural ones, need a detailed instruction.
@@ -714,19 +728,18 @@ Python is limited to calibration and search.
 - Freeburg, arXiv:2603.27006 2026.
 - Sakasegawa, 2026.
 
-Kobak and colleagues examined 15.1 million PubMed abstracts and found that 66 percent of
-the excess words of 2024 were verbs and 14 percent adjectives, which inverts the pattern
-of the COVID period, where 79 percent were nouns.
-Reinhart and colleagues compared texts across the 66 features of Biber and showed that
-instruction tuning drives the divergence, leaving base models closer to human writing.
-Markey and colleagues described the ChatGPT register as dense and disconnected.
-Geng and Trotta showed that a word drops in frequency right after it is called out.
-Zhang and colleagues showed that the preference for lists and bold is baked into the
-reward model.
+Kobak and colleagues examined 15.1 million PubMed abstracts and found that 66 percent of the
+excess words of 2024 were verbs and 14 percent adjectives, which inverts the pattern of the
+COVID period, where 79 percent were nouns. Reinhart and colleagues compared texts across the
+66 features of Biber and showed that instruction tuning drives the divergence, leaving base
+models closer to human writing. Markey and colleagues described the ChatGPT register as
+dense and disconnected.
+
+Geng and Trotta showed that a word drops in frequency right after it is called out. Zhang
+and colleagues showed that the preference for lists and bold is baked into the reward model.
 Freeburg showed that formatting can be suppressed and that the em dash survives in some
-models.
-Sakasegawa compared 70,000 Qiita articles before and after generative AI, which is the
-only quantitative study of its kind in Japanese.
+models. Sakasegawa compared 70,000 Qiita articles before and after generative AI, which is
+the only quantitative study of its kind in Japanese.
 
 ### Written standards
 

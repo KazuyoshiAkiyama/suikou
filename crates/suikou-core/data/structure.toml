@@ -1,0 +1,59 @@
+# 文書の型ごとの必須の節と、その推奨する順序。
+#
+# 出典は次のとおり。
+#   design   … Rust RFC テンプレート、Kubernetes Enhancement Proposal
+#   decision … Michael Nygard の Architecture Decision Record
+#   howto    … Diátaxis の how-to guide
+#   overview … 上のいずれでもない入口の文書
+# 節を並べた順序が推奨する順序になる。RFC 7322 が必須の節と順序を定める前例である。
+#
+# 節の同定は見出しの文字列と同義語による。構造の規則は言語を問わないが、
+# 節の名前だけは言語ごとに持つ。
+#
+# question と writes は、検出ではなく誘導のために持つ。言語ごとに持つ。
+# `suikou plot` と `suikou brief` が、書く前にこれを型枠として示す。
+
+[doctype.design]
+description = "提案と設計。何を作るか、なぜ要るか、どこまでやるかを示す"
+description_en = "A proposal or design: what is being built, why it is needed, and how far it goes"
+sections = [
+  { id = "summary",      required = true,  ja = ["概要", "要約", "何を作るか"], en = ["Summary", "Overview", "Abstract"] , question = "何についての文書か", writes = "読み手が最初の数行で主題をつかめるように、一段落で書く。詳細は後の節に置く" , question_en = "What is this document about?", writes_en = "Give the subject in one paragraph, so the reader has it within a few lines. Leave the detail to the later sections" },
+  { id = "motivation",   required = true,  ja = ["動機", "背景", "解こうとしている問題", "目的"], en = ["Motivation", "Background", "Problem"] , question = "なぜ必要なのか", writes = "解こうとしている問題と、放置した場合に何が困るかを書く。解き方はここでは書かない" , question_en = "Why is it needed?", writes_en = "State the problem and what goes wrong if it is left alone. Do not give the solution here" },
+  { id = "scope",        required = true,  ja = ["扱う範囲", "目標", "適用範囲"], en = ["Scope", "Goals", "What is covered"] , question = "どこまでやるのか", writes = "扱う対象と、どの場面で使うかを書く" , question_en = "How far does it go?", writes_en = "State what it covers and where it applies" },
+  { id = "non_goals",    required = true,  ja = ["扱わない範囲", "非目標", "やらないこと"], en = ["Non-goals", "Non-Goals", "Out of scope"] , question = "何をやらないのか", writes = "扱わないものを明示する。境界を書かないと、読み手が期待を広げる" , question_en = "What does it not do?", writes_en = "Name what is left out. Without the boundary the reader will expand the expectation" },
+  { id = "design",       required = true,  ja = ["設計", "仕組み", "構成", "どう動くか"], en = ["Design", "Design details", "How it works", "Architecture"] , question = "どう動くのか", writes = "構成と動き方を書く。判断の根拠は代替案の節に置く" , question_en = "How does it work?", writes_en = "Describe the structure and the behaviour. Keep the reasoning in the alternatives section" },
+  { id = "alternatives", required = false, ja = ["代替案", "検討した案", "採らなかった案"], en = ["Alternatives", "Rationale and alternatives", "Prior art"] , question = "ほかにどんな案があったか", writes = "検討して採らなかった案と、採らなかった理由を書く" , question_en = "What else was considered?", writes_en = "Record the options that were rejected, and why" },
+  { id = "open",         required = false, ja = ["決めていないこと", "未決事項", "残る課題"], en = ["Open questions", "Unresolved questions", "Future possibilities"] , question = "まだ決まっていないことは何か", writes = "決めていない論点を残す。決めたことは決定の記録に移す" , question_en = "What is still undecided?", writes_en = "Keep the open questions here. Move anything settled into the decision record" },
+]
+
+[doctype.decision]
+description = "決定の記録。文脈、決定、帰結を残す"
+description_en = "A decision record: the context, the decision, and the consequences"
+sections = [
+  { id = "context",      required = true,  ja = ["文脈", "背景", "経緯"], en = ["Context", "Background"] , question = "どういう状況で決めたのか", writes = "決定を迫った事情を書く。決定そのものはここでは書かない" , question_en = "What situation forced the decision?", writes_en = "Describe the circumstances. Do not state the decision itself here" },
+  { id = "decision",     required = true,  ja = ["決定", "決めたこと"], en = ["Decision"] , question = "何を決めたのか", writes = "決めたことを一文で言い切る。理由は文脈の節に置く" , question_en = "What was decided?", writes_en = "State the decision in one sentence. Keep the reasoning in the context section" },
+  { id = "consequences", required = true,  ja = ["帰結", "影響", "結果"], en = ["Consequences", "Impact"] , question = "決めた結果どうなるのか", writes = "良い面と悪い面の両方を書く。悪い面を書かない決定記録は信用されない" , question_en = "What follows from the decision?", writes_en = "Give both the good and the bad. A decision record without the bad side is not trusted" },
+]
+
+[doctype.howto]
+description = "手順。前提から始めて、確認で終わる"
+description_en = "A procedure: it starts at the prerequisites and ends at the check"
+sections = [
+  { id = "prerequisites", required = true, ja = ["前提", "用意するもの"], en = ["Prerequisites", "Before you begin"] , question = "始める前に何が要るのか", writes = "前提の環境と、読み手が既に知っている必要のあることを書く" , question_en = "What is needed before starting?", writes_en = "State the environment assumed and what the reader must already know" },
+  { id = "steps",         required = true, ja = ["手順", "やり方"], en = ["Steps", "Procedure", "Instructions"] , question = "どうやるのか", writes = "順番に並べる。一つの手順に一つの操作だけを置く" , question_en = "How is it done?", writes_en = "Put the steps in order, with one action per step" },
+  { id = "verify",        required = true, ja = ["確認", "確かめ方"], en = ["Verify", "Verification", "Check your work"] , question = "うまくいったとどう分かるのか", writes = "期待する出力や状態を書く。確かめ方の無い手順は完了を判断できない" , question_en = "How does the reader know it worked?", writes_en = "Give the expected output or state. A procedure with no check cannot be called finished" },
+]
+
+[doctype.reference]
+description = "定義。必須の節は置かない"
+description_en = "A reference: no section is required"
+sections = []
+
+[doctype.overview]
+description = "入口の文書。何であるかから始める"
+description_en = "An entry point: it starts by saying what the thing is"
+sections = [
+  { id = "what",  required = true,  ja = ["何であるか", "概要", "これは何か"], en = ["What it is", "Overview", "Introduction"] , question = "これは何か", writes = "何であるかを最初の一段落で示す" , question_en = "What is it?", writes_en = "Say what it is in the first paragraph" },
+  { id = "why",   required = false, ja = ["なぜ", "動機", "考え方"], en = ["Why", "Motivation", "How it is built"] , question = "なぜこれがあるのか", writes = "解く問題と、ほかとの違いを書く" , question_en = "Why does it exist?", writes_en = "State the problem it solves and how it differs from the alternatives" },
+  { id = "usage", required = true,  ja = ["使い方", "入れ方"], en = ["Usage", "Using it", "Installing"] , question = "どう使うのか", writes = "最短の使い方を示す。網羅は参照の文書に譲る" , question_en = "How is it used?", writes_en = "Show the shortest path to using it. Leave the exhaustive detail to the reference" },
+]

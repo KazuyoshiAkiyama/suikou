@@ -1,5 +1,6 @@
 ---
 title: "suikou"
+doctype: "overview"
 ---
 
 suikou は技術文書の lint とハーネスである。日本語と英語を扱う。
@@ -17,3 +18,17 @@ suikou はこうした特徴を見つけるためのものである。
 規則の根拠は、その研究と、測定したコーパスの値にある。
 
 この文書そのものも、ここで規定する規則に従って書いたものである。
+
+## 使い方
+
+入れ方は GitHub Releases の書庫を展開して `suikou` をパスの通った場所へ置く。
+その後は、次のコマンドが普段の作業を覆う。
+
+```sh
+suikou plot docs/design.md --doctype design  # 書く前に構成を決める
+suikou brief --doctype design                # 生成の前にプロンプトへ貼る
+suikou check docs/design.md                  # 書いたものを検査する
+```
+
+入れ方と一つずつの説明は[設計](design/)にある。
+指標の厳密な定めは[指標](metrics/)に、決めた経緯は[決定の記録](decisions/)にある。

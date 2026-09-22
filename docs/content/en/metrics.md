@@ -1,6 +1,7 @@
 ---
 title: "Metric definitions"
 weight: 20
+doctype: "reference"
 ---
 
 This page holds the definitions that the Rust implementation has to satisfy.
@@ -15,12 +16,11 @@ the question of which implementation is right gets settled case by case.
 
 The order changes the result. The steps run in the order below.
 
-1. Strip the YAML front matter.
-2. Strip fenced code blocks.
-3. **Undo backslash escapes**, turning `\.` back into `.`.
-4. Strip HTML tags.
-5. Sort the lines into blocks.
-6. Strip inline markup, meaning links, code spans, and emphasis.
+1. Strip the YAML front matter. 2. Strip fenced code blocks. 3. **Undo backslash escapes**,
+turning `\.` back into `.`.
+
+4. Strip HTML tags. 5. Sort the lines into blocks. 6. Strip inline markup, meaning links,
+code spans, and emphasis.
 
 Skipping the third step breaks sentence splitting.
 The AWS doc_source corpus is written in that escaped form, and leaving the escapes in
@@ -98,13 +98,13 @@ Normalize per thousand characters the same way.
 Divide `renyo_per_1k` by `te_per_1k`.
 When the divisor falls below 0.05, the ratio is not reported at all.
 
-Native humans land at 2.00, translated Japanese lands at 1.79, and AI lands between 3.62
-and 15.94. The threshold is 3.0.
-This metric separates the two groups more sharply than any other.
-The te-form leans toward speech and folds clauses into one.
-The renyo form leans toward writing and lines clauses up side by side.
-AI leans toward the second. The same thing shows up in English as an excess of participial
-clauses.
+Native humans land at 2.00, translated Japanese lands at 1.79, and AI lands between 3.62 and
+15.94. The threshold is 3.0.
+
+This metric separates the two groups more sharply than any other. The te-form leans toward
+speech and folds clauses into one. The renyo form leans toward writing and lines clauses up
+side by side. AI leans toward the second. The same thing shows up in English as an excess of
+participial clauses.
 
 ### ja.keishiki_meishi_per_1k
 
@@ -341,6 +341,106 @@ A word preceded by a noun is skipped as part of a compound, since rewriting the 
 英語版 or 第3版 would be wrong.
 
 `.suikou/register-allow.toml` exempts a word a project uses in another sense.
+
+## The structural rules
+
+Unlike the style rules, the structural rules do not depend on the language.
+The set of sections, their order, and the unit of a paragraph are properties of the
+argument a document makes, and they sit outside the vocabulary of any one language.
+Measurement bears this out. Paragraphs of seven sentences or more run at 0.4 to 0.9
+percent in professional English and at 0.7 percent in professional Japanese, so the two
+languages land in the same band. Only the section names and the sentence splitter are
+held per language.
+
+The framework comes from the sources below.
+RFC 7322 is the precedent for a set of required sections in a recommended order, and it
+also states that a section may hold nothing but subsections.
+The sections of each doctype come from the Rust RFC template, the Kubernetes Enhancement
+Proposal, Michael Nygard's Architecture Decision Record, and Diátaxis.
+Treating a paragraph as one unit of thought comes from the Google developer documentation
+style guide and from Strunk's The Elements of Style.
+
+### Doctypes
+
+The doctypes live in `crates/suikou-core/data/structure.toml`.
+Each one carries its required sections, the recommended order, the synonyms accepted for
+a heading, the question each section answers, and what belongs in it.
+
+| Doctype | What it is for |
+|---|---|
+| `design` | A proposal or design: what is built, why it is needed, how far it goes |
+| `decision` | A decision record: the context, the decision, the consequences |
+| `howto` | A procedure: it starts at the prerequisites and ends at the check |
+| `reference` | A reference: no section is required |
+| `overview` | An entry point: it starts by saying what the thing is |
+
+A document declares its doctype in the front matter, as `doctype:`.
+A document that cannot carry front matter is declared under `[paths]` in
+`.suikou/structure.toml`, where the longest matching prefix wins.
+A document declared in neither place gets no doctype rule, so that a document written
+before the rule existed does not start failing once the rule lands.
+
+A doctype name that no doctype defines fails on the spot.
+Skipping it silently would delete the check whenever the name is misspelled.
+
+### structure/missing-section
+
+Fires when no heading matches a required section of the declared doctype, at error.
+
+A heading matches through the synonym list, and only the top level of headings is
+considered. A leading level-one heading is the title of the document rather than a
+section, so it is dropped. What a doctype fixes is the top-level outline; a subheading
+inside a section is not a section.
+
+Only the first section can be answered by the lead paragraph instead of a heading. The
+abstract in RFC 7322 sits between the title and the table of contents without a heading
+of its own, and a README takes the same shape. Forcing a heading there reads worse.
+
+The report does not stop at naming what is absent. It carries the question that section
+answers and what belongs in it.
+
+### structure/section-order
+
+Fires when the sections that were found run against the order the doctype recommends, at
+warning. The order is a path through the argument for the reader, not a rule that must
+never be broken.
+
+### structure/long-paragraph
+
+Fires when a paragraph holds more sentences than `MAX_SENTENCES_PER_PARAGRAPH`, at
+warning. The Google developer documentation style guide puts the ceiling at five or six
+sentences, and the constant follows it at six.
+
+A blank line separates paragraphs. Japanese sentences are split by
+`split_sentences_ja`. English splits only where a terminator is followed by whitespace,
+because splitting on every period turns `11.095` into two sentences and inflates the
+count.
+
+### structure/empty-section
+
+Fires when a leaf section has no body, at warning.
+
+A section that holds subsections needs no body of its own; RFC 7322 states this outright.
+A section whose body is a code block counts as having one.
+
+### structure/plot-mismatch
+
+Compares the headings of the body against an approved plot in `.suikou/plans/`, at
+warning.
+
+A plot is a working document that is kept out of version control, so CI cannot see it.
+The rule works on a local machine and inside an agent loop.
+
+### Guidance for writing
+
+The structural rules also have an output that reports nothing.
+`suikou plot` and `suikou brief --doctype` lay out the sections and the writing rules
+before a word of the body is written.
+
+Listing violations settles what to avoid, not what to write. So each section arrives with
+the question it answers and what belongs in it, together with the rules for building a
+paragraph and for putting the conclusion first.
+The text of that guidance lives in one place, `structure::writing_rules`.
 
 ## Golden tests
 

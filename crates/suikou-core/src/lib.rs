@@ -18,6 +18,7 @@ pub mod profile;
 pub mod register;
 pub mod report;
 pub mod rules;
+pub mod structure;
 pub mod terms;
 pub mod tokenizer;
 

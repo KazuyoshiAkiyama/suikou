@@ -1,6 +1,7 @@
 ---
 title: "Decisions"
 weight: 30
+doctype: "reference"
 ---
 
 This page exists so that a later reader never has to repeat the same investigation.
@@ -236,16 +237,15 @@ Deciding how to ship meant measuring the embedded dictionary.
 
 `strip` does nothing, because the bulk is dictionary data rather than symbols.
 
-Keeping the dictionary outside and fetching it on first run is possible.
-lindera 6.0.0 offers `load_dictionary_from_path`, which reads without copying.
-Embedding won anyway, and the reason is the intended use.
-For a tool launched from hooks on every Write and every Edit, the number of failure paths
-is the reliability.
-An external dictionary adds three paths, namely absent, corrupt, and mismatched.
-For instance, an upgrade that replaces the dictionary leaves the binary reading features
-from the wrong position.
-Self-diagnosis catches the mismatch, and catching it still leaves the user stuck.
-Needing no network after download suits this use better.
+Keeping the dictionary outside and fetching it on first run is possible. lindera 6.0.0
+offers `load_dictionary_from_path`, which reads without copying. Embedding won anyway, and
+the reason is the intended use. For a tool launched from hooks on every Write and every
+Edit, the number of failure paths is the reliability.
+
+An external dictionary adds three paths, namely absent, corrupt, and mismatched. For
+instance, an upgrade that replaces the dictionary leaves the binary reading features from
+the wrong position. Self-diagnosis catches the mismatch, and catching it still leaves the
+user stuck. Needing no network after download suits this use better.
 
 The unit of distribution is one archive per operating system.
 Bundling every system into one archive reaches 78 MB compressed and forces every user to
@@ -524,7 +524,9 @@ functions without any adapter.
 **The overlap with `no-ai-colon-continuation` from
 `@textlint-ja/textlint-rule-preset-ai-writing` is left unsuppressed.** That rule also
 uses kuromojin to check whether the text before a colon ends in a predicate, which is
-close to the Japanese half of M1. The purpose differs: that rule flags a stylistic
+close to the Japanese half of M1.
+
+The purpose differs: that rule flags a stylistic
 pattern typical of AI-written prose, and M1 flags a list structure that breaks when an
 item is added or removed. The two can still fire on the same line. No mechanism was
 added to let one suppress the other. A user who enables both presets has read both and
@@ -615,8 +617,10 @@ daemon.
 
 **MCP is implemented with `serde_json` alone.** The choice stood between adding a
 dedicated crate such as `rmcp` and hand-writing the three methods this server answers:
-`initialize`, `tools/list`, and `tools/call`. The set of requests it handles stops at
-those three; it uses none of resources, prompts, or server-initiated notifications. A
+`initialize`, `tools/list`, and `tools/call`.
+
+The set of requests it handles stops at those three; it uses none of resources, prompts,
+or server-initiated notifications. A
 dedicated crate would pin a crate version for features the server never calls, out of
 step with this repository's habit of pinning dependencies with `=` and rerunning
 `verify_schema` on every update. `serde_json` is already a dependency of both crates,
@@ -801,3 +805,63 @@ A word preceded by a noun is skipped as part of a compound, since rewriting the 
 repository exempts 記録, 一覧, 比率, 経路, 分岐, and 実体; 比率 means a ratio such as the
 kango ratio, not a rate.
 
+
+## D-30 Structure is a guardrail, and the outline comes before the prose
+
+Rules at the level of the sentence cannot rescue a document whose structure is wrong.
+A missing section, an order that does not follow, a paragraph carrying three claims at
+once: none of these are visible while reading one sentence at a time.
+
+The structural rules apply to both languages.
+The set of sections, their order, and the unit of a paragraph are properties of the
+argument a document makes, and they sit outside the vocabulary of any one language.
+Measurement bears this out. Paragraphs of seven sentences or more run at 0.4 to 0.9
+percent in professional English and at 0.7 percent in professional Japanese.
+This is where the result parts from D-28, where the register rule failed to carry over.
+
+The doctypes and their required sections were taken from existing standards rather than
+invented. RFC 7322 sets out required sections in a recommended order. The sections of
+each doctype come from the Rust RFC template, the Kubernetes Enhancement Proposal,
+Michael Nygard's Architecture Decision Record, and Diátaxis. The paragraph ceiling
+follows the Google developer documentation style guide at six sentences.
+The constraint against rules invented from a hunch holds here as well.
+
+Only a missing section is an error. Order, paragraph length, and an empty section are
+warnings. A document without a required section cannot answer the question its reader
+arrived with, whereas order and paragraph length are a path through the argument rather
+than a rule that must never be broken.
+
+Section matching looks at the top level of headings alone.
+A leading level-one heading is the title rather than a section, so it is dropped.
+Looking deeper lets a subheading inside one section match a different section and throws
+the order check off, which is exactly what happened to the English design document in
+this repository.
+
+Only the first section can be answered by the lead paragraph instead of a heading.
+The abstract in RFC 7322 sits between the title and the table of contents without a
+heading of its own, and a README takes the same shape. Forcing a `## What it is` there
+reads worse than the paragraph it replaces.
+
+### The outline is approved before the prose
+
+`suikou plot` writes a template into `.suikou/plans/`.
+It carries the section headings, the question each section answers, and a blank line for
+the claim that section makes. A section whose claim cannot be written in one line has not
+been thought through, and the plot surfaces that before the body exists.
+
+The plot is kept out of version control, because it is a document of the thinking rather
+than a deliverable. CI therefore cannot see it, and the comparison runs only on a local
+machine and inside an agent loop. That is not a weakness. A structural mistake is meant
+to be caught before the writing starts, not stopped at the gate before release.
+
+### Guidance, not only detection
+
+Every rule up to here pushed in one direction: find a violation, then remove it.
+A list of violations settles what to avoid. It does not settle what to write.
+
+So the template carries the question each section answers and what belongs in it, and
+`suikou plot` and `suikou brief --doctype` put that in front of the writer before the
+body exists. The text of the guidance lives in one place, `structure::writing_rules`, so
+that it cannot drift from the text of the findings.
+
+Token output does not grow. The template appears only when `--doctype` is given.

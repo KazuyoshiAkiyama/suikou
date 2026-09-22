@@ -32,6 +32,8 @@ pub struct Block {
     pub ordered: bool,
     /// 記法を取り除く前の行。M 系の規則が使う。
     pub raw: String,
+    /// 直前が空行かどうか。段落の切れ目を知るために持つ。
+    pub blank_before: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -39,6 +41,8 @@ pub struct Document {
     pub blocks: Vec<Block>,
     /// 空行を除いた行数。箇条書き割合の分母になる。
     pub non_empty_lines: usize,
+    /// コードブロックがあった行。前処理で取り除くため、本文の有無を見る規則が要る。
+    pub code_lines: Vec<usize>,
 }
 
 macro_rules! re {
@@ -79,6 +83,27 @@ pub fn preprocess(source: &str) -> String {
     s.into_owned()
 }
 
+/// 囲みのコードブロックが占める行を返す。
+///
+/// 前処理はコードを取り除くため、そのままでは「本文の無い節」と見分けがつかない。
+/// コードだけを載せる節は正しい形なので、行を覚えておいて判定に使う。
+fn code_fence_lines(source: &str) -> Vec<usize> {
+    let mut out = Vec::new();
+    let mut in_code = false;
+    for (i, line) in source.lines().enumerate() {
+        let t = line.trim_start();
+        if t.starts_with("```") || t.starts_with("~~~") {
+            in_code = !in_code;
+            out.push(i + 1);
+            continue;
+        }
+        if in_code {
+            out.push(i + 1);
+        }
+    }
+    out
+}
+
 fn strip_inline(line: &str) -> String {
     let s = re_link().replace_all(line, "$1");
     let s = re_code_span().replace_all(&s, "");
@@ -100,14 +125,17 @@ pub fn is_kanji(c: char) -> bool {
 
 impl Document {
     pub fn parse(source: &str) -> Self {
+        let code_lines = code_fence_lines(source);
         let text = preprocess(source);
         let mut blocks = Vec::new();
         let mut non_empty = 0usize;
 
+        let mut blank_before = true;
         for (i, raw_line) in text.lines().enumerate() {
             let line_no = i + 1;
             let trimmed = raw_line.trim();
             if trimmed.is_empty() {
+                blank_before = true;
                 continue;
             }
             non_empty += 1;
@@ -120,6 +148,7 @@ impl Document {
                     depth: 0,
                     ordered: false,
                     raw: raw_line.to_string(),
+                    blank_before: std::mem::replace(&mut blank_before, false),
                 });
                 continue;
             }
@@ -135,6 +164,7 @@ impl Document {
                     depth: indent / 2,
                     ordered: !matches!(marker, "-" | "*" | "+"),
                     raw: raw_line.to_string(),
+                    blank_before: std::mem::replace(&mut blank_before, false),
                 });
                 continue;
             }
@@ -152,11 +182,13 @@ impl Document {
                 depth: 0,
                 ordered: false,
                 raw: raw_line.to_string(),
+                blank_before: std::mem::replace(&mut blank_before, false),
             });
         }
         Document {
             blocks,
             non_empty_lines: non_empty,
+            code_lines,
         }
     }
 
@@ -225,6 +257,34 @@ impl Document {
         }
         if !cur.is_empty() {
             out.push(cur);
+        }
+        out
+    }
+
+    /// 連続する地の文の行を段落としてまとめる。
+    ///
+    /// 空行が段落の切れ目になる。行ごとにブロックを持つ作りのため、
+    /// 段落の単位で見る規則はこれを使う。
+    ///
+    /// 地の文以外のブロックも切れ目になる。
+    /// 見出しや箇条書きを読み飛ばすだけにすると、それをまたいだ地の文が
+    /// ひとつの段落として連結され、文の数が水増しされる。
+    pub fn paragraphs(&self) -> Vec<(usize, String)> {
+        let mut out: Vec<(usize, String)> = Vec::new();
+        let mut prev_was_prose = false;
+        for b in &self.blocks {
+            if b.kind != BlockKind::Prose {
+                prev_was_prose = false;
+                continue;
+            }
+            match out.last_mut() {
+                Some(last) if prev_was_prose && !b.blank_before => {
+                    last.1.push(' ');
+                    last.1.push_str(&b.text);
+                }
+                _ => out.push((b.line, b.text.clone())),
+            }
+            prev_was_prose = true;
         }
         out
     }
@@ -375,5 +435,31 @@ mod tests {
         let before = d.block_before(list_line).unwrap();
         assert_eq!(before.kind, BlockKind::Prose);
         assert_eq!(before.text, "導入である。");
+    }
+
+    #[test]
+    fn paragraphs_join_consecutive_prose_lines() {
+        let doc = Document::parse("一行目である。\n二行目である。\n\n別の段落である。\n");
+        let p = doc.paragraphs();
+        assert_eq!(p.len(), 2);
+        assert_eq!(p[0].1, "一行目である。 二行目である。");
+        assert_eq!(p[1].0, 4);
+    }
+
+    // 見出しや箇条書きをまたいで地の文が連結されると、文の数が水増しされる。
+    #[test]
+    fn a_heading_breaks_a_paragraph() {
+        let doc = Document::parse("前の段落である。\n\n## 見出し\n\n後の段落である。\n");
+        let p = doc.paragraphs();
+        assert_eq!(p.len(), 2);
+        assert_eq!(p[0].1, "前の段落である。");
+    }
+
+    #[test]
+    fn a_list_breaks_a_paragraph() {
+        let doc = Document::parse("前の段落である。\n\n- 項目である。\n  続きである。\n");
+        let p = doc.paragraphs();
+        assert_eq!(p[0].1, "前の段落である。");
+        assert!(p.iter().all(|(_, t)| !t.contains("前の段落である。 ")));
     }
 }

@@ -43,11 +43,78 @@ fn glossary() -> std::collections::HashSet<String> {
     out
 }
 
-pub(crate) fn analyze(src: &str, lang_spec: &str, profile: &Profile) -> Result<(Lang, Report)> {
+/// 文書の型を決める。フロントマターの doctype を先に見て、
+/// 無ければ `.suikou/structure.toml` のパスの表を見る。
+/// どちらにも無ければ型に依る規則は当てない。既存の文書に影響を出さないためである。
+fn resolve_doctype(src: &str, path: &std::path::Path) -> Option<String> {
+    if let Some(fm) = src
+        .strip_prefix("---\n")
+        .and_then(|r| r.split_once("\n---"))
+    {
+        for line in fm.0.lines() {
+            if let Some(v) = line.strip_prefix("doctype:") {
+                return Some(v.trim().trim_matches('"').to_string());
+            }
+        }
+    }
+    let cfg = std::fs::read_to_string(".suikou/structure.toml").ok()?;
+    #[derive(serde::Deserialize)]
+    struct Cfg {
+        #[serde(default)]
+        paths: std::collections::HashMap<String, String>,
+    }
+    let cfg: Cfg = toml::from_str(&cfg).ok()?;
+    let p = path.to_string_lossy();
+    // 長い接頭辞を先に見る。細かい指定が大まかな指定に勝つ。
+    let mut keys: Vec<&String> = cfg.paths.keys().collect();
+    keys.sort_by_key(|k| std::cmp::Reverse(k.len()));
+    keys.into_iter()
+        .find(|k| p.starts_with(k.as_str()))
+        .map(|k| cfg.paths[k].clone())
+}
+
+pub(crate) fn analyze(
+    src: &str,
+    lang_spec: &str,
+    profile: &Profile,
+    path: Option<&std::path::Path>,
+) -> Result<(Lang, Report)> {
     let doc = Document::parse(src);
     let lang = resolve_lang(lang_spec, src)?;
     let morph = morphology::load(lang)?;
-    let report = evaluate_with_glossary(&doc, lang, morph.as_ref(), profile, &glossary());
+    let mut report = evaluate_with_glossary(&doc, lang, morph.as_ref(), profile, &glossary());
+    // 構造の規則は言語を問わない。型を宣言していない文書にも段落と節の規則は当てる。
+    report
+        .local
+        .extend(suikou_core::structure::check_universal(&doc, lang));
+    if let Some(path) = path {
+        if let Some(name) = resolve_doctype(src, path) {
+            // 知らない名前を黙って読み飛ばすと、綴りを誤ったときに検査が消える。
+            // 較正で同じ失敗をした経緯が D-22 にある。ここでは落とす。
+            let dt = suikou_core::structure::doctypes()
+                .get(&name)
+                .ok_or_else(|| {
+                    let mut names: Vec<&str> = suikou_core::structure::doctypes()
+                        .keys()
+                        .map(String::as_str)
+                        .collect();
+                    names.sort_unstable();
+                    anyhow::anyhow!(
+                        "{} が宣言した型 {name} を知らない。使えるのは {}",
+                        path.display(),
+                        names.join("、")
+                    )
+                })?;
+            report
+                .local
+                .extend(suikou_core::structure::check_doctype(&doc, lang, dt));
+        }
+        if let Some(heads) = crate::plot::plot_headings(path) {
+            report
+                .local
+                .extend(suikou_core::structure::check_plot(&doc, &heads));
+        }
+    }
     Ok((lang, report))
 }
 
@@ -156,7 +223,7 @@ pub fn run(opts: Options) -> Result<i32> {
     for path in &files {
         let src = std::fs::read_to_string(path)
             .with_context(|| format!("{} を読めない", path.display()))?;
-        let (_lang, mut report) = analyze(&src, &opts.lang, &profile)?;
+        let (_lang, mut report) = analyze(&src, &opts.lang, &profile, Some(path))?;
         if let Some(b) = opts.budget {
             report.trim_to(b / files.len().max(1));
         }

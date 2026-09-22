@@ -72,13 +72,32 @@ feature を省くと辞書を含まないバージョンが入る。
 
 ## 使い方
 
+文書を一から作るときは、本文より先に構成を決める。
+
+```sh
+suikou plot docs/guide.md --doctype howto
+```
+
+`.suikou/plans/` に、節の見出しと、その節が答える問いが並ぶ。
+節ごとの主張を一行で書いて、承認を得てから本文に進む。
+プロットはバージョン管理しない。思考の側の文書だからである。
+
+生成に渡す指示は、型を指定して作る。
+節ごとの問いと書き方の指針が、禁止の一覧より先に並ぶ。
+
+```sh
+suikou brief --doctype howto --lang ja
+```
+
+書いたものは `check` で確認する。
+
 ```sh
 suikou check docs/guide.md
 ```
 
 `suikou mcp` は、標準入出力で JSON-RPC 2.0 を話す MCP サーバとして起動する。
 `initialize`・`tools/list`・`tools/call` に応じ、`check` と `brief` をツールとして出す。
-MCP に対応したエージェントは、端末向けの文字列を解釈し修正せずに、CLI と同じ判定を
+MCP に対応したエージェントは、端末向けの文字列を解釈せずに、CLI と同じ判定を
 そのまま呼び出せる。
 
 ```sh

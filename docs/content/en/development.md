@@ -1,6 +1,7 @@
 ---
 title: "Development"
 weight: 40
+doctype: "reference"
 ---
 
 This page covers building the project, pinning versions, handling the tokenizer, and
@@ -160,13 +161,49 @@ that the report still fits in one pass.
 
 The documentation in this repository follows the rules the tool enforces.
 
+### Settle the structure before writing
+
+A document starts with its outline rather than its prose.
+
+```sh
+suikou plot docs/content/en/example.md --doctype design
+```
+
+That writes a file under `.suikou/plans/` holding the section headings and the question
+each section answers. Fill in the claim each section makes, one line each, and get that
+approved before the body is written. A claim you cannot state in one line marks a section
+you have not thought through.
+
+The plot stays out of version control, because it is a document of the thinking rather
+than a deliverable. If the structure moves while the body is written, move the plot with
+it; `structure/plot-mismatch` reports the difference.
+
+The instruction handed to a model carries the doctype too.
+
+```sh
+suikou brief --doctype design --lang en
+```
+
+The question behind each section and the rules for writing come out ahead of the
+prohibitions.
+
+### Declare the doctype
+
+Pages under `docs/content/` declare `doctype:` in the front matter.
+A document that cannot carry front matter is declared under `[paths]` in
+`.suikou/structure.toml`. Declaring a doctype adds the checks for required sections and
+their recommended order.
+
+### The rules followed here
+
 - Open every list with a complete sentence that does not bind grammatically to the items.
 - Keep the number of items out of the prose.
 - Leave section numbers off headings.
 - Avoid a word that depends on a moment in time.
 - Avoid a bare metaphor, reaching for a simile or a worked example instead.
-
 - Do not repeat a native word that professional technical Japanese avoids.
+- Make one claim per paragraph, splitting the paragraph once it passes six sentences.
+- Write each section as an answer to the question its heading raises.
 
 Run `suikou check` over a page before committing that page.
 The bar is a page free of errors and warnings. Anything at info is advice.

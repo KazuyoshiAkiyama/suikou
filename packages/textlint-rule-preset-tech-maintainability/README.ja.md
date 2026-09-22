@@ -1,4 +1,5 @@
-<!-- この文書にも suikou の lint がかかる。編集する前に末尾の「この文書を書くときの注意」を見る。 -->
+<!-- この文書にも suikou の lint がかかる。
+編集する前に末尾の「この文書を書くときの注意」を見る。 -->
 # textlint-rule-preset-tech-maintainability
 
 [suikou](https://github.com/KazuyoshiAkiyama/suikou) の M1 から M7 を textlint の規則にした
@@ -8,7 +9,8 @@
 
 ## 規則の中身
 
-規則の出典は Google developer documentation style guide の Lists、Headings、Timeless
+規則の出典は Google developer documentation style guide の Lists、
+Headings、Timeless
 documentation の各節である。生成AI以前からある問題を扱うため、モデルが世代を重ねても古びない。
 規則の厳密な定めは
 [`docs/content/ja/metrics.md`](../../docs/content/ja/metrics.md)（「M 系の規則」の節）にある。
@@ -67,7 +69,8 @@ textlint は、プリセットの指摘に付ける接頭辞を `.textlintrc` �
 ため、標準の読み込み経路のどんな設定キーを選んでも `maint/list-lead-in` という形には
 届かない。
 
-Rust 側のバイナリが使う ID（`maint/list-lead-in`、`maint/item-count` など）は、
+Rust 側のバイナリが使う ID（`maint/list-lead-in`、
+`maint/item-count` など）は、
 上の表にある個々のルール名と、判定ロジックそのものの正本であり続ける。`maint/` という
 接頭辞そのものは `suikou check` の出力に属するものであって、このパッケージが
 表示するものではない。このパッケージ自身のテスト（`test/support/lint.js`）は
@@ -79,28 +82,38 @@ Rust 側のバイナリが使う ID（`maint/list-lead-in`、`maint/item-count` 
 ## Rust 側の実装との関係
 
 suikou の解析の中核は Rust の crate
-（[`crates/suikou-core`](../../crates/suikou-core)）にあり、`suikou` バイナリとして配る。
+（[`crates/suikou-core`](../../crates/suikou-core)）にあり、
+`suikou` バイナリとして配る。
 このパッケージは、すでに textlint を使っている人のために、同じ規則を別の言語で
 もう一度実装したものである。判定ロジックと正規表現は
-`crates/suikou-core/src/rules/mod.rs` から一字一句移植した。思いつきで足したものはない。
+`crates/suikou-core/src/rules/mod.rs` から一字一句移植した。
+思いつきで足したものはない。
 
-二つの実装には、作りのうえで一つだけ異なる点がある。`suikou check` は原文を直接、
+二つの実装には、作りのうえで一つだけ異なる点がある。
+`suikou check` は原文を直接、
 物理行ごとに1ブロックとして扱う行ベースの手順（`markdown.rs`）でブロックへ分ける。
-このパッケージも同じことをする。各ルールは `context.getSource()` でファイル全体の
-原文を受け取り、その手順を JavaScript に移植したものにかけてから判定する。textlint
-自身が持つ Markdown の AST は歩かない。ソフトラップで複数行にまたがる段落は、textlint
-の中ではひとつの結合したノードになる。結合後の文字列に対して判定すると、Rust 側では
-決して結び付けない語同士が正規表現の一致範囲に入ってしまう。行ベースの手順を移植した
-ことで、二つのツールの指摘の件数が一致する。このリポジトリの
-[ゴールデンテスト](../../tests/golden/)は、そのファイルごとの一致を確認ている。
 
-日本語の形態素解析も、もう一つの違いである。suikou-core は lindera 経由で UniDic を
-読む。このパッケージは [kuromojin](https://github.com/azu/kuromojin) 経由で IPADIC を
-読む。kuromojin は textlint 界隈の標準である。IPADIC には、UniDic が持つ「接尾辞」
-「代名詞」「形状詞」に当たる独立した品詞大分類がなく、この3つはいずれも品詞細分類を
-持つ「名詞」として現れる。`list-lead-in` と `parallel-items` が使う体言止めの判定は、
-その結果として IPADIC ではひとつの条件にまとまる。この理由付けと、それを確認した実測は
-[`docs/content/ja/decisions.md`](../../docs/content/ja/decisions.md) の D-23 に書いてある。
+このパッケージも同じことをする。
+各ルールは `context.getSource()` でファイル全体の原文を受け取り、
+その手順を JavaScript に移植したものにかけてから判定する。
+textlint自身が持つ Markdown の AST は歩かない。
+
+ソフトラップで複数行にまたがる段落は、textlintの中ではひとつの結合したノードになる。
+結合後の文字列に対して判定すると、
+Rust 側では決して結び付けない語同士が正規表現の一致範囲に入ってしまう。
+行ベースの手順を移植したことで、二つのツールの指摘の件数が一致する。
+このリポジトリの[ゴールデンテスト](../../tests/golden/)は、
+そのファイルごとの一致を確認ている。
+
+日本語の形態素解析も、もう一つの違いである。suikou-core は lindera 経由で UniDic を読む。
+
+このパッケージは [kuromojin](https://github.com/azu/kuromojin) 経由で IPADIC を読む。
+kuromojin は textlint 界隈の標準である。IPADIC には、
+UniDic が持つ「接尾辞」「代名詞」「形状詞」に当たる独立した品詞大分類がなく、
+この3つはいずれも品詞細分類を持つ「名詞」として現れる。
+`list-lead-in` と `parallel-items` が使う体言止めの判定は、
+その結果として IPADIC ではひとつの条件にまとまる。この理由付けと、
+それを確認した実測は[`docs/content/ja/decisions.md`](../../docs/content/ja/decisions.md) の D-23 に書いてある。
 
 もう一つの違いは作りの都合ではなく、意図してそうしてある。`suikou check` は、文書が
 英語であっても説明文を常に日本語で出す。このパッケージは、検出した文書の言語に
@@ -136,13 +149,15 @@ suikou の解析の中核は Rust の crate
 
 ## ほかのプリセットとの重なり
 
-[`@textlint-ja/textlint-rule-preset-ai-writing`](https://github.com/textlint-ja/textlint-rule-preset-ai-writing)
-には `no-ai-colon-continuation` という規則がある。これも kuromojin を使って、コロンの
-手前が述語で終端しているかを見ており、`list-lead-in` の日本語判定に近い。判定が重なる
-場面でも目的は異なる。あちらは AI が書いた日本語に特有の言い回しを検出し、`list-lead-in`
-は項目数が変わると破綻する箇条書きの構造を検出する。同じ行が両方から指摘されることが
-ある。どちらか一方が他方を抑える仕組みは設けていない。両方のプリセットを有効にした
-利用者は、両方の説明文を読んだうえで自分の文書に合う方を選べる立場にある。
+[`@textlint-ja/textlint-rule-preset-ai-writing`](https://github.com/textlint-ja/textlint-rule-preset-ai-writing)には `no-ai-colon-continuation` という規則がある。
+これも kuromojin を使って、コロンの手前が述語で終端しているかを見ており、
+`list-lead-in` の日本語判定に近い。判定が重なる場面でも目的は異なる。
+
+あちらは AI が書いた日本語に特有の言い回しを検出し、
+`list-lead-in`は項目数が変わると破綻する箇条書きの構造を検出する。
+同じ行が両方から指摘されることがある。どちらか一方が他方を抑える仕組みは設けていない。
+両方のプリセットを有効にした利用者は、
+両方の説明文を読んだうえで自分の文書に合う方を選べる立場にある。
 
 ## テスト
 
@@ -155,11 +170,13 @@ Node 本体のテストランナー（`node --test`）で走る。textlint-teste
 グローバルな `describe`・`it` を前提に作られている。それらが無い環境での代用は、
 テストケースが返す Promise を待たないため、`node --test` にそのまま載せると、
 判定が終端する前にテストが成功したことになってしまう箇所があった。
-`test/support/lint.js` は `@textlint/kernel` を直に薄く包んでおり、`node --test` の
+`test/support/lint.js` は `@textlint/kernel` を直に薄く包んでおり、
+`node --test` の
 非同期テストの下で素直に待ち合わせる。
 
 `test/golden.test.js` は、このパッケージを
-[`tests/golden/input/`](../../tests/golden/input/) の各ファイルにかけて、ルールごとの
+[`tests/golden/input/`](../../tests/golden/input/) の各ファイルにかけて、
+ルールごとの
 指摘の件数が同じファイルに対する `suikou check --format json` の件数と一致することを
 確認する。この一致が、このパッケージの完了条件である。
 
