@@ -724,3 +724,45 @@ the original mistake.
 A document in this repository has to come back free of errors and warnings.
 Anything at info is read as advice and nothing more.
 
+## D-28 The register rule did not carry over to English
+
+Two experiments tried to bring the method from D-26 to English. Neither worked, so no
+English rule ships.
+
+The first compared a document against a reference corpus.
+A frequency table was built from 652 pages and 510,000 words of Kubernetes, MDN, and Vue
+in English, and the same statistics ran against it.
+Fourteen professional English pages held out of the reference still return 20 findings
+with the floor raised to 9.
+The top of both lists is field terminology: portworx, cinder, and ebs on the professional
+side, and prose, corpus, and metric on this repository's side.
+Narrowing to words that appear in all three fields leaves words such as operations, which
+belong to the topic of the page rather than to its register.
+
+The cause sits in the structure of the lexicon.
+In Japanese, the condition "the word origin is native" removes field terminology almost
+mechanically, because field terminology is Sino-Japanese or a loanword.
+English marks nothing of the kind. A document about a topic uses the vocabulary of that
+topic far more often than a general corpus does, so frequency alone cannot separate the
+vocabulary of the topic from the vocabulary of the register.
+
+The second experiment held the topic fixed.
+Professional Japanese translations were translated back into English by the model and
+compared against the original English, across 36 pages and 30,000 words on each side.
+Not one word reached significance. Against a critical value of 15.13, the largest was
+your at 13.2 and the next was will at 11.1, and the original uses both more often than
+the model does, so the difference does not even run the other way.
+The same design in Japanese put 使う at 320 against 33, with a log-likelihood ratio of 320.
+
+This result has the same shape as D-08.
+An effect size must not be carried across tasks, and a method that holds in one language
+must not be carried across languages either.
+
+Only word choice was tested here.
+MATTR, the prose ratio, and the simile markers measure something else, and they stand.
+
+`research/lexshift/` reproduces both experiments.
+`build_reference_en.py` builds the English table and `translate_back.sh` produces the
+back-translation.
+The failed side is kept so that nobody runs the same experiment twice.
+

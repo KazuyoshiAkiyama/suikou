@@ -13,6 +13,10 @@
 //! あるかないかの二値にしないのは、参照を大きくすると稀な語でも数回は現れ、
 //! 二値では「文体から外れた語」と「ただ珍しい語」を見分けられなくなるためである。
 //! 統計は Dunning (1993) の対数尤度比であり、二つのコーパスを比べる標準の方法である。
+//!
+//! この規則は日本語だけに当てる。同じ方法を英語で試したが成立しなかった。
+//! 語種という手掛かりが無いため、話題の語と文体の語を頻度では分けられない。
+//! 経緯は決定の記録の D-28 にある。
 
 use crate::markdown::{Block, BlockKind, Document};
 use crate::report::{LocalFinding, Position, Severity};
@@ -62,17 +66,20 @@ pub struct Reference {
     content_words: u64,
 }
 
+fn parse(src: &str, name: &str) -> Reference {
+    let raw: RawReference =
+        toml::from_str(src).unwrap_or_else(|e| panic!("同梱の {name} を読めない: {e}"));
+    Reference {
+        words: raw.words,
+        content_words: raw.meta.content_words,
+    }
+}
+
 impl Reference {
+    /// 日本語の参照。和語の頻度表である。
     pub fn builtin() -> &'static Reference {
         static R: OnceLock<Reference> = OnceLock::new();
-        R.get_or_init(|| {
-            let raw: RawReference = toml::from_str(include_str!("../data/register_ja.toml"))
-                .expect("同梱の register_ja.toml を読めない");
-            Reference {
-                words: raw.words,
-                content_words: raw.meta.content_words,
-            }
-        })
+        R.get_or_init(|| parse(include_str!("../data/register_ja.toml"), "register_ja.toml"))
     }
 
     pub fn from_counts<I: IntoIterator<Item = (String, u64)>>(

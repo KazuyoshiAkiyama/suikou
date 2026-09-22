@@ -4,6 +4,15 @@
 """
 import sys, pathlib, json, urllib.request, urllib.error
 
+SOURCES_EN = {
+    "k8s": ("https://api.github.com/repos/kubernetes/website/git/trees/main?recursive=1",
+            "content/en/docs/", "https://raw.githubusercontent.com/kubernetes/website/main/"),
+    "mdn": ("https://api.github.com/repos/mdn/content/git/trees/main?recursive=1",
+            "files/en-us/web/", "https://raw.githubusercontent.com/mdn/content/main/"),
+    "vue": ("https://api.github.com/repos/vuejs/docs/git/trees/main?recursive=1",
+            "src/guide/", "https://raw.githubusercontent.com/vuejs/docs/main/"),
+}
+
 SOURCES = {
     # 分野: (木を引く API, 日本語の頁を選ぶ前置き, 生の中身を引く前置き)
     "k8s": ("https://api.github.com/repos/kubernetes/website/git/trees/main?recursive=1",
@@ -30,7 +39,8 @@ def tree(url):
 def main():
     out = pathlib.Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
     limit = int(sys.argv[2]) if len(sys.argv) > 2 else 60
-    for name, (api, prefix, raw) in SOURCES.items():
+    sources = SOURCES_EN if len(sys.argv) > 3 and sys.argv[3] == "en" else SOURCES
+    for name, (api, prefix, raw) in sources.items():
         paths = [p for p in tree(api) if p.startswith(prefix) and p.endswith(".md")][:limit]
         got = 0
         for p in paths:

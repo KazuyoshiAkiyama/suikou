@@ -88,7 +88,8 @@ pub fn evaluate_with_glossary(
         });
     }
     let mut local = rules::check_all(doc, lang, morph);
-    // 文体の規則は日本語だけに当てる。英語の参照コーパスはまだ作っていない。
+    // 文体の規則は日本語だけに当てる。
+    // 同じ方法を英語で試したが、話題の語と文体の語を分けられず成立しなかった（D-28）。
     if lang == Lang::Ja {
         local.extend(register::check(doc, morph, Reference::builtin(), glossary));
     }
