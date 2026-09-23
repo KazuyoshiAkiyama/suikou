@@ -66,3 +66,14 @@ ai = [0.00, 0.60]
 "ja.ten_per_sentence" = "著者差が大きい"
 "en.participial_per_1k" = "人間帯と重なる。Reinhart の 5.3 倍はこのタスクに転移しない"
 "en.nominalization_per_1k" = "人間帯と重なる。モデル依存の参考値にとどめる"
+
+# coji/natural-japanese (MIT) の規則を候補として測った結果。
+# 同じ原文に対する人間訳と AI 訳の対（corpus/cache/k8s）で比べた。
+# 手順は research/translationese/ にある。経緯は D-34 にある。
+"ja.can_do_periphrasis" = "「することができる」は人間訳が 2.43、AI 訳が 0.85。向きが逆"
+"ja.translationese_phrases" = "10 個の翻訳調パターンのうち 8 個が両側でほぼ0。技術文書では出現しない"
+"ja.paragraph_lead_conjunction" = "段落頭の接続詞は人間 1.6%、AI 1.2%、参照 1.6%。分かれない"
+"ja.sentence_ending_run" = "文末の同形3連は人間 11.8%、AI 10.5%。分かれない"
+"ja.double_negative" = "人間 0.16、AI 0.11、参照 0.16。分かれないうえ出現が少ない"
+"ja.no_chain" = "「の」の3連続は人間 3.67、AI 3.03、参照 2.84。人間の方が多い"
+"ja.llm_cliche_phrases" = "48 語のうち技術文書に出るのは 19 語。最大でも人間1回に対し AI 5回で、G² の水準に届かない"

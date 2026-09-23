@@ -1047,3 +1047,66 @@ stating neither the decision nor what follows from it, which is a real gap. Othe
 `Proposal` where the template says `Decision`.
 
 Adding synonyms stops here, on the same line drawn in D-32.
+
+## D-34 The natural-japanese rules were measured, and none was adopted
+
+`coji/natural-japanese` (MIT) is a skill for writing readable Japanese at work. It
+carries 28 detectors, a catalogue of forbidden phrases, and a collection of
+translationese patterns. Whether any of it could come across was settled the way this
+repository settles such questions.
+
+A rule earns its place by a measurement where the human and the AI ranges do not overlap,
+or by a clause in a published style guide, cited. Candidates may be listed by hand; what
+decides is the measurement. D-26 set that procedure.
+
+### How it was measured
+
+`corpus/cache/k8s/` holds a human translation and an AI translation of the same document,
+side by side, so that subject matter cannot account for a difference. The 798-document
+reference corpus was read alongside. The scripts are in `research/translationese/`.
+
+### Results
+
+| Candidate | Human | AI | Reference | Verdict |
+|---|---|---|---|---|
+| 「することができる」 | 2.43 | 0.85 | — | Runs the other way |
+| Ten translationese patterns | near zero | near zero | — | Absent from technical prose |
+| A conjunction opening a paragraph | 1.6% | 1.2% | 1.6% | No separation |
+| Three identical sentence endings | 11.8% | 10.5% | 6.0% | No separation |
+| Double negative | 0.16 | 0.11 | 0.16 | No separation |
+| Three 「の」 in a row | 3.67 | 3.03 | 2.84 | The humans use it more |
+| A 48-phrase catalogue | 1 at most | 5 at most | — | Below the G² threshold |
+
+The figures are occurrences per 10,000 characters, apart from the two given as a share of
+paragraphs.
+
+None was adopted. `corpus/baselines.toml` records each one under `[rejected]` with its
+reason.
+
+### Why nothing separated
+
+The phrase catalogue is built for essays and business writing. 「いかがでしたか」 and
+「見ていきましょう」 do not appear in technical documentation at all: of the 48 phrases,
+19 occur anywhere in this corpus. A different kind of document gives a model different
+habits, which is the same shape of result as D-28.
+
+The translationese patterns need care about what they are compared against. The human
+side of this corpus is a professional translation of English documentation, so
+translationese is what it is made of, and whether a text reads as translated cannot be
+settled here. What could be measured is whether the AI translation reads as more
+translated than the human one, and it does not.
+
+### What did come across
+
+No rule came across, but the evidence matrix did.
+`corpus/reports/research/prose-rhythm-evidence-matrix.md` sets the literature beside its
+own measurements for sentence-length variance, burstiness, autocorrelation, TTR, and
+perplexity, and marks each as counter-evidential.
+
+It arrives independently at the conclusion this repository reached. On the coefficient of
+variation of sentence length it measures a 32.4 percent false-positive rate on human text
+at the threshold in use. On autocorrelation it finds the effect running opposite to the
+hypothesis, and lists the detector for deletion.
+
+Another author reaching the same conclusion from another corpus strengthens the position,
+so the reference stays on record beside the `[rejected]` list.
