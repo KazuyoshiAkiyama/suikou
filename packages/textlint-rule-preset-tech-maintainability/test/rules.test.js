@@ -157,3 +157,12 @@ test("time-dependent: en relative period", async () => {
 test("time-dependent: en anchor suppresses the finding", async () => {
     await expectCount("Measured on 2026-03-01, requests doubled recently.\n", "time-dependent", 0);
 });
+
+// crates/suikou-core/src/rules/mod.rs の同名のテストと対になる。
+test("numbered-heading: the document title is not a numbered section", async () => {
+    await expectCount("# 3. ログ基盤にOpenSearchを採用する\n\n本文である。\n", "numbered-heading", 0);
+});
+
+test("numbered-heading: a numbered section still fires", async () => {
+    await expectCount("# 題\n\n## 1. はじめに\n\n本文である。\n", "numbered-heading", 1);
+});

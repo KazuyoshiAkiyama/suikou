@@ -261,6 +261,10 @@ It also catches plain explanatory prose that states a number with no list behind
 Count each heading line where the `#` is followed by a number and then `.` `、` `)` `章`
 or `節`.
 
+The title is left out. An ADR is written `# 3. Title`, and that number is its name rather
+than a section ordinal; nothing renumbers when a section moves. 155 of 190 published ADRs
+were firing on it, so the leading level-one heading is exempt.
+
 ### M4, hand-written numbers
 
 Count each list item whose marker is `-` `*` or `+` and whose body opens with a number
@@ -544,6 +548,21 @@ Listing violations settles what to avoid, not what to write. So each section arr
 the question it answers and what belongs in it, together with the rules for building a
 paragraph and for putting the conclusion first.
 The text of that guidance lives in one place, `structure::writing_rules`.
+
+## The excerpt beside a finding
+
+A position carries the text that matched, then a narrow window around it.
+
+```
+- L5:78 Currently｜…e limiting to the public API. Currently, a
+```
+
+The match comes first so that the reader knows which word to change. Cutting a fixed
+number of characters from the start of the line leaves the match out whenever it sits
+further along, and prints the same excerpt once per match where a line holds several.
+
+The window is fourteen characters per side in Japanese and twenty in English, because a
+Japanese character carries more than an English one.
 
 ## Golden tests
 

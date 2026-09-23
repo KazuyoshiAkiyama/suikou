@@ -279,6 +279,38 @@ fn finding(rule: &str, sev: Severity, msg: &str, pos: Vec<Position>) -> Option<L
 ///
 /// 取りこぼすと、指摘された一方だけを直した文書が `check --quiet` で再び落ちる。
 /// 層ごとに lint と修正を往復させないという設計が、そこで崩れる。
+/// 一致の位置を中心にした抜粋。
+///
+/// 行の先頭から一定数を切り出すと、離れた位置の一致では抜粋に一致が入らない。
+/// 同じ行に複数の一致があると、まったく同じ抜粋が並んで、どれを直すのか分からない。
+/// 実測では、1行に3件ある指摘で同じ60字が3回出ていた。
+///
+/// 一致そのものを先に示し、その周りを添える。
+/// どの語を直すのかが分かるようにしたうえで、添える幅は狭く取る。
+///
+/// 幅は言語で変える。日本語は1文字あたりの情報量が多く、14字でほぼ一節になる。
+/// 英語で同じ幅を取ると2語ほどにしかならないため、倍の幅を取る。
+/// 幅は、旧来の固定60字とレポートの総量が並ぶ点に取った。
+/// 一致そのものが入る分だけ、同じ量で伝わる中身が増える。
+/// 参照コーパス60本での実測は、日本語の幅24で 68,936 字、14 で 61,447 字である。
+/// RFC 60本では、英語の幅24で 60,189 字、20 で 58,597 字、旧来の形が 58,745 字であった。
+fn excerpt_at(text: &str, start: usize, len: usize, lang: Lang) -> String {
+    let around = match lang {
+        Lang::Ja => 14,
+        Lang::En => 20,
+    };
+    let chars: Vec<char> = text.chars().collect();
+    let at = text[..start].chars().count();
+    let hit: String = chars.iter().skip(at).take(len).collect();
+    let from = at.saturating_sub(around);
+    let to = (at + len + around).min(chars.len());
+    let before: String = chars[from..at].iter().collect();
+    let after: String = chars[at + len..to].iter().collect();
+    let head = if from > 0 { "…" } else { "" };
+    let tail = if to < chars.len() { "…" } else { "" };
+    format!("{hit}｜{head}{before}{hit}{after}{tail}")
+}
+
 /// 係留の無い文の中の一致だけを位置にする。
 ///
 /// 係留は文ごとに見る。同じ段落の別の文が年号を持っていても、
@@ -293,7 +325,7 @@ fn pos_of_unanchored_matches(b: &Block, re: &Regex, lang: Lang) -> Vec<Position>
         .map(|m| Position {
             line: b.line,
             column: b.text[..m.start()].chars().count() + 1,
-            text: b.text.chars().take(60).collect(),
+            text: excerpt_at(&b.text, m.start(), m.as_str().chars().count(), lang),
         })
         .collect()
 }
@@ -315,12 +347,12 @@ fn enclosing_sentence(ends: &[usize], at: usize, len: usize) -> (usize, usize) {
     (from, to)
 }
 
-fn pos_of_matches(b: &Block, re: &Regex) -> Vec<Position> {
+fn pos_of_matches(b: &Block, re: &Regex, lang: Lang) -> Vec<Position> {
     re.find_iter(&b.text)
         .map(|m| Position {
             line: b.line,
             column: b.text[..m.start()].chars().count() + 1,
-            text: b.text.chars().take(60).collect(),
+            text: excerpt_at(&b.text, m.start(), m.as_str().chars().count(), lang),
         })
         .collect()
 }
@@ -381,13 +413,24 @@ pub fn check_all(doc: &Document, lang: Lang, morph: &dyn Morphology) -> Vec<Loca
 
     let mut m2 = Vec::new();
     let mut m3 = Vec::new();
+    // 先頭の第1階層の見出しは標題である。structure::sections と同じ扱いにする。
+    let mut is_title = doc
+        .blocks
+        .iter()
+        .find(|b| b.kind == BlockKind::Heading)
+        .is_some_and(|b| b.raw.trim_start().starts_with("# "));
     let mut m6 = Vec::new();
     for b in &doc.blocks {
         match b.kind {
             BlockKind::Heading => {
-                if re_m3().is_match(b.raw.trim()) {
+                // 標題の番号は識別子であって節の連番ではない。
+                // ADR は `# 3. 題` を様式とし、その番号は振り直されない。
+                // 節を増減すると振り直しが要るという理由は、標題には当てはまらない。
+                // 実測では、公開されている ADR 190件のうち155件がこれで発火していた。
+                if !is_title && re_m3().is_match(b.raw.trim()) {
                     m3.push(pos_of(b));
                 }
+                is_title = false;
             }
             BlockKind::Prose => {
                 m2.extend(pos_of_matches(
@@ -396,6 +439,7 @@ pub fn check_all(doc: &Document, lang: Lang, morph: &dyn Morphology) -> Vec<Loca
                         Lang::Ja => re_m2_ja(),
                         Lang::En => re_m2_en(),
                     },
+                    lang,
                 ));
                 if match lang {
                     Lang::Ja => re_m7_ja().is_match(b.text.trim()),

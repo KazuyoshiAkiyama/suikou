@@ -1243,3 +1243,68 @@ Every document in this repository passes both before and after.
 Past tense itself, descriptions of something continuing, and expressions of order are not
 targeted. A procedure needs its order and a decision record needs its history. Removing
 them takes information away from the reader and gives nothing back.
+
+## D-36 The report shrinks by a tenth while saying more
+
+One of the constraints on this tool is that it must not grow the number of tokens it
+emits. That number was measured, rule by rule, against what each rule buys.
+
+### What each rule catches
+
+Per document, across 39 AI translations and the 39 human translations of the same pages:
+
+| Rule | AI | Human | Ratio | Chars per finding |
+|---|---|---|---|---|
+| `maint/time-dependent` | 2.36 | 2.26 | 1.05 | 59 |
+| `register/prefer-katakana` | 1.36 | 0.64 | 2.12 | 84 |
+| `register/rare-wago` | 1.33 | 0.41 | 3.25 | 60 |
+| `maint/parallel-items` | 0.44 | 0.41 | 1.06 | 69 |
+| `structure/long-paragraph` | 0.23 | 0.18 | 1.29 | 88 |
+| `maint/item-count` | 0.18 | 0.10 | 1.75 | 93 |
+| `maint/list-lead-in` | 0.00 | 0.46 | 0.00 | 92 |
+
+The register rules separate best. The M rules rest on a published style guide and fire on
+human writing too, which D-09 settled by design and this measurement does not contradict.
+
+By volume `maint/time-dependent` is the largest. At a ratio of 1.05 it tells nothing about
+who wrote the document. It stays because it rests on a published clause and because
+acting on it improves the document.
+
+### An excerpt that never showed the match
+
+The text beside a position was the first 60 characters of the line. Where the match sat
+further along, the excerpt did not contain it. Where a line held several matches, the same
+60 characters appeared once per match: three identical excerpts for three findings, with
+nothing to say which word to change.
+
+The match now comes first, with a narrow window around it. The width differs by language,
+because fourteen Japanese characters carry about a clause while fourteen English
+characters carry two words. English takes twenty, the width at which the report totals the
+same as the fixed sixty did.
+
+### A numbered title is an identifier
+
+M3 catches a hand-numbered heading, because sections renumber when one is added or
+removed. A title does not: an ADR is written `# 3. Title`, and that number is its name.
+155 of 190 published ADRs were firing on it. Dropping the leading level-one heading from
+the rule takes that to 11.
+
+### The tool contradicted its own advice
+
+`register/prefer-katakana` pushes toward the loanword, while the section synonyms listed
+only Sino-Japanese forms. A decision record headed `## コンテキスト` was told its context
+section was missing: one rule rejecting what another had asked for. The synonyms now carry
+the loanword forms.
+
+### The result
+
+| Corpus | Before | After |
+|---|---|---|
+| 60 reference documents | 71,129 | 61,447 |
+| 60 ADRs | 38,704 | 30,972 |
+| 60 RFCs | 58,745 | 58,597 |
+| 39 AI translations | 46,979 | 42,272 |
+
+215,557 characters become 193,288, a tenth less. The saving comes from the numbered titles
+that no longer fire and from the narrower window. At the same time every position now
+names the text it matched, so the report says more while printing less.

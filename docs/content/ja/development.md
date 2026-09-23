@@ -113,6 +113,9 @@ Kubernetes の `content_type:` ごとに頁を集める。
 `.suikou/structure.toml` の `[front_matter]` でこちらの型に読み替えてから `check` を当てる。
 その設定は `research/structure/structure.toml` にある。
 
+レポートの字数は、規則を変更したときに前後で比べる。
+`git worktree` で変更前のバージョンをビルドし、同じコーパスに当てて字数を合計する。
+
 `design` の型は Rust RFC で計測する。
 
 ```sh

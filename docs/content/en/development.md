@@ -124,6 +124,9 @@ That collects Kubernetes pages grouped by their own `content_type:`. Map those v
 onto the doctypes under `[front_matter]` in `.suikou/structure.toml`, then run `check`
 as usual. `research/structure/structure.toml` holds that configuration.
 
+The size of the report is compared before and after a rule changes. Build the previous
+revision in a `git worktree`, run both over the same corpus, and total the characters.
+
 The `design` type is measured against the Rust RFCs.
 
 ```sh
