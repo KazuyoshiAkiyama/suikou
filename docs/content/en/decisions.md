@@ -1110,3 +1110,62 @@ hypothesis, and lists the detector for deletion.
 
 Another author reaching the same conclusion from another corpus strengthens the position,
 so the reference stays on record beside the `[rejected]` list.
+
+### Both tools run over the same document
+
+A list of rules does not say what a tool actually catches. A Japanese design document of
+the kind a model writes was put through both.
+
+| | suikou | natural-japanese |
+|---|---|---|
+| Findings | 13 across 5 rules, plus 4 document-level directions | 6 across 5 categories |
+| Rules in common | none | none |
+
+What each caught was disjoint. suikou reported a count of items stated in prose, numbered
+headings, items not parallel, words that depend on a moment in time, and a Sino-Japanese
+word where the loanword wins: every one of them a place that breaks on the next edit or
+goes stale. natural-japanese reported clichés, an inanimate subject, translationese, and
+rhythm: places where the prose reads unnaturally.
+
+Both landed on the same opening sentence for different reasons, one on a time-dependent
+word and the other on a cliché.
+
+On a professional page, the Japanese translation of a Kubernetes task, suikou reported
+two findings and natural-japanese one. Both stay quiet.
+
+### Volume over a matched corpus
+
+Twelve human translations and twelve AI translations of the same documents:
+
+| | Human | AI | Ratio |
+|---|---|---|---|
+| suikou | 43 | 62 | 1.44 |
+| natural-japanese | 87 | 82 | 0.94 |
+
+The breakdown says where the volume comes from. `translationese` reports 13 on the human
+side against 2 on the AI side, and `translationese_morph` 19 against 2. Both run toward
+the human translation, matching the measurement above: the human side is a professional
+translation of English, so translationese is what it is made of.
+
+### The one rule that ran the right way
+
+`repeated_sentence_lead`, which fires when the first two morphemes of a sentence repeat
+six times in one document, was the only candidate to come out heavier on the AI side. It
+has no counterpart in suikou, so it was measured like the rest.
+
+| Set | Documents | Documents firing | Per 100 sentences |
+|---|---|---|---|
+| Human translation | 39 | 35% | 14.2 |
+| AI translation | 78 | 50% | 16.4 |
+| Reference corpus | 60 | 26% | 10.6 |
+
+The direction holds and the ranges overlap. The AI-to-human ratio is 1.15, and 26 percent
+of the reference corpus fires. A rule earns its place when the ranges do not overlap, and
+these do.
+
+The shape of the output does not fit either. The rule marks every sentence it matches,
+which produced 17 findings from a single 71-sentence document, against the constraint
+that a rule shows a limited number of positions.
+
+Not adopted, but the figures stay on record as the one candidate that pointed the right
+way.
