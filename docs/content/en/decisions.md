@@ -1169,3 +1169,77 @@ that a rule shows a limited number of positions.
 
 Not adopted, but the figures stay on record as the one candidate that pointed the right
 way.
+
+## D-35 Dependence on a moment is decided by the anchor, not by the tense
+
+A model over-adapts to the context it sits in. Writing a document inside a session, it
+takes the moment of that session for the document's permanent present. The sentence
+`現在レイテンシが悪化しており` is true only on the day it was written.
+
+M6 is re-grounded on that mechanism rather than on documents going stale. It accounts
+for why this rule alone survives no short instruction and needs every forbidden word
+spelled out, which `brief` establishes by measurement.
+
+### Tense is not the predictor
+
+One proposal was to strip temporal expression and keep documents timeless. It is not
+adopted.
+
+| Sentence | Tense | Goes stale |
+|---|---|---|
+| `2026年3月に2.5倍になった` | Past | Never |
+| `現在は640ミリ秒である` | Non-past | By tomorrow |
+
+What separates them is whether an absolute anchor is present.
+
+Targeting tense would break a doctype that holds. The context section of a decision
+record is written in the past, and that the type holds was measured across 190 published
+ADRs in D-33. The ordering of a procedure takes a tense form as well, and it does not
+depend on when it is read.
+
+### Making the exception checkable
+
+An exception left to judgement cannot be checked, so it becomes a question of anchors.
+
+Where the same sentence carries a calendar year, a version number, or a numbered
+document, the rule does not fire. `lindera 6.0.0 で現在の素性の順序を確認した` states a
+past fact and never goes stale.
+
+The anchor is read per sentence; a year in a neighbouring sentence does not settle this
+one. Only a `v`-prefixed form or a three-part number counts as a version, so that a
+decimal is not mistaken for one. Reading `2.5 times` as an anchor erases every finding in
+its sentence, which is what happened while this was being written.
+
+### What a word list cannot reach
+
+A period counted from now carries a number, so no list of words covers it. `直近3ヶ月`,
+`過去2年`, and `先週` are matched as a pattern.
+
+The gap was confirmed on a real document. Run against a design document written by a
+model, M6 caught `現在`, `現時点`, `今後`, and `既存の`, and missed
+`直近3ヶ月でリクエスト数が約2.5倍に増加した`.
+
+The added words are the rest of the set Google's timeless-documentation guidance names
+with `recently`, `soon`, and `new`. They fall under a clause already cited rather than a
+fresh hypothesis.
+
+### Measurement
+
+| Corpus | Before | After |
+|---|---|---|
+| 60 Japanese task pages | 119 findings / 36 documents | 123 / 36 |
+| 60 reference documents | 179 / 39 | 185 / 39 |
+| 39 AI translations | 85 / 26 | 92 / 27 |
+
+The increase is small, because reference documentation is already written without
+reference to a moment. The anchor passed over one finding across 200 documents:
+`既存のHyper-V分離サポートは、v1.10の試験的な機能であり`, a sentence stating what held
+at `v1.10`, which does not go stale.
+
+Every document in this repository passes both before and after.
+
+### What is left alone
+
+Past tense itself, descriptions of something continuing, and expressions of order are not
+targeted. A procedure needs its order and a decision record needs its history. Removing
+them takes information away from the reader and gives nothing back.

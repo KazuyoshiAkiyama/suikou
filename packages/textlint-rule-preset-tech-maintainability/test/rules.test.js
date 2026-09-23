@@ -123,3 +123,37 @@ test("clean document produces no findings from any rule", async () => {
     const counts = await countsByRule(text);
     assert.deepEqual(counts, {});
 });
+
+// 以下は crates/suikou-core/src/rules/mod.rs の同名のテストと対になる。
+// 両実装が同じ件数を返すという約束を保つため、片方だけに足さない。
+test("time-dependent: ja relative period", async () => {
+    await expectCount("直近3ヶ月でリクエスト数が倍になった。\n", "time-dependent", 1);
+    await expectCount("過去2年の運用で問題は出ていない。\n", "time-dependent", 1);
+    await expectCount("先週の計測では収まっていた。\n", "time-dependent", 1);
+});
+
+test("time-dependent: an absolute anchor suppresses the finding", async () => {
+    await expectCount("lindera 6.0.0 で現在の素性の順序を確認した。\n", "time-dependent", 0);
+    await expectCount("2026年3月の計測では、直近3ヶ月で倍になっていた。\n", "time-dependent", 0);
+    await expectCount("RFC 7322 は現在も必須の節を定めている。\n", "time-dependent", 0);
+});
+
+test("time-dependent: an anchor does not carry to another sentence", async () => {
+    await expectCount("2026年3月に計測した。現在の実装では反映されない。\n", "time-dependent", 1);
+});
+
+test("time-dependent: a decimal is not an anchor", async () => {
+    await expectCount("直近3ヶ月で約2.5倍に増加した。\n", "time-dependent", 1);
+});
+
+test("time-dependent: an overlapping match is reported once", async () => {
+    await expectCount("直近3ヶ月で負荷が上がった。\n", "time-dependent", 1);
+});
+
+test("time-dependent: en relative period", async () => {
+    await expectCount("Requests doubled over the past three months.\n", "time-dependent", 1);
+});
+
+test("time-dependent: en anchor suppresses the finding", async () => {
+    await expectCount("Measured on 2026-03-01, requests doubled recently.\n", "time-dependent", 0);
+});

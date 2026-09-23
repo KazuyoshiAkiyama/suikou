@@ -283,10 +283,48 @@ more items.
 Count each occurrence of the words below. Two on one line count as two.
 
 For Japanese, `現在` `現時点` `最新の` `新しい` `今後` `将来的に` `まもなく` `既存の` `目下`
-`現行の`.
+`現行の`, together with `最近` `近年` `直近` `先日` `従来` `当面` `順次`.
 
 For English, `currently` `presently` `eventually` `soon` `latest` `newest` `newer`
-`as of this writing` `at present` `in the future` `in the near future` `for now`.
+`as of this writing` `at present` `in the future` `in the near future` `for now`,
+together with `recently` `lately` `these days` `nowadays` `so far` `for the time being`
+`up to now`.
+
+The second group works the same way as the first: each word takes the moment of writing
+as its origin. Google's guidance on timeless documentation names `recently`, `soon`, and
+`new`, and these are the rest of that set.
+
+### Relative periods with no anchor
+
+A period counted from now cannot be listed as a word, because it carries a number:
+`直近3ヶ月`, `過去2年`, `in the past three months`, `last week`, `next month`. Those are
+matched as a pattern instead.
+
+### A sentence with an absolute anchor is passed over
+
+Touching on a moment is not the error. Meaning something different depending on when it
+is read is the error. Where the same sentence carries an absolute anchor, the rule does
+not fire.
+
+| Anchor | Example |
+|---|---|
+| A calendar year | `Measured in March 2026` |
+| A version number | `verified against lindera 6.0.0` |
+| A numbered document | `RFC 7322 states` |
+
+`Verified against lindera 6.0.0` states a past fact and never goes stale. `The current
+feature order is this` changes truth value with the reading. What separates them is the
+anchor, not the tense.
+
+The anchor is read per sentence: a year in a neighbouring sentence of the same paragraph
+does not settle this one. Only a `v`-prefixed form or a three-part number counts as a
+version, so that `2.5 times` is not mistaken for one.
+
+This is the operational form of the promise to allow a deliberate reference to a moment.
+Left to judgement it could not be checked, so it becomes a question of whether an anchor
+is present.
+
+### Why the English vocabulary is narrow
 
 The English vocabulary is held to the strict set.
 Adding `new` `now` `future` and `existing` raises the number of false catches.

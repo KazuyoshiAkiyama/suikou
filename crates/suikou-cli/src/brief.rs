@@ -164,6 +164,7 @@ fn render_ja(detail: Detail) -> String {
             out.push_str("- 同じ箇条書きの項目は末尾の形をそろえる。\n");
             out.push_str("- 列挙を「など」「等」で終えない。\n");
             out.push_str(&format!("- 次の語を使わない。{words}\n"));
+            out.push_str("- 時点に触れる場合は、同じ文に西暦かバージョン番号を置く。\n");
         }
         Detail::Balanced => {
             out.push_str(
@@ -175,8 +176,12 @@ fn render_ja(detail: Detail) -> String {
             out.push_str(
                 "- 列挙を「など」「等」で終えない。網羅していないことは導入文の側で示す。\n",
             );
-            out.push_str("- 次の語は時点に依存し、文書を古びさせる。使わない。\n");
+            out.push_str("- 次の語は時点に依存し、文書を風化させる。使わない。\n");
             out.push_str(&format!("  {words}\n"));
+            out.push_str(
+                "- 時点ではなく条件で書く。「現時点では A」ではなく「B の場合は A」とする。\n\
+                 - 時点に触れる必要がある場合は、同じ文に西暦かバージョン番号を置いて係留する。\n",
+            );
         }
         Detail::Detailed => {
             out.push_str("## 箇条書きの導入文\n\n");
@@ -200,7 +205,10 @@ fn render_ja(detail: Detail) -> String {
             out.push_str(
                 "次の語を使わない。使うと、文書が時間の経過とともに実情と合わなくなる。\n\n",
             );
-            out.push_str(&format!("{words}\n"));
+            out.push_str(&format!("{words}\n\n"));
+            out.push_str(
+                "数を伴う相対の期間も同じである。「直近3ヶ月」「過去2年」「先週」は、                 読む時点によって指す範囲が変わる。\n\n                 時点に触れること自体は誤りではない。読む時点で意味が変わることが誤りである。                 触れる必要がある場合は、同じ文に西暦かバージョン番号を置いて係留する。                 「lindera 6.0.0 で確認した」は過去の事実であり、風化しない。\n\n                 係留できない場合は、時点ではなく条件で書く。                 「現時点では A」ではなく「B の場合は A」とする。\n",
+            );
         }
     }
     out
@@ -218,6 +226,10 @@ fn render_en(detail: Detail) -> String {
             out.push_str("- Keep list items parallel in form.\n");
             out.push_str("- Do not end an enumeration with \"etc.\" or \"and so on\".\n");
             out.push_str(&format!("- Do not use: {words}\n"));
+            out.push_str(
+                "- Anchor any reference to a moment with a year or a version in the same \
+                 sentence.\n",
+            );
         }
         Detail::Balanced => {
             out.push_str(
@@ -237,6 +249,12 @@ fn render_en(detail: Detail) -> String {
                  use them.\n",
             );
             out.push_str(&format!("  {words}\n"));
+            out.push_str(
+                "- Write the condition rather than the moment: not \"currently A\" but \"A \
+                 when B\".\n\
+                 - Where a moment has to be named, anchor it with a year or a version in the \
+                 same sentence.\n",
+            );
         }
         Detail::Detailed => {
             out.push_str("## The list lead-in\n\n");
@@ -263,7 +281,18 @@ fn render_en(detail: Detail) -> String {
                 "Do not use the words below. Each one anchors the sentence to the moment it \
                  was written, so the document goes stale as soon as that moment passes.\n\n",
             );
-            out.push_str(&format!("{words}\n"));
+            out.push_str(&format!("{words}\n\n"));
+            out.push_str(
+                "A period counted from now behaves the same way. \"In the past three \
+                 months\", \"over the last two years\", and \"last week\" cover a different \
+                 span depending on when they are read.\n\n\
+                 Naming a moment is not itself the error; meaning something different \
+                 depending on when the sentence is read is. Where a moment has to be named, \
+                 anchor it with a year or a version in the same sentence. \"Verified against \
+                 lindera 6.0.0\" states a past fact and never goes stale.\n\n\
+                 Where it cannot be anchored, write the condition rather than the moment: \
+                 not \"currently A\" but \"A when B\".\n",
+            );
         }
     }
     out

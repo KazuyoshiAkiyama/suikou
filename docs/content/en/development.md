@@ -240,7 +240,7 @@ their recommended order.
 - Open every list with a complete sentence that does not bind grammatically to the items.
 - Keep the number of items out of the prose.
 - Leave section numbers off headings.
-- Avoid a word that depends on a moment in time.
+- Avoid a word that depends on a moment in time; anchor it to a year or a version if you must.
 - Avoid a bare metaphor, reaching for a simile or a worked example instead.
 - Do not repeat a native word that professional technical Japanese avoids.
 - Make one claim per paragraph, splitting the paragraph once it passes six sentences.
