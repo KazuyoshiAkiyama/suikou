@@ -1,0 +1,150 @@
+# 日本語の技術文書の用語集。
+#
+# 2つのことを分けて持つ。混ぜると、根拠の出どころが分からなくなる。
+#
+#   [[term]]        どの語を選ぶか。語の選択。根拠は実測の用法。
+#   [[orthography]] その語をどう書くか。表記。根拠は明文の規約と実測。
+#
+# 語の選択は、参照コーパスの頻度と PLaMo Translate の訳語で決める。
+# 表記は、JTCA「外来語（カタカナ）表記ガイドライン」第3版を出発点にして、
+# 参照コーパスで確かめる。規約と実測が食い違う語は実測に従い、食い違いを書き残す。
+#
+# 汎用の形（textlint-rule-prh の辞書と CSV）は `glossary/` にある。
+# 作り直す手順は `research/glossary/build_glossary.py` にある。
+
+[meta]
+measured = "2026-11-13"
+corpus = "corpus/cache/pro_ja"
+corpus_chars = 4382318
+sources = ["kubernetes/website(ja)", "mdn/translated-content(ja)", "vuejs-translations/docs-ja"]
+probe = "pfnet/plamo-3-translate-2b-GGUF Q4_K_M"
+orthography_guide = "JTCA 外来語（カタカナ）表記ガイドライン 第3版（2015）"
+
+# ---------------------------------------------------------------------------
+# 表記。同じ語の書き分けを1つに決める。
+#
+# JTCA の規約は、英語の語尾 -er、-or、-ar、-y を長音符号「ー」で書くとする。
+# 実測では -er、-or、-ar はそのとおりだが、-y は逆で、長音を付けない形が優勢である。
+# `コンテナ` は -er だが、この分野では長音を付けない形が定着している。
+# 規約から導くのではなく、語ごとに実測で決める。
+# ---------------------------------------------------------------------------
+
+[[orthography]]
+preferred = "サーバー"
+variants = ["サーバ"]
+rule = "jtca-er"
+evidence = "長音 591 / 長音なし 130"
+
+[[orthography]]
+preferred = "ユーザー"
+variants = ["ユーザ"]
+rule = "jtca-er"
+evidence = "長音 1830 / 長音なし 328"
+
+[[orthography]]
+preferred = "ブラウザー"
+variants = ["ブラウザ"]
+rule = "jtca-er"
+evidence = "長音 441 / 長音なし 120"
+
+[[orthography]]
+preferred = "パラメーター"
+variants = ["パラメータ"]
+rule = "jtca-er"
+evidence = "長音 158 / 長音なし 6"
+
+[[orthography]]
+preferred = "フォルダー"
+variants = ["フォルダ"]
+rule = "jtca-er"
+evidence = "長音 21 / 長音なし 10"
+
+[[orthography]]
+preferred = "クラスター"
+variants = ["クラスタ"]
+rule = "jtca-er"
+evidence = "長音 1279 / 長音なし 5"
+
+[[orthography]]
+preferred = "レイヤー"
+variants = ["レイヤ"]
+rule = "jtca-er"
+evidence = "長音 93 / 長音なし 2"
+
+# 以下は JTCA の規約と実測が食い違う。実測に従う。
+
+[[orthography]]
+preferred = "コンテナ"
+variants = ["コンテナー"]
+rule = "measured-against-jtca"
+evidence = "長音なし 1783 / 長音 95。-er だが長音を付けない形が定着している"
+
+[[orthography]]
+preferred = "プロパティ"
+variants = ["プロパティー"]
+rule = "measured-against-jtca"
+evidence = "長音なし 870 / 長音 3。-y は規約では長音だが実測は逆"
+
+[[orthography]]
+preferred = "メモリ"
+variants = ["メモリー"]
+rule = "measured-against-jtca"
+evidence = "長音なし 402 / 長音 75。-y は規約では長音だが実測は逆"
+
+[[orthography]]
+preferred = "ディレクトリ"
+variants = ["ディレクトリー"]
+rule = "measured-against-jtca"
+evidence = "長音なし 227 / 長音 9。-y は規約では長音だが実測は逆"
+
+# ---------------------------------------------------------------------------
+# 語の選択。英語の術語に当てる日本語を決める。
+#
+# `rejected` は、英語を一語ずつ写した言い方である。
+# `keep` は、同じ字を文字どおりの意味で使う形で、置き換えてはならない。
+# ---------------------------------------------------------------------------
+
+[[term]]
+concept = "root cause"
+preferred = "根本原因"
+rejected = ["根因"]
+evidence = "参照コーパスで根因 0 / 根本原因 2。PLaMo も根本原因と訳す"
+
+[[term]]
+concept = "time window"
+preferred = "時間枠"
+rejected = ["時間窓"]
+evidence = "参照コーパスで時間窓 0 / 時間枠 1。PLaMo は時間枠と時間幅を出す"
+
+[[term]]
+concept = "baseline"
+preferred = "ベースライン"
+rejected = ["基準線"]
+keep = ["基準値", "基準の実装"]
+evidence = "参照コーパスで基準線 0 / ベースライン 12。PLaMo もベースラインと訳す"
+
+[[term]]
+concept = "background job"
+preferred = "バックグラウンドジョブ"
+rejected = ["背景実行"]
+evidence = "参照コーパスで背景実行 0 / バックグラウンド 20。PLaMo もバックグラウンドジョブと訳す"
+
+[[term]]
+concept = "watcher"
+preferred = "ウォッチャー"
+rejected = ["見張り"]
+evidence = "参照コーパスで見張り 0 / ウォッチャー 55。PLaMo はウォッチャーと観測者を出す"
+
+[[term]]
+concept = "version"
+preferred = "バージョン"
+rejected = ["版"]
+keep = ["第2版", "日本語版", "改訂版", "初版", "英語版"]
+evidence = "kata_pairs_ja.toml の実測。PLaMo もバージョンと訳す"
+
+[[term]]
+concept = "branch"
+preferred = "ブランチ"
+rejected = ["枝"]
+keep = ["枝分かれ", "木の枝"]
+evidence = "kata_pairs_ja.toml の実測（分岐→ブランチ）。PLaMo もブランチと訳す"

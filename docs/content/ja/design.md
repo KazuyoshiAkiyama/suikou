@@ -343,7 +343,7 @@ Claude Code の hooks から Write と Edit のたびに動く使われ方を見
 | `suikou baseline <glob>` | コーパスから閾値を較正してプロファイルを作る |
 | `suikou terms <glob>` | 文書群から語彙集と許容する語の一覧を抽出する |
 | `suikou selftest` | 入ったバイナリが思ったとおりのものかを確認する |
-| `suikou mcp` | MCP サーバとして起動する |
+| `suikou mcp` | MCP サーバーとして起動する |
 | `suikou plot <path> --doctype T` | 書く前の構成を `.suikou/plans/` に出す |
 
 `check` の主な選択肢を示す。
@@ -555,7 +555,7 @@ terms に載らない、暗喩の語彙だけを指摘する。
 ```
 suikou/
 ├─ crates/suikou-core      解析器（lindera-unidic, pulldown-cmark）
-├─ crates/suikou-cli       CLI と MCP サーバ
+├─ crates/suikou-cli       CLI と MCP サーバー
 ├─ packages/               npm。textlint の位置を持つ規則
 ├─ skills/suikou/          SKILL.md
 ├─ docs/                   Hugo の文書サイト

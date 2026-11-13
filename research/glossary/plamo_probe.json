@@ -1,0 +1,314 @@
+{
+  "version": [
+    {
+      "en": "Pin the dependency to a known version.",
+      "ja": "依存関係を既知のバージョンに固定してください。",
+      "katakana": [
+        "バージョン"
+      ]
+    },
+    {
+      "en": "The version is recorded in the lockfile.",
+      "ja": "バージョンはロックファイルに記録されています。",
+      "katakana": [
+        "バージョン",
+        "ロックファイル"
+      ]
+    }
+  ],
+  "branch": [
+    {
+      "en": "Create a branch before changing the schema.",
+      "ja": "スキーマを変更する前にブランチを作成してください。",
+      "katakana": [
+        "スキーマ",
+        "ブランチ"
+      ]
+    },
+    {
+      "en": "Merge the branch after the tests pass.",
+      "ja": "テスト合格後にブランチをマージしてください。",
+      "katakana": [
+        "テスト",
+        "ブランチ",
+        "マージ"
+      ]
+    }
+  ],
+  "baseline": [
+    {
+      "en": "Compare the result against the baseline.",
+      "ja": "結果をベースラインと比較してください。",
+      "katakana": [
+        "ベースライン"
+      ]
+    },
+    {
+      "en": "The baseline was measured on the reference corpus.",
+      "ja": "基準コーパスを用いてベースラインを測定した。",
+      "katakana": [
+        "コーパス",
+        "ベースライン"
+      ]
+    }
+  ],
+  "root cause": [
+    {
+      "en": "The root cause was a missing index.",
+      "ja": "根本的な原因はインデックスの欠落でした。",
+      "katakana": [
+        "インデックス"
+      ]
+    },
+    {
+      "en": "Record the root cause in the incident report.",
+      "ja": "インシデントレポートに根本原因を記載してください。",
+      "katakana": [
+        "インシデントレポート"
+      ]
+    }
+  ],
+  "background job": [
+    {
+      "en": "The report runs as a background job.",
+      "ja": "そのレポートはバックグラウンドジョブとして動作します。",
+      "katakana": [
+        "レポート",
+        "バックグラウンドジョブ"
+      ]
+    },
+    {
+      "en": "Queue the export as a background job.",
+      "ja": "エクスポートをバックグラウンドジョブとしてキューに追加してください。",
+      "katakana": [
+        "エクスポート",
+        "バックグラウンドジョブ",
+        "キュー"
+      ]
+    }
+  ],
+  "time window": [
+    {
+      "en": "The metric is averaged over a time window.",
+      "ja": "指標は時間枠で平均化されます。",
+      "katakana": []
+    },
+    {
+      "en": "Widen the time window to reduce noise.",
+      "ja": "ノイズを減らすため、時間幅を広げてください。",
+      "katakana": [
+        "ノイズ"
+      ]
+    }
+  ],
+  "watcher": [
+    {
+      "en": "A watcher restarts the process when the file changes.",
+      "ja": "ウォッチャーは、ファイルが変更されるとプロセスを再起動します。",
+      "katakana": [
+        "ウォッチャー",
+        "ファイル",
+        "プロセス"
+      ]
+    },
+    {
+      "en": "The watcher reports the new state.",
+      "ja": "観測者は新しい状態を報告する。",
+      "katakana": []
+    }
+  ],
+  "title": [
+    {
+      "en": "Write the title of the pull request first.",
+      "ja": "プルリクエストのタイトルを先に書いてください。",
+      "katakana": [
+        "プルリクエスト",
+        "タイトル"
+      ]
+    },
+    {
+      "en": "The title of the section names its subject.",
+      "ja": "節のタイトルはその主題を示している。",
+      "katakana": [
+        "タイトル"
+      ]
+    }
+  ],
+  "head": [
+    {
+      "en": "The head of the list holds the newest entry.",
+      "ja": "リストの先頭には最新の項目がある。",
+      "katakana": [
+        "リスト"
+      ]
+    },
+    {
+      "en": "Reset the working tree to the head of the branch.",
+      "ja": "ワーキングツリーをブランチの先頭にリセットする。",
+      "katakana": [
+        "ワーキングツリー",
+        "ブランチ",
+        "リセット"
+      ]
+    }
+  ],
+  "mark": [
+    {
+      "en": "The lint leaves a mark on every finding.",
+      "ja": "糸くずがあらゆる発見物に跡を残す。",
+      "katakana": []
+    },
+    {
+      "en": "Each position carries a mark in the report.",
+      "ja": "報告書では、各役職にマークが付されています。",
+      "katakana": [
+        "マーク"
+      ]
+    }
+  ],
+  "script": [
+    {
+      "en": "Run the migration script once.",
+      "ja": "マイグレーションスクリプトを1回実行してください。",
+      "katakana": [
+        "マイグレーションスクリプト"
+      ]
+    },
+    {
+      "en": "The script reads the configuration from disk.",
+      "ja": "スクリプトはディスクから設定を読み込みます。",
+      "katakana": [
+        "スクリプト",
+        "ディスク"
+      ]
+    }
+  ],
+  "server": [
+    {
+      "en": "Restart the server after changing the configuration.",
+      "ja": "設定変更後、サーバーを再起動してください。",
+      "katakana": [
+        "サーバー"
+      ]
+    },
+    {
+      "en": "The server answers on the loopback address.",
+      "ja": "サーバーはループバックアドレスで応答します。",
+      "katakana": [
+        "サーバー",
+        "ループバックアドレス"
+      ]
+    }
+  ],
+  "user": [
+    {
+      "en": "The user supplies the API key.",
+      "ja": "ユーザーがAPIキーを入力します。",
+      "katakana": [
+        "ユーザー"
+      ]
+    },
+    {
+      "en": "Grant the user read access to the bucket.",
+      "ja": "ユーザーにバケットへの読み取り権限を付与します。",
+      "katakana": [
+        "ユーザー",
+        "バケット"
+      ]
+    }
+  ],
+  "parameter": [
+    {
+      "en": "Pass the timeout as a parameter.",
+      "ja": "タイムアウトをパラメータとして渡してください。",
+      "katakana": [
+        "タイムアウト",
+        "パラメータ"
+      ]
+    },
+    {
+      "en": "Each parameter has a default value.",
+      "ja": "各パラメータにはデフォルト値があります。",
+      "katakana": [
+        "パラメータ",
+        "デフォルト"
+      ]
+    }
+  ],
+  "folder": [
+    {
+      "en": "Put the archive in the download folder.",
+      "ja": "アーカイブをダウンロードフォルダに入れてください。",
+      "katakana": [
+        "アーカイブ",
+        "ダウンロードフォルダ"
+      ]
+    },
+    {
+      "en": "The folder holds one file per target.",
+      "ja": "フォルダにはターゲットごとに1つのファイルが入っています。",
+      "katakana": [
+        "フォルダ",
+        "ターゲット",
+        "ファイル"
+      ]
+    }
+  ],
+  "cluster": [
+    {
+      "en": "The cluster runs three replicas.",
+      "ja": "クラスターは3つのレプリカを稼働させています。",
+      "katakana": [
+        "クラスター",
+        "レプリカ"
+      ]
+    },
+    {
+      "en": "Drain the node before removing it from the cluster.",
+      "ja": "クラスターから削除する前に、ノードのドレインを行ってください。",
+      "katakana": [
+        "クラスター",
+        "ノード",
+        "ドレイン"
+      ]
+    }
+  ],
+  "browser": [
+    {
+      "en": "Open the report in a browser.",
+      "ja": "ブラウザでレポートを開いてください。",
+      "katakana": [
+        "ブラウザ",
+        "レポート"
+      ]
+    },
+    {
+      "en": "The browser caches the stylesheet.",
+      "ja": "ブラウザはスタイルシートをキャッシュします。",
+      "katakana": [
+        "ブラウザ",
+        "スタイルシート",
+        "キャッシュ"
+      ]
+    }
+  ],
+  "computer": [
+    {
+      "en": "Install the binary on the build computer.",
+      "ja": "ビルド用コンピュータにバイナリをインストールしてください。",
+      "katakana": [
+        "ビルド",
+        "コンピュータ",
+        "バイナリ",
+        "インストール"
+      ]
+    },
+    {
+      "en": "The computer has eight cores.",
+      "ja": "そのコンピューターは8コア搭載している。",
+      "katakana": [
+        "コンピューター"
+      ]
+    }
+  ]
+}

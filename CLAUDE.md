@@ -36,6 +36,7 @@ test と fmt と clippy が、既定の feature でも `--features lindera-unidi
 | `daemon` | 置かない。起動が数ミリ秒で完了すると測定したため |
 | textlint の規則 | 書いてある。ゴールデンの件数が Rust と一致する |
 | 構造の規則と `plot` | 書いてある。単体テストあり |
+| 用語集と `glossary/variant` | 書いてある。prh と CSV に書き出せる |
 | 配布用のワークフロー | 3つの対象で確認した。タグを付与するまで配られない |
 
 ## 作りとテスト
@@ -124,6 +125,9 @@ lindera を更新した場合は `verify_schema` を必ず通す。
 - 一段落に一つの主張だけを置く。6文を超えたら分割する。
 - 節は、その見出しが示す問いに答える形で書く。
 - プロの技術文書で使われない和語を繰り返さない。`register/rare-wago` が検出する。
+- 語を選ぶときは一般的な言い方を調べる。自分の語感で決めない。
+  参照コーパスの頻度と PLaMo Translate の訳語の両方が同じ語を指していれば、それを採る。
+  決めた語は `crates/suikou-core/data/glossary_ja.toml` に書く。
 
 置く前に `suikou check` を適用することにする。
 条件は error と warning が無いことまでとする。info は参考として読む。

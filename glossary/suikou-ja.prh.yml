@@ -1,0 +1,91 @@
+# suikou の用語集を textlint-rule-prh の辞書にしたもの。
+#
+# このファイルは生成物である。手で直さず、
+# crates/suikou-core/data/glossary_ja.toml を直して
+# research/glossary/build_glossary.py を走らせる。
+#
+# 計測: 2026-11-13  参照: corpus/cache/pro_ja（4,382,318 字）
+# 表記の規約: JTCA 外来語（カタカナ）表記ガイドライン 第3版（2015）
+#
+# 使い方（.textlintrc.yml）:
+#   rules:
+#     prh:
+#       rulePaths: [glossary/suikou-ja.prh.yml]
+
+version: 1
+rules:
+  # jtca-er: 長音 591 / 長音なし 130
+  - expected: サーバー
+    patterns:
+      - サーバ
+  # jtca-er: 長音 1830 / 長音なし 328
+  - expected: ユーザー
+    patterns:
+      - ユーザ
+  # jtca-er: 長音 441 / 長音なし 120
+  - expected: ブラウザー
+    patterns:
+      - ブラウザ
+  # jtca-er: 長音 158 / 長音なし 6
+  - expected: パラメーター
+    patterns:
+      - パラメータ
+  # jtca-er: 長音 21 / 長音なし 10
+  - expected: フォルダー
+    patterns:
+      - フォルダ
+  # jtca-er: 長音 1279 / 長音なし 5
+  - expected: クラスター
+    patterns:
+      - クラスタ
+  # jtca-er: 長音 93 / 長音なし 2
+  - expected: レイヤー
+    patterns:
+      - レイヤ
+  # measured-against-jtca: 長音なし 1783 / 長音 95。-er だが長音を付けない形が定着している
+  - expected: コンテナ
+    patterns:
+      - コンテナー
+  # measured-against-jtca: 長音なし 870 / 長音 3。-y は規約では長音だが実測は逆
+  - expected: プロパティ
+    patterns:
+      - プロパティー
+  # measured-against-jtca: 長音なし 402 / 長音 75。-y は規約では長音だが実測は逆
+  - expected: メモリ
+    patterns:
+      - メモリー
+  # measured-against-jtca: 長音なし 227 / 長音 9。-y は規約では長音だが実測は逆
+  - expected: ディレクトリ
+    patterns:
+      - ディレクトリー
+  # root cause: 参照コーパスで根因 0 / 根本原因 2。PLaMo も根本原因と訳す
+  - expected: 根本原因
+    patterns:
+      - 根因
+  # time window: 参照コーパスで時間窓 0 / 時間枠 1。PLaMo は時間枠と時間幅を出す
+  - expected: 時間枠
+    patterns:
+      - 時間窓
+  # baseline: 参照コーパスで基準線 0 / ベースライン 12。PLaMo もベースラインと訳す
+  - expected: ベースライン
+    patterns:
+      - 基準線
+    # 文字どおりの意味は残す: 基準値 基準の実装
+  # background job: 参照コーパスで背景実行 0 / バックグラウンド 20。PLaMo もバックグラウンドジョブと訳す
+  - expected: バックグラウンドジョブ
+    patterns:
+      - 背景実行
+  # watcher: 参照コーパスで見張り 0 / ウォッチャー 55。PLaMo はウォッチャーと観測者を出す
+  - expected: ウォッチャー
+    patterns:
+      - 見張り
+  # version: kata_pairs_ja.toml の実測。PLaMo もバージョンと訳す
+  - expected: バージョン
+    patterns:
+      - 版
+    # 文字どおりの意味は残す: 第2版 日本語版 改訂版 初版 英語版
+  # branch: kata_pairs_ja.toml の実測（分岐→ブランチ）。PLaMo もブランチと訳す
+  - expected: ブランチ
+    patterns:
+      - 枝
+    # 文字どおりの意味は残す: 枝分かれ 木の枝

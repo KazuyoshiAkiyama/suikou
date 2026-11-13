@@ -580,3 +580,47 @@ The expected values for each file under `tests/golden/input/` sit in
 The expected values come from inputs written for the purpose.
 Regression against a real corpus uses whatever `corpus/fetch.sh` fetches.
 Licensing keeps the corpus itself out of the repository.
+
+## The glossary rule
+
+### glossary/variant
+
+Fires where a spelling departs from the one the glossary settled on, at warning.
+
+It covers orthography, pulling `サーバ` to `サーバー`, and calques of more than one
+character, pulling `根因` to `根本原因`.
+
+Word choice itself belongs to `register/prefer-katakana`, since a pair of rules pointing
+at the same spot would make the reader read the same finding twice.
+
+A one-character calque is left out. Substring matching would catch the `題` inside `問題`,
+which needs morphological analysis; `prefer-katakana` already reads it that way.
+
+The rule reads prose and list bodies, not headings or code, and needs no dictionary, so it
+runs in the build without one.
+
+### How orthography is settled
+
+The JTCA guideline on loanword orthography, third edition, writes the English endings
+-er, -or, -ar, and -y with the long-vowel mark.
+
+Measured over 4.38 million characters of the reference corpus, -er, -or, and -ar hold.
+
+| Word | With the mark | Without |
+|---|---|---|
+| サーバー | 591 | 130 |
+| ユーザー | 1830 | 328 |
+| パラメーター | 158 | 6 |
+| クラスター | 1279 | 5 |
+
+The -y ending runs the other way, so each word is settled by measurement rather than
+derived from the rule.
+
+| Word | With the mark | Without |
+|---|---|---|
+| プロパティ | 3 | 870 |
+| メモリ | 75 | 402 |
+| ディレクトリ | 9 | 227 |
+| コンテナ | 95 | 1783 |
+
+`コンテナ` ends in -er, and this field has settled on the form without the mark.

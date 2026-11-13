@@ -1,0 +1,19 @@
+kind,concept,preferred,avoid,keep,basis,evidence
+orthography,,サーバー,サーバ,,jtca-er,長音 591 / 長音なし 130
+orthography,,ユーザー,ユーザ,,jtca-er,長音 1830 / 長音なし 328
+orthography,,ブラウザー,ブラウザ,,jtca-er,長音 441 / 長音なし 120
+orthography,,パラメーター,パラメータ,,jtca-er,長音 158 / 長音なし 6
+orthography,,フォルダー,フォルダ,,jtca-er,長音 21 / 長音なし 10
+orthography,,クラスター,クラスタ,,jtca-er,長音 1279 / 長音なし 5
+orthography,,レイヤー,レイヤ,,jtca-er,長音 93 / 長音なし 2
+orthography,,コンテナ,コンテナー,,measured-against-jtca,長音なし 1783 / 長音 95。-er だが長音を付けない形が定着している
+orthography,,プロパティ,プロパティー,,measured-against-jtca,長音なし 870 / 長音 3。-y は規約では長音だが実測は逆
+orthography,,メモリ,メモリー,,measured-against-jtca,長音なし 402 / 長音 75。-y は規約では長音だが実測は逆
+orthography,,ディレクトリ,ディレクトリー,,measured-against-jtca,長音なし 227 / 長音 9。-y は規約では長音だが実測は逆
+term,root cause,根本原因,根因,,measured,参照コーパスで根因 0 / 根本原因 2。PLaMo も根本原因と訳す
+term,time window,時間枠,時間窓,,measured,参照コーパスで時間窓 0 / 時間枠 1。PLaMo は時間枠と時間幅を出す
+term,baseline,ベースライン,基準線,基準値 基準の実装,measured,参照コーパスで基準線 0 / ベースライン 12。PLaMo もベースラインと訳す
+term,background job,バックグラウンドジョブ,背景実行,,measured,参照コーパスで背景実行 0 / バックグラウンド 20。PLaMo もバックグラウンドジョブと訳す
+term,watcher,ウォッチャー,見張り,,measured,参照コーパスで見張り 0 / ウォッチャー 55。PLaMo はウォッチャーと観測者を出す
+term,version,バージョン,版,第2版 日本語版 改訂版 初版 英語版,measured,kata_pairs_ja.toml の実測。PLaMo もバージョンと訳す
+term,branch,ブランチ,枝,枝分かれ 木の枝,measured,kata_pairs_ja.toml の実測（分岐→ブランチ）。PLaMo もブランチと訳す

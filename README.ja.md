@@ -95,7 +95,7 @@ suikou brief --doctype howto --lang ja
 suikou check docs/guide.md
 ```
 
-`suikou mcp` は、標準入出力で JSON-RPC 2.0 を話す MCP サーバとして起動する。
+`suikou mcp` は、標準入出力で JSON-RPC 2.0 を話す MCP サーバーとして起動する。
 `initialize`・`tools/list`・`tools/call` に応じ、`check` と `brief` をツールとして出す。
 MCP に対応したエージェントは、端末向けの文字列を解釈せずに、CLI と同じ判定を
 そのまま呼び出せる。
@@ -104,7 +104,7 @@ MCP に対応したエージェントは、端末向けの文字列を解釈せ�
 suikou mcp
 ```
 
-MCP クライアントの設定では、サーバの起動コマンドとして `suikou`、引数として `mcp`
+MCP クライアントの設定では、サーバーの起動コマンドとして `suikou`、引数として `mcp`
 を指定する。
 
 詳しい入れ方と使い方は[文書](docs/)にある。
@@ -132,7 +132,7 @@ cd docs && hugo server
 | 場所 | 内容 |
 |---|---|
 | `crates/suikou-core` | 解析の中核 |
-| `crates/suikou-cli` | CLI と MCP サーバ |
+| `crates/suikou-cli` | CLI と MCP サーバー |
 | `packages/` | textlint の局所ルール |
 | `skills/suikou` | エージェント向けのスキル |
 | `research/` | 較正と探索に使う Python |

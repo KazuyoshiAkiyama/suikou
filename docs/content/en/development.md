@@ -143,6 +143,90 @@ python research/structure/fetch_adrs.py corpus/cache/adrs 200 12
 
 `research/structure/structure-adr.toml` holds that configuration.
 
+## Choosing a word
+
+A word is not chosen by ear. The common way of saying it is looked up first.
+
+### Two questions
+
+Ask them in order.
+
+1. Would someone writing in this field choose this word in a specification or a procedure?
+2. Does it map word for word back into English?
+
+The first asks what gets written, not what gets understood in speech. A yes to the second
+and a no to the first marks a phrase copied word by word from English: `根因` for root
+cause, `時間窓` for time window, `基準線` for baseline.
+
+Repetition within the same document, or across this repository, is not evidence for the
+first question. Vocabulary from one AI-written document carries into the next, so
+repetition says nothing about what is established.
+
+### Where the evidence comes from
+
+Two sources answer the first question.
+
+```sh
+grep -c "根因" corpus/cache/pro_ja/*.md
+plamo-translate --from English --to Japanese --input "The root cause was a missing index."
+```
+
+The reference corpus is professional translation, so it shows the word that was chosen in
+writing. PLaMo Translate is a model built for translation, so it shows the Japanese put
+against an English term. Where both point at the same word, that word is the common one.
+
+### Leave ordinary Sino-Japanese alone
+
+No word is swapped merely to lower the kanji ratio. `確認`, `使用`, `停止`, and `動作` are
+ordinary in technical Japanese and are not replaced with native equivalents; D-27 records
+what happened when they were. Formal words carrying no content, such as `多角的`, are a
+separate matter and do get revisited.
+
+### A settled word goes into the glossary
+
+What the lookup settles is written into `crates/suikou-core/data/glossary_ja.toml`
+alongside the figure that settled it. `research/glossary/build_glossary.py` regenerates
+the portable forms under `glossary/`.
+
+Orthography is kept apart from word choice, because the authority differs. Orthography
+starts from the JTCA guideline and is confirmed per word against the reference corpus.
+
+## Using PLaMo Translate
+
+PLaMo Translate is a translation model that runs locally. It is optional, and it is used
+when a document is written from scratch and when a word choice needs confirming.
+
+### Which size this machine takes
+
+| Condition | Model | Why |
+|---|---|---|
+| 8 GB of VRAM or less, or no GPU | `plamo-3-translate-2b` at Q4_K_M, 1.81 GB | The Linux default; loads quickly and suffices at the sentence level |
+| 12 GB of VRAM or more | `plamo-2-translate` 10B at Q4, about 6.2 GB | Reaches the paragraph level |
+
+This machine has 8 GB, so it takes the 2B.
+
+### What each size is used for
+
+The 2B is held to words and sentences, never to rewriting a paragraph or a whole document.
+The 10B reaches paragraphs but loads slowly enough to want the resident server.
+
+Neither size has its output pasted into a document. One probe rendered `lint` as `糸くず`,
+the fluff on fabric. What is read is which word it chose, and no more.
+
+### Running it
+
+```sh
+export PLAMO_TRANSLATE_CLI_LLAMA_SERVER=<path to llama-server>
+plamo-translate server &
+plamo-translate --from English --to Japanese --input "..."
+```
+
+A call costs 5.1 seconds without the resident server and 1.3 seconds with it, so a batch
+of words starts the server first.
+
+`llama-server` has to be at b11960 or above. The published builds require glibc 2.38, so this
+machine builds it from source.
+
 ## Golden tests
 
 The golden tests exist to keep the values in line with the reference implementation.

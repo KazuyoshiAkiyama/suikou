@@ -98,6 +98,8 @@ pub fn evaluate_with_glossary(
             register::katakana_pairs(),
             glossary,
         ));
+        // 用語集の表記。形態素解析を要しないため、辞書のない版でも当てられる。
+        local.extend(crate::glossary::check(doc, glossary));
     }
     Report { document, local }
 }

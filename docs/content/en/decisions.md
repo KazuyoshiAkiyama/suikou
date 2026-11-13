@@ -1308,3 +1308,86 @@ the loanword forms.
 215,557 characters become 193,288, a tenth less. The saving comes from the numbered titles
 that no longer fire and from the narrower window. At the same time every position now
 names the text it matched, so the report says more while printing less.
+
+## D-37 Word choice and orthography are settled separately, and the glossary goes out
+
+Choosing a word by ear leans toward a forced native equivalent. D-27 records that
+happening: `検証` became `確かめ` in pursuit of a lower kanji ratio.
+`register/rare-wago` finds such a word after it is written, but nothing governed the
+choice at the moment of writing.
+
+Reading the formal-writing side of [yomiyasu](https://github.com/nanaism/yomiyasu)
+(MIT License, Copyright (c) 2026 nanaism) turned up a pair of questions for making that
+choice. Nothing is quoted from it; the shape of the judgement is what carried over, and
+the wording here is new.
+
+### Two questions
+
+Ask them in order.
+
+1. Would someone writing in this field choose this word in a specification or a procedure?
+2. Does it map word for word back into English?
+
+A yes to the second and a no to the first marks a phrase copied word by word from English.
+
+What the first question turns on is that repetition proves nothing. Vocabulary from one
+AI-written document carries into the next, so finding the word again elsewhere in this
+repository is not evidence that it is established. The documents here were written by a
+model, so this applies to them.
+
+### Why the two are separated
+
+The authority differs, so the glossary keeps them apart.
+
+| Kind | Settles | Authority |
+|---|---|---|
+| `term` | Which word | Corpus frequency and the PLaMo Translate rendering |
+| `orthography` | How it is written | The JTCA guideline, confirmed per word against the corpus |
+
+Measurement forced the separation. Asked to translate the same word in two sentences,
+PLaMo Translate produced both `コンピュータ` and `コンピューター`. It writes `サーバー`,
+`ユーザー`, and `クラスター` with the long-vowel mark, and `ブラウザ`, `パラメータ`, and
+`フォルダ` without it.
+
+A translation model can settle which word. It cannot settle how the word is written. That
+needs a published rule.
+
+### The rule and the measurement disagree
+
+The JTCA guideline on loanword orthography, third edition, writes the English endings
+-er, -or, -ar, and -y with the long-vowel mark.
+
+Measured over 4.38 million characters, -er, -or, and -ar hold. The -y ending runs the
+other way: `プロパティ` 870 against `プロパティー` 3. `コンテナ` ends in -er, and this
+field has settled on the form without the mark, 1783 against 95.
+
+Each word is therefore settled by measurement rather than derived from the rule, and a
+word that disagrees carries `measured-against-jtca` so that the disagreement stays on
+record.
+
+### The glossary is published in portable form
+
+`crates/suikou-core/data/glossary_ja.toml` holds the source.
+`glossary/suikou-ja.prh.yml` and `glossary/suikou-ja.csv` are generated from it.
+
+prh was chosen because it is the widely used tool for Japanese orthographic variation and
+its dictionary format runs in textlint unchanged. The generated dictionary was handed to
+textlint, which reported the variants and corrected them under `textlint --fix`.
+
+### A one-character calque is left out of this rule
+
+`glossary/variant` covers orthography and calques of more than one character.
+
+Searching for a single character by substring catches the `題` inside `問題`. Counted that
+way the reference corpus has 613 occurrences of `題`, nearly all of them `問題`, `課題`,
+and `話題` rather than the calque. That needs morphological analysis, and
+`prefer-katakana` already reads it that way.
+
+### This repository was not consistent
+
+Running the rule found `サーバ` in four of this repository's own documents, now written
+`サーバー` as the glossary says.
+
+The rule fires on 7 of 60 reference documents and 10 of 60 Kubernetes task pages. Those
+are not false positives: the reference corpus is itself inconsistent, 591 `サーバー`
+against 130 `サーバ`, and pointing at the minority is what the rule is for.
