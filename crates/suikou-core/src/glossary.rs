@@ -60,41 +60,92 @@ pub struct Entry {
     pub guard_choon: bool,
 }
 
+/// 寄せる先が見つける形を含む場合、その中の一致は見送る。
+///
+/// `外す` を `除外する` に寄せると、`除外する` の中に `外す` が現れる。
+/// 守らないと、直した先がまた指摘され、直し続けても終わらない。
+fn inside_target(text: &str, at: usize, e: &Entry) -> bool {
+    if !e.to.contains(&e.from) {
+        return false;
+    }
+    text.match_indices(e.to.as_str())
+        .any(|(ts, _)| ts <= at && at + e.from.len() <= ts + e.to.len())
+}
+
+/// 用語の置き場は効き方で分ける。混ぜると、どちらの性質で動いているか分からなくなる。
+///
+/// 効き方は3つに分かれる。「外す」と「指摘する」の2つではない。
+///
+/// | 置き方 | 置き場 | 効き方 | severity |
+/// |---|---|---|---|
+/// | 定義した名前 | `.suikou/defined.toml` | ほかの呼び方を誤りとする | error |
+/// | 認めた語 | `.suikou/terms.toml`、`register-allow.toml` | 指摘から外す | — |
+/// | 一般語の選好 | 同梱の `glossary_ja.toml`、`.suikou/glossary.toml` | 選ばなかった側を指摘する | warning |
+///
+/// 定義した名前でいちばん強いのは、指摘から外すことではなく、
+/// ほかの呼び方を誤りとすることである。
+/// 定義した名前を別の語で呼ぶと、読み手は同じものを別のものと読む。
+/// これは揃っていないという問題ではなく、意味が通らないという問題である。
+///
+/// 一方で選好は、どちらでも意味が通る語を1つに揃えるだけである。
+/// `基準値` と `ベースライン` はどちらも誤りではない。
 pub fn entries() -> &'static Vec<Entry> {
     static E: OnceLock<Vec<Entry>> = OnceLock::new();
     E.get_or_init(|| {
         let raw: Raw = toml::from_str(include_str!("../data/glossary_ja.toml"))
             .expect("同梱の glossary_ja.toml を読めない");
-        let mut out = Vec::new();
-        for o in &raw.orthography {
-            for v in &o.variants {
-                // 寄せる先が見つける形を含む場合だけ、長音の番を置く。
-                // `サーバ` は `サーバー` の一部であり、守らないと正しい表記を指摘する。
-                let guard_choon = o.preferred.starts_with(v.as_str());
-                out.push(Entry {
-                    from: v.clone(),
-                    to: o.preferred.clone(),
-                    keep: Vec::new(),
-                    guard_choon,
-                });
-            }
-        }
-        for t in &raw.term {
-            for r in &t.rejected {
-                // 単字は部分一致で誤るため、ここでは見ない。
-                if r.chars().count() < 2 {
-                    continue;
-                }
-                out.push(Entry {
-                    from: r.clone(),
-                    to: t.preferred.clone(),
-                    keep: t.keep.clone(),
-                    guard_choon: false,
-                });
+        let mut out = build(&raw);
+        if let Ok(src) = std::fs::read_to_string(".suikou/glossary.toml") {
+            if let Ok(project) = toml::from_str::<Raw>(&src) {
+                merge(&mut out, build(&project));
             }
         }
         out
     })
+}
+
+/// プロジェクトの選好を同梱の上に重ねる。
+///
+/// 同じ語に触れる同梱の項目を外してから足す。
+/// 外さないと、同梱が `サーバ→サーバー`、プロジェクトが `サーバー→サーバ` を持ち、
+/// どちらに書いても指摘される行き止まりになる。
+fn merge(out: &mut Vec<Entry>, project: Vec<Entry>) {
+    for p in project {
+        out.retain(|e| e.from != p.from && e.to != p.from && e.from != p.to && e.to != p.to);
+        out.push(p);
+    }
+}
+
+fn build(raw: &Raw) -> Vec<Entry> {
+    let mut out = Vec::new();
+    for o in &raw.orthography {
+        for v in &o.variants {
+            // 寄せる先が見つける形を含む場合だけ、長音の番を置く。
+            // `サーバ` は `サーバー` の一部であり、守らないと正しい表記を指摘する。
+            let guard_choon = o.preferred.starts_with(v.as_str());
+            out.push(Entry {
+                from: v.clone(),
+                to: o.preferred.clone(),
+                keep: Vec::new(),
+                guard_choon,
+            });
+        }
+    }
+    for t in &raw.term {
+        for r in &t.rejected {
+            // 単字は部分一致で誤るため、ここでは見ない。
+            if r.chars().count() < 2 {
+                continue;
+            }
+            out.push(Entry {
+                from: r.clone(),
+                to: t.preferred.clone(),
+                keep: t.keep.clone(),
+                guard_choon: false,
+            });
+        }
+    }
+    out
 }
 
 /// 用語集の語をすべて返す。許可の一覧と突き合わせるために公開する。
@@ -119,6 +170,9 @@ pub fn check(doc: &Document, allow: &HashSet<String>) -> Option<LocalFinding> {
             for (at, _) in b.text.match_indices(&e.from) {
                 let rest = &b.text[at + e.from.len()..];
                 if e.guard_choon && rest.starts_with('ー') {
+                    continue;
+                }
+                if inside_target(&b.text, at, e) {
                     continue;
                 }
                 // 文字どおりの意味で使う形に入っている箇所は置き換えない。
@@ -175,7 +229,7 @@ mod tests {
         assert!(f.positions[0].text.starts_with("サーバ→サーバー"));
     }
 
-    // 正しい表記を指摘してはならない。`サーバ` は `サーバー` の一部である。
+    // 寄せる先そのものを指摘してはならない。
     #[test]
     fn the_preferred_spelling_is_not_flagged() {
         for src in ["サーバーの設定を変更する。\n", "ユーザーに権限を与える。\n"]
@@ -184,13 +238,22 @@ mod tests {
         }
     }
 
-    // 規約と実測が食い違う語は実測に従う。長音を付けた形を指摘する。
+    // 向きは語ごとに違う。一律ではない。
+    // `クラスター` は長音あり、`コンテナ` は長音なしが実測で優勢である。
     #[test]
-    fn a_measured_exception_runs_the_other_way() {
-        let d = Document::parse("コンテナーを起動する。\n");
-        let f = check(&d, &none()).unwrap();
-        assert!(f.positions[0].text.starts_with("コンテナー→コンテナ"));
-        assert!(check(&Document::parse("コンテナを起動する。\n"), &none()).is_none());
+    fn the_direction_differs_by_word() {
+        for (bad, good) in [("コンテナー", "コンテナ"), ("クラスタ", "クラスター")]
+        {
+            let d = Document::parse(&format!("{bad}を起動する。\n"));
+            let f = check(&d, &none()).unwrap();
+            assert!(
+                f.positions[0].text.starts_with(&format!("{bad}→{good}")),
+                "{:?}",
+                f.positions[0].text
+            );
+            let ok = format!("{good}を起動する。\n");
+            assert!(check(&Document::parse(&ok), &none()).is_none(), "{good}");
+        }
     }
 
     #[test]
@@ -238,5 +301,168 @@ mod tests {
         let c = concepts();
         assert!(c.iter().all(|x| !x.is_empty()));
         assert!(c.contains(&"version".to_string()));
+    }
+}
+
+#[cfg(test)]
+mod merge_tests {
+    use super::*;
+
+    fn raw(src: &str) -> Raw {
+        toml::from_str(src).unwrap()
+    }
+
+    // プロジェクトの選好は同梱に足せる。
+    #[test]
+    fn a_project_entry_is_added() {
+        let mut out = build(&raw(
+            "[[orthography]]\npreferred = \"サーバー\"\nvariants = [\"サーバ\"]\n",
+        ));
+        merge(
+            &mut out,
+            build(&raw(
+                "[[orthography]]\npreferred = \"キュー\"\nvariants = [\"待ち行列\"]\n",
+            )),
+        );
+        assert_eq!(out.len(), 2);
+        assert!(out.iter().any(|e| e.from == "待ち行列"));
+    }
+
+    // 同じ語に触れる同梱の項目を覆せる。
+    // 覆さないと、どちらに書いても指摘される行き止まりになる。
+    #[test]
+    fn a_project_entry_reverses_a_builtin_one() {
+        let mut out = build(&raw(
+            "[[orthography]]\npreferred = \"サーバー\"\nvariants = [\"サーバ\"]\n",
+        ));
+        merge(
+            &mut out,
+            build(&raw(
+                "[[orthography]]\npreferred = \"サーバ\"\nvariants = [\"サーバー\"]\n",
+            )),
+        );
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].from, "サーバー");
+        assert_eq!(out[0].to, "サーバ");
+    }
+
+    // 同梱の `keep` もプロジェクトの側で置き換えられる。
+    #[test]
+    fn a_project_entry_replaces_the_keep_list() {
+        let mut out = build(&raw(
+            "[[term]]\nconcept = \"baseline\"\npreferred = \"ベースライン\"\n\
+             rejected = [\"基準線\"]\nkeep = [\"基準の実装\"]\n",
+        ));
+        merge(
+            &mut out,
+            build(&raw(
+                "[[term]]\nconcept = \"baseline\"\npreferred = \"ベースライン\"\n\
+                 rejected = [\"基準線\"]\nkeep = [\"基準線形\"]\n",
+            )),
+        );
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].keep, vec!["基準線形".to_string()]);
+    }
+}
+
+pub const RULE_DEFINED: &str = "glossary/defined-name";
+
+/// プロジェクトが定義した名前。`.suikou/defined.toml` に書く。
+#[derive(Debug, Clone, Deserialize)]
+pub struct Defined {
+    /// 定義した名前。この語で呼ぶ。
+    pub name: String,
+    /// この名前で呼ぶべきものを指す、ほかの言い方。書いたら誤りとする。
+    pub instead_of: Vec<String>,
+    /// なぜその名前にしたか。指摘に添えて出す。
+    #[serde(default)]
+    pub note: String,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct RawDefined {
+    #[serde(default)]
+    defined: Vec<Defined>,
+}
+
+pub fn defined() -> &'static Vec<Defined> {
+    static D: OnceLock<Vec<Defined>> = OnceLock::new();
+    D.get_or_init(|| {
+        std::fs::read_to_string(".suikou/defined.toml")
+            .ok()
+            .and_then(|s| toml::from_str::<RawDefined>(&s).ok())
+            .unwrap_or_default()
+            .defined
+    })
+}
+
+/// 定義した名前以外の呼び方を見る。
+///
+/// severity は error とする。選好の警告とは性質が違う。
+/// 定義した名前を別の語で呼ぶと、読み手は同じものを別のものと読む。
+pub fn check_defined(doc: &Document, list: &[Defined]) -> Option<LocalFinding> {
+    let mut positions = Vec::new();
+    for b in body_blocks(doc) {
+        for d in list {
+            for other in &d.instead_of {
+                for (at, _) in b.text.match_indices(other.as_str()) {
+                    let column = b.text[..at].chars().count() + 1;
+                    let note = if d.note.is_empty() {
+                        String::new()
+                    } else {
+                        format!("（{}）", d.note)
+                    };
+                    positions.push(Position {
+                        line: b.line,
+                        column,
+                        text: format!("{other}→{}{note}", d.name),
+                    });
+                }
+            }
+        }
+    }
+    if positions.is_empty() {
+        return None;
+    }
+    positions.sort_by_key(|p| (p.line, p.column));
+    positions.dedup_by_key(|p| (p.line, p.column));
+    let total = positions.len();
+    let kept: Vec<Position> = positions
+        .into_iter()
+        .take(crate::report::Report::MAX_POSITIONS_PER_RULE)
+        .collect();
+    Some(LocalFinding {
+        rule_id: RULE_DEFINED.to_string(),
+        severity: Severity::Error,
+        message: "定義した名前を別の語で呼んでいる。定義した名前に戻す".to_string(),
+        truncated: total - kept.len(),
+        positions: kept,
+    })
+}
+
+#[cfg(test)]
+mod target_tests {
+    use super::*;
+
+    // 寄せる先が見つける形を含む場合がある。`除外する` の中に `外す` がある。
+    // 直した先をまた指摘すると、直し続けても終わらない。
+    #[test]
+    fn a_match_inside_the_target_is_skipped() {
+        assert!(check(&Document::parse("対象から除外する。\n"), &HashSet::new()).is_none());
+    }
+
+    #[test]
+    fn the_form_itself_is_still_flagged() {
+        let d = Document::parse("対象から外す。\n");
+        let f = check(&d, &HashSet::new()).unwrap();
+        assert!(f.positions[0].text.starts_with("外す→除外する"));
+    }
+
+    // 同じ行に両方ある場合、直していない側だけを指摘する。
+    #[test]
+    fn only_the_unfixed_one_is_flagged() {
+        let d = Document::parse("片方は除外するが、もう片方は外す。\n");
+        let f = check(&d, &HashSet::new()).unwrap();
+        assert_eq!(f.positions.len(), 1, "{:?}", f.positions);
     }
 }

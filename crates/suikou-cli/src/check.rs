@@ -191,15 +191,38 @@ pub const EXIT_ERROR: i32 = 1;
 // brief からも使うため crate 内に公開する。プロファイルの読み込み方を
 // 二重に書かないための共有である。
 pub(crate) fn load_profile(name: &str) -> Result<Profile> {
-    if let Some(p) = Profile::builtin(name) {
-        return Ok(p);
-    }
-    let path = Path::new(name);
-    if !path.exists() {
-        bail!("プロファイル {name} が見つからない。組み込みは oss と service");
-    }
-    let src = std::fs::read_to_string(path).with_context(|| format!("{name} を読めない"))?;
-    toml::from_str(&src).with_context(|| format!("{name} を解釈できない"))
+    let mut profile = match Profile::builtin(name) {
+        Some(p) => p,
+        None => {
+            let path = Path::new(name);
+            if !path.exists() {
+                bail!("プロファイル {name} が見つからない。組み込みは oss と service");
+            }
+            let src =
+                std::fs::read_to_string(path).with_context(|| format!("{name} を読めない"))?;
+            toml::from_str(&src).with_context(|| format!("{name} を解釈できない"))?
+        }
+    };
+    apply_override(&mut profile)?;
+    Ok(profile)
+}
+
+/// `.suikou/profile.toml` があれば重ねる。
+///
+/// プロファイルごと差し替えると、変えたい1つの値のために全部を写すことになる。
+/// 漢語率と漢字率は分野で幅が大きく、どこを警告とするかは文書の性質で変わる。
+/// その判断をプロジェクトに渡すために、変えたい閾値だけを書けるようにする。
+fn apply_override(profile: &mut Profile) -> Result<()> {
+    const PATH: &str = ".suikou/profile.toml";
+    let Ok(src) = std::fs::read_to_string(PATH) else {
+        return Ok(());
+    };
+    let ov: suikou_core::profile::ProfileOverride =
+        toml::from_str(&src).with_context(|| format!("{PATH} を解釈できない"))?;
+    profile
+        .apply(&ov)
+        .map_err(|e| anyhow::anyhow!("{PATH}: {e}"))?;
+    Ok(())
 }
 
 // `baseline` と `terms` も同じ集め方と言語判定を要るため、crate 内に公開する。

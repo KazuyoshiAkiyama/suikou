@@ -18,89 +18,115 @@ corpus = "corpus/cache/pro_ja"
 corpus_chars = 4382318
 sources = ["kubernetes/website(ja)", "mdn/translated-content(ja)", "vuejs-translations/docs-ja"]
 probe = "pfnet/plamo-3-translate-2b-GGUF Q4_K_M"
-orthography_guide = "JTCA 外来語（カタカナ）表記ガイドライン 第3版（2015）"
+orthography_rule = "語ごとに実測で決める。決まらない語は長音に倒す（D-38）"
+orthography_reference = "JTCA 外来語（カタカナ）表記ガイドライン 第3版（2015）"
 
 # ---------------------------------------------------------------------------
 # 表記。同じ語の書き分けを1つに決める。
 #
-# JTCA の規約は、英語の語尾 -er、-or、-ar、-y を長音符号「ー」で書くとする。
-# 実測では -er、-or、-ar はそのとおりだが、-y は逆で、長音を付けない形が優勢である。
-# `コンテナ` は -er だが、この分野では長音を付けない形が定着している。
-# 規約から導くのではなく、語ごとに実測で決める。
+# 語ごとに実測で決める。規約から導かない。
+# JTCA「外来語（カタカナ）表記ガイドライン」第3版は英語の語尾 -er、-or、-ar、-y を
+# 長音符号で書くとしているが、実測では -y と `コンテナ` が逆であった。
+#
+# 実測で決まらない語は長音を付ける側に倒す。決まらないとは次の場合である。
+#
+#   優勢な側が2倍に届かない、または合計が50件に届かない。
+#
+# 倒す先を長音ありにしたのは、JTCA の規約がそちらであり、
+# -er、-or、-ar の語では実測もそちらだったためである。
+# 新しい語を足すときは、まず参照コーパスで数える。
+# 数えられない語は長音を付ける。
+#
+# 一律にするとどちらの向きでも大きく外す。参照コーパス438万字での食い違いは、
+# 全部長音ありで 45.9%、全部長音なしで 54.1%、語ごとに実測で 9.5% であった。
+# 経緯は D-38 にある。
 # ---------------------------------------------------------------------------
 
 [[orthography]]
 preferred = "サーバー"
 variants = ["サーバ"]
-rule = "jtca-er"
+rule = "measured"
 evidence = "長音 591 / 長音なし 130"
 
 [[orthography]]
 preferred = "ユーザー"
 variants = ["ユーザ"]
-rule = "jtca-er"
+rule = "measured"
 evidence = "長音 1830 / 長音なし 328"
 
 [[orthography]]
 preferred = "ブラウザー"
 variants = ["ブラウザ"]
-rule = "jtca-er"
+rule = "measured"
 evidence = "長音 441 / 長音なし 120"
 
 [[orthography]]
 preferred = "パラメーター"
 variants = ["パラメータ"]
-rule = "jtca-er"
+rule = "measured"
 evidence = "長音 158 / 長音なし 6"
-
-[[orthography]]
-preferred = "フォルダー"
-variants = ["フォルダ"]
-rule = "jtca-er"
-evidence = "長音 21 / 長音なし 10"
 
 [[orthography]]
 preferred = "クラスター"
 variants = ["クラスタ"]
-rule = "jtca-er"
+rule = "measured"
 evidence = "長音 1279 / 長音なし 5"
 
 [[orthography]]
 preferred = "レイヤー"
 variants = ["レイヤ"]
-rule = "jtca-er"
+rule = "measured"
 evidence = "長音 93 / 長音なし 2"
 
-# 以下は JTCA の規約と実測が食い違う。実測に従う。
+[[orthography]]
+preferred = "フォルダー"
+variants = ["フォルダ"]
+rule = "fallback-choon"
+evidence = "長音 21 / 長音なし 10。差が2倍に届かず実測で決まらないため長音に倒す"
+
+[[orthography]]
+preferred = "コンピューター"
+variants = ["コンピュータ"]
+rule = "fallback-choon"
+evidence = "長音 28 / 長音なし 34。差が2倍に届かず実測で決まらないため長音に倒す"
 
 [[orthography]]
 preferred = "コンテナ"
 variants = ["コンテナー"]
-rule = "measured-against-jtca"
-evidence = "長音なし 1783 / 長音 95。-er だが長音を付けない形が定着している"
+rule = "measured"
+evidence = "長音 95 / 長音なし 1783"
 
 [[orthography]]
 preferred = "プロパティ"
 variants = ["プロパティー"]
-rule = "measured-against-jtca"
-evidence = "長音なし 870 / 長音 3。-y は規約では長音だが実測は逆"
+rule = "measured"
+evidence = "長音 3 / 長音なし 870"
 
 [[orthography]]
 preferred = "メモリ"
 variants = ["メモリー"]
-rule = "measured-against-jtca"
-evidence = "長音なし 402 / 長音 75。-y は規約では長音だが実測は逆"
+rule = "measured"
+evidence = "長音 75 / 長音なし 402"
 
 [[orthography]]
 preferred = "ディレクトリ"
 variants = ["ディレクトリー"]
-rule = "measured-against-jtca"
-evidence = "長音なし 227 / 長音 9。-y は規約では長音だが実測は逆"
+rule = "measured"
+evidence = "長音 9 / 長音なし 227"
 
 # ---------------------------------------------------------------------------
-# 語の選択。英語の術語に当てる日本語を決める。
+# 選好する一般語。英語の術語に当てる日本語を、2つ以上の一般語から選ぶ。
 #
-# `rejected` は、英語を一語ずつ写した言い方である。
+# ここに載るのは、どちらも日本語として通る一般語である。
+# `基準値` と `ベースライン` はどちらも誤りではない。揃っていないことが問題である。
+# PLaMo Translate が同じ語を文によって `ベースライン` と `基準値` に分けたことで、
+# 訳語のモデルでは決まらないと分かった。選好はこちらで決める。
+#
+# プロジェクト固有の語は、ここではなく `.suikou/terms.toml` に置く。
+# 効き方が違う。固有の語は定義であって選好ではなく、誤ると意味が変わる。
+# 一方こちらは、どちらでも意味は通るが揃えたい語である。経緯は D-38 にある。
+#
+# `rejected` は、英語を一語ずつ写した言い方か、選ばなかった一般語である。
 # `keep` は、同じ字を文字どおりの意味で使う形で、置き換えてはならない。
 # ---------------------------------------------------------------------------
 
@@ -120,8 +146,8 @@ evidence = "参照コーパスで時間窓 0 / 時間枠 1。PLaMo は時間枠�
 concept = "baseline"
 preferred = "ベースライン"
 rejected = ["基準線"]
-keep = ["基準値", "基準の実装"]
-evidence = "参照コーパスで基準線 0 / ベースライン 12。PLaMo もベースラインと訳す"
+keep = ["基準の実装"]
+evidence = "参照コーパスで基準線 0 / ベースライン 12。PLaMo は文によってベースラインと基準値に分かれた"
 
 [[term]]
 concept = "background job"
@@ -148,3 +174,43 @@ preferred = "ブランチ"
 rejected = ["枝"]
 keep = ["枝分かれ", "木の枝"]
 evidence = "kata_pairs_ja.toml の実測（分岐→ブランチ）。PLaMo もブランチと訳す"
+
+# 身体の動作の像が強い和語の動詞。技術文書では抽象の漢語を選ぶ。
+#
+# どちらも日本語として通るが、像が具体的すぎて説明の文には粗い。
+# 参照コーパスとこのリポジトリの文書を比べると、ここに挙げた語は8倍から32倍多かった。
+# `register/rare-wago` は参照に16件あるため拾えない（LogRatio の下限が128倍）。
+# 頻度では届かないが、選好としては決められる。
+
+[[term]]
+concept = "exclude"
+preferred = "除外する"
+rejected = ["外す"]
+keep = ["取り外す", "的を外す"]
+evidence = "参照 0.06 / このリポジトリ 1.90（万字あたり）。32倍"
+
+[[term]]
+concept = "remove"
+preferred = "除去する"
+rejected = ["落とす"]
+keep = ["読み落とす", "見落とす", "書き落とす"]
+evidence = "参照 0.01 / このリポジトリ 0.30（万字あたり）。30倍"
+
+[[term]]
+concept = "detect"
+preferred = "検出する"
+rejected = ["拾う"]
+evidence = "参照 0.00 / このリポジトリ 0.60（万字あたり）。参照はほぼ使わない"
+
+[[term]]
+concept = "unify"
+preferred = "統一する"
+rejected = ["寄せる"]
+keep = ["取り寄せる", "呼び寄せる"]
+evidence = "参照 0.00 / このリポジトリ 0.20（万字あたり）。参照はほぼ使わない"
+
+[[term]]
+concept = "collate"
+preferred = "照合する"
+rejected = ["突き合わせる"]
+evidence = "参照 0.00 / このリポジトリ 0.10（万字あたり）。参照はほぼ使わない"

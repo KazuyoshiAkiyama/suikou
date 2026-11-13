@@ -5,7 +5,8 @@
 # research/glossary/build_glossary.py を走らせる。
 #
 # 計測: 2026-11-13  参照: corpus/cache/pro_ja（4,382,318 字）
-# 表記の規約: JTCA 外来語（カタカナ）表記ガイドライン 第3版（2015）
+# 表記: 語ごとに実測で決める。決まらない語は長音に倒す（D-38）
+# 参考: JTCA 外来語（カタカナ）表記ガイドライン 第3版（2015）
 #
 # 使い方（.textlintrc.yml）:
 #   rules:
@@ -14,47 +15,51 @@
 
 version: 1
 rules:
-  # jtca-er: 長音 591 / 長音なし 130
+  # measured: 長音 591 / 長音なし 130
   - expected: サーバー
     patterns:
       - サーバ
-  # jtca-er: 長音 1830 / 長音なし 328
+  # measured: 長音 1830 / 長音なし 328
   - expected: ユーザー
     patterns:
       - ユーザ
-  # jtca-er: 長音 441 / 長音なし 120
+  # measured: 長音 441 / 長音なし 120
   - expected: ブラウザー
     patterns:
       - ブラウザ
-  # jtca-er: 長音 158 / 長音なし 6
+  # measured: 長音 158 / 長音なし 6
   - expected: パラメーター
     patterns:
       - パラメータ
-  # jtca-er: 長音 21 / 長音なし 10
-  - expected: フォルダー
-    patterns:
-      - フォルダ
-  # jtca-er: 長音 1279 / 長音なし 5
+  # measured: 長音 1279 / 長音なし 5
   - expected: クラスター
     patterns:
       - クラスタ
-  # jtca-er: 長音 93 / 長音なし 2
+  # measured: 長音 93 / 長音なし 2
   - expected: レイヤー
     patterns:
       - レイヤ
-  # measured-against-jtca: 長音なし 1783 / 長音 95。-er だが長音を付けない形が定着している
+  # fallback-choon: 長音 21 / 長音なし 10。差が2倍に届かず実測で決まらないため長音に倒す
+  - expected: フォルダー
+    patterns:
+      - フォルダ
+  # fallback-choon: 長音 28 / 長音なし 34。差が2倍に届かず実測で決まらないため長音に倒す
+  - expected: コンピューター
+    patterns:
+      - コンピュータ
+  # measured: 長音 95 / 長音なし 1783
   - expected: コンテナ
     patterns:
       - コンテナー
-  # measured-against-jtca: 長音なし 870 / 長音 3。-y は規約では長音だが実測は逆
+  # measured: 長音 3 / 長音なし 870
   - expected: プロパティ
     patterns:
       - プロパティー
-  # measured-against-jtca: 長音なし 402 / 長音 75。-y は規約では長音だが実測は逆
+  # measured: 長音 75 / 長音なし 402
   - expected: メモリ
     patterns:
       - メモリー
-  # measured-against-jtca: 長音なし 227 / 長音 9。-y は規約では長音だが実測は逆
+  # measured: 長音 9 / 長音なし 227
   - expected: ディレクトリ
     patterns:
       - ディレクトリー
@@ -66,11 +71,11 @@ rules:
   - expected: 時間枠
     patterns:
       - 時間窓
-  # baseline: 参照コーパスで基準線 0 / ベースライン 12。PLaMo もベースラインと訳す
+  # baseline: 参照コーパスで基準線 0 / ベースライン 12。PLaMo は文によってベースラインと基準値に分かれた
   - expected: ベースライン
     patterns:
       - 基準線
-    # 文字どおりの意味は残す: 基準値 基準の実装
+    # 文字どおりの意味は残す: 基準の実装
   # background job: 参照コーパスで背景実行 0 / バックグラウンド 20。PLaMo もバックグラウンドジョブと訳す
   - expected: バックグラウンドジョブ
     patterns:
@@ -89,3 +94,26 @@ rules:
     patterns:
       - 枝
     # 文字どおりの意味は残す: 枝分かれ 木の枝
+  # exclude: 参照 0.06 / このリポジトリ 1.90（万字あたり）。32倍
+  - expected: 除外する
+    patterns:
+      - 外す
+    # 文字どおりの意味は残す: 取り外す 的を外す
+  # remove: 参照 0.01 / このリポジトリ 0.30（万字あたり）。30倍
+  - expected: 除去する
+    patterns:
+      - 落とす
+    # 文字どおりの意味は残す: 読み落とす 見落とす 書き落とす
+  # detect: 参照 0.00 / このリポジトリ 0.60（万字あたり）。参照はほぼ使わない
+  - expected: 検出する
+    patterns:
+      - 拾う
+  # unify: 参照 0.00 / このリポジトリ 0.20（万字あたり）。参照はほぼ使わない
+  - expected: 統一する
+    patterns:
+      - 寄せる
+    # 文字どおりの意味は残す: 取り寄せる 呼び寄せる
+  # collate: 参照 0.00 / このリポジトリ 0.10（万字あたり）。参照はほぼ使わない
+  - expected: 照合する
+    patterns:
+      - 突き合わせる

@@ -45,7 +45,7 @@ severity = "info"
 guidance = "漢語の名詞化を「〜すること」等の和語表現に戻す"
 
 [thresholds."ja.kango_ratio"]
-value = 0.42
+value = 0.52
 direction = "above"
 severity = "info"
 guidance = "定着したカタカナ語を使い、漢語の名詞を重ねない。和語の動詞に置き換えてはならない"
