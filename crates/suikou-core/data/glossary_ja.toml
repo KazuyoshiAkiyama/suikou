@@ -233,3 +233,26 @@ concept = "establish as a norm"
 preferred = "規範とする"
 rejected = ["規範を置く", "規範を敷く"]
 evidence = "`置く` は物を据える像、`敷く` は面に広げる像で、どちらも規範を受けない"
+
+# 成果物を `作る` で受ける形。参照コーパスは `作成する` を使う。
+# 動詞そのものの頻度は、1万字あたり参照 1.20 に対しこのリポジトリ 0.00 であった。
+# 逆に `を作る` は参照 0.14 に対しこのリポジトリ 1.24 で、8.9倍である。
+# 典型的な組だけを挙げる。`語を作る`（語を考案する意味）のような形は対象にしない。
+
+[[term]]
+concept = "create a document"
+preferred = "文書を作成する"
+rejected = ["文書を作る"]
+evidence = "参照 0 / このリポジトリ 1。動詞は参照 作成する 1.20 / を作る 0.14"
+
+[[term]]
+concept = "build a table"
+preferred = "対応表を作成する"
+rejected = ["対応表を作る"]
+evidence = "参照 0 / このリポジトリ 1。同じ"
+
+[[term]]
+concept = "generate a profile"
+preferred = "プロファイルを作成する"
+rejected = ["プロファイルを作る"]
+evidence = "参照 0 / このリポジトリ 1。同じ"

@@ -122,3 +122,15 @@ rules:
     patterns:
       - 規範を置く
       - 規範を敷く
+  # create a document: 参照 0 / このリポジトリ 1。動詞は参照 作成する 1.20 / を作る 0.14
+  - expected: 文書を作成する
+    patterns:
+      - 文書を作る
+  # build a table: 参照 0 / このリポジトリ 1。同じ
+  - expected: 対応表を作成する
+    patterns:
+      - 対応表を作る
+  # generate a profile: 参照 0 / このリポジトリ 1。同じ
+  - expected: プロファイルを作成する
+    patterns:
+      - プロファイルを作る
