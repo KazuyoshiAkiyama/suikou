@@ -40,7 +40,11 @@ pub fn measure(doc: &Document, lang: Lang, morph: &dyn Morphology) -> BTreeMap<S
         Lang::En => {
             let m = metrics::en::analyze(&prose, &body);
             out.insert("en.mattr100".into(), m.mattr100);
-            out.insert("en.simile_marker_per_1k".into(), m.simile_marker_per_1k);
+            // 比喩の標識は密度に下限を当てる指標であり、語数が少ないと分解能が無い。
+            // 値は計算できるが、閾値と比べる意味が無い。経緯は D-43 にある。
+            if m.words >= metrics::en::MIN_WORDS_FOR_SIMILE {
+                out.insert("en.simile_marker_per_1k".into(), m.simile_marker_per_1k);
+            }
             out.insert("en.prose_ratio".into(), doc.prose_ratio());
             out.insert("en.list_ratio".into(), doc.list_ratio());
         }

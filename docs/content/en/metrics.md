@@ -629,8 +629,8 @@ appearing per doctype would make it impossible to follow which document was judg
 
 ### The built-in adjustment
 
-Only `readme` carries one, derived from measuring notable open source: 240 READMEs in
-English and 150 in Japanese.
+`readme`, `design` and `decision` carry one, derived from measuring notable open source:
+240 READMEs in English and 150 in Japanese, 200 Rust RFCs and 190 published ADRs.
 
 With the default thresholds applied, READMEs fire at these rates.
 

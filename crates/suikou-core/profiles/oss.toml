@@ -85,8 +85,6 @@ guidance = "If you use a comparison, mark it as a simile or an example"
 # 硬さの差は一方向ではない。経緯は D-41 にある。
 [doctype.readme]
 reason = "入り口の文書。地の文が少なく、語彙は広く、名前と機能の列挙で漢語が増える"
-# 地の文が足りず、比喩の標識の密度を測れない。README 240件の 74% で発火した。
-disable = ["en.simile_marker_per_1k"]
 
 [doctype.readme.thresholds."en.mattr100"]
 value = 0.87
@@ -105,3 +103,40 @@ value = 0.62
 
 [doctype.readme.thresholds."ja.renyo_te_ratio"]
 value = 10.0
+
+# 決定の記録の調整。公開されている ADR 190件を実測して導いた。
+#
+# 既定の閾値を当てると `en.mattr100` が 45%、`en.prose_ratio` が 45% で発火する。
+# 同じ語数帯（400から800語）の一般の文書では 17% と 20% である。
+# 長さでは説明できず、型の性質である。
+# 節が定型で短く、1件の決定を述べるため語の重複が少ない。
+#
+# `en.prose_ratio` はこの型では除外する。
+# `suikou baseline corpus/cache/adrs` が、較正値 -0.18 は値域の外に出ると報告する。
+# 分布が広すぎて境界を引けない。数値を選ぶのではなく、当てない。
+#
+# 既定の根拠（人間 0.66 から 0.97）は地の文中心のコーパスで測ったものであり、
+# 定型の記録には成立しない。経緯は D-43 にある。
+#
+# 日本語の ADR のコーパスが無いため、日本語側は調整していない。
+[doctype.decision]
+reason = "決定の記録。節が定型で短く、1件の決定を述べるため語の重複が少ない"
+disable = ["en.prose_ratio"]
+
+[doctype.decision.thresholds."en.mattr100"]
+value = 0.88
+
+# 設計の型の調整。Rust RFC 200件を実測して導いた。
+# 既定の閾値では `en.mattr100` が 19% で発火する。参照コーパスの 15% より高い。
+# 提案の文書は扱う対象ごとに語彙が変わり、語の重複が少ない。
+# `suikou baseline corpus/cache/rfcs` の較正値を採った。
+#
+# 日本語の提案の文書のコーパスが無いため、日本語側は調整していない。
+[doctype.design]
+reason = "提案の文書。扱う対象ごとに語彙が変わり、語の重複が少ない"
+
+[doctype.design.thresholds."en.mattr100"]
+value = 0.76
+
+[doctype.design.thresholds."en.prose_ratio"]
+value = 0.54

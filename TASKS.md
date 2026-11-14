@@ -1021,15 +1021,53 @@ README 240件で `en.mattr100` が 70% 発火し、参照コーパスでは 15% 
 節ごとに「この節は見出しが示す問いに答えているか」を判定する方法が必要である。
 `structure/plot-mismatch` は見出しの一致だけを見ており、中身は見ていない。
 
+## T22 閾値を型ごとに分割し、密度の指標に門を置いた（済み）
+
+型ごとの閾値の粒度と、型を割り当てたコーパスでの計測方法を決めた。
+
+### 型を割り当てたコーパスでの計測方法
+
+対象のコーパスの複製にフロントマターで型を宣言し、`check` を当てる。
+
+```sh
+python -c "
+import pathlib
+src=pathlib.Path('corpus/cache/adrs'); dst=pathlib.Path('/tmp/typed')
+dst.mkdir(exist_ok=True)
+for p in sorted(src.glob('*.md')):
+    (dst/p.name).write_text('---\ndoctype: \"decision\"\n---\n\n'+p.read_text())
+"
+for f in /tmp/typed/*.md; do suikou check "$f" --lang en --format text; done
+```
+
+複製に書くため、コーパスを変更しない。`corpus/cache/` はバージョン管理の対象外である。
+
+### 分割した粒度
+
+| 型 | コーパス | 調整した指標 |
+|---|---|---|
+| `readme` | README 英語 240件、日本語 150件 | `mattr100`、`prose_ratio`、`kango_ratio`、`renyo_te_ratio` |
+| `design` | Rust RFC 200件 | `mattr100`、`prose_ratio` |
+| `decision` | ADR 190件 | `mattr100`、`prose_ratio` は除外 |
+| `reference` | 参照コーパス | 調整なし。既定が参照コーパスで較正済み |
+
+`howto` は調整していない。型を割り当てたコーパスが無い。
+Kubernetes の task 頁は D-31 で使ったが、`corpus/cache/` に型を分けて置いていない。
+
+日本語の ADR と提案の文書のコーパスが無いため、日本語側は `readme` だけが調整済みである。
+
+### 残っている穴
+
+`ja.mattr100` と `ja.prose_ratio` は `design` と `decision` で既定のままである。
+日本語の提案の文書と決定の記録のコーパスを収集すれば較正できる。
+
 ## 決めていないこと
 
 書いて確認したあとに決めることにする。
 
 - `brief` の出力をスキルが毎回呼ぶか、SKILL.md に埋めるかを決める。
-- 閾値を文書の種類で分割する粒度を決める。
 - M2 をどこまで当てるかを決める。
 - 日本語の人間のコーパスを厚くする。
-- 構造の規則の誤検出の率を、型を割り当てたコーパスで計測する方法を決める。
 
 M2 については、リストが続かないただの説明文で数を述べる場合も検出してしまう。
 `tests/golden/input/ja_prose.md` がその例にあたる。

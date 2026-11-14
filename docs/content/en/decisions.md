@@ -1776,3 +1776,101 @@ A type needs to hold a document's purpose separately from whether it requires se
 `reference` and `log` both require none and differ in purpose. `work_notes_ok` is the first
 field to carry that difference; where the same need arises for another rule, another field
 answers it.
+
+## D-43 A density metric gets a word-count gate, and what cannot be calibrated is dropped per doctype
+
+### Context
+
+After D-41 adjusted the README thresholds, the other types were measured. Applying the
+`decision` type to 190 ADRs, `en.mattr100` fired on 45%, `en.prose_ratio` on 45% and
+`en.simile_marker_per_1k` on 75% — the position READMEs had been in.
+
+Looking into the simile metric showed it was not a doctype problem. Its firing rate varies
+monotonically with document length.
+
+| Words | Fires |
+|---|---|
+| 0 to 400 | 86% |
+| 400 to 800 | 47% |
+| 800 to 1,250 | 24% |
+| 1,250 to 2,000 | 16% |
+| 3,000 to 5,000 | 5% |
+
+Measured over 1,042 documents from the reference corpus, Rust RFCs and ADRs.
+
+### Decision
+
+`en.simile_marker_per_1k` gets a word-count gate: below 1,250 words it is not compared
+against the threshold.
+
+`en.prose_ratio` is dropped for `decision`. `en.mattr100` is recalibrated for `design` and
+`decision`.
+
+### Rationale
+
+The gate value follows from both theory and measurement. The threshold is 0.8 per 1,000
+words, so a single marker reaches it at 1000 ÷ 0.8 = 1,250 words. Below that a document
+either has no marker or clears the threshold with one: there is no resolution. The measured
+rates jump below the same line.
+
+The gate sits at the comparison, not in the calculation. The density is well defined at any
+length, and keeping the calculation intact is what lets the golden test go on checking it
+against the reference implementation.
+
+`MIN_TE_FOR_RATIO` in `ja.renyo_te_ratio` gates a ratio that is undefined when its
+denominator is small; this one gates a value that is defined but has no resolution.
+Different reasons, so different placement.
+
+With the gate in, every type improved and no type needed the metric dropped.
+
+| Doctype | Before | After |
+|---|---|---|
+| `readme` | 74% | 14% |
+| `design` | 16% | 6% |
+| `decision` | 75% | 4% |
+| `reference` | 45% | 1% |
+
+The 1% on the reference corpus agrees with the human range recorded in the metric's own
+documentation, 0.84 to 2.54. The default threshold of 0.8 rests on separating human from
+machine writing, which is a different method from a Tukey fence — so `suikou baseline`
+reporting that it cannot calibrate this metric on any corpus reflects the difference in
+method, not a broken metric.
+
+The 14% left on READMEs is true. The 34 that fire have a median of 2,370 prose words
+against 1,241 for the 57 that do not, so it is not a shortage of prose: long,
+prose-heavy READMEs are simply not marking their comparisons. The per-doctype exclusion
+was therefore removed from `readme` as well.
+
+`en.prose_ratio` is dropped for `decision` because `suikou baseline corpus/cache/adrs`
+reports its calibrated bound at -0.18, outside the metric's range: the distribution is too
+wide to draw a line through. Rather than pick a number, the metric is not applied. Its
+default basis, a human range of 0.66 to 0.97, was measured on prose-heavy documentation and
+does not hold for a terse, templated record.
+
+`en.mattr100` did calibrate: 0.76 for `design`, 0.88 for `decision`. A proposal and a
+decision record both shift vocabulary with their subject and repeat little.
+
+| Doctype | `mattr100` | `prose_ratio` | `simile` |
+|---|---|---|---|
+| `readme` | 6% | 7% | 14% |
+| `design` | 0% | 4% | 6% |
+| `decision` | 0% | 0% | 4% |
+| `reference` | 15% | 11% | 1% |
+
+### Consequences
+
+When a metric fires too often, the cause falls into one of three kinds.
+
+| Cause | What to do |
+|---|---|
+| No resolution at this document length | Gate the metric, regardless of doctype |
+| The distribution differs by doctype | Change the threshold per doctype |
+| The distribution is too wide to bound | Do not apply it to that doctype |
+
+The doctype was suspected first, and simile turned out to be about length. Reaching for the
+per-doctype exclusion first leaves the same defect in every other type: when D-41 dropped
+simile for `readme`, the 75% on `decision` went unnoticed. The cause gets separated before
+the remedy is chosen.
+
+No Japanese corpus of ADRs or proposals exists, so the Japanese side is unadjusted:
+`ja.mattr100` and `ja.prose_ratio` stay at their defaults for these types.

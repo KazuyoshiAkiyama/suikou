@@ -289,12 +289,31 @@ mod override_tests {
         assert_eq!(reference.thresholds["en.mattr100"].value, before);
     }
 
+    // 較正できない指標は、型ごとに除外できる。
+    // ADR 190件で `en.prose_ratio` の較正値が値域の外に出たため `decision` で外した。
     #[test]
     fn a_doctype_adjustment_can_remove_a_metric() {
         let base = Profile::builtin("oss").unwrap();
-        assert!(base.thresholds.contains_key("en.simile_marker_per_1k"));
-        let (readme, _) = base.for_doctype("readme", None);
-        assert!(!readme.thresholds.contains_key("en.simile_marker_per_1k"));
+        assert!(base.thresholds.contains_key("en.prose_ratio"));
+        let (decision, _) = base.for_doctype("decision", None);
+        assert!(!decision.thresholds.contains_key("en.prose_ratio"));
+        // ほかの型からは消えない。
+        let (reference, _) = base.for_doctype("reference", None);
+        assert!(reference.thresholds.contains_key("en.prose_ratio"));
+    }
+
+    // 比喩の標識は型ごとに外さない。語数の門で制御する。
+    // どの型でも閾値は残り、語数が足りない文書で比べないだけである。
+    #[test]
+    fn the_simile_metric_is_not_removed_by_any_doctype() {
+        let base = Profile::builtin("oss").unwrap();
+        for dt in ["readme", "design", "decision", "reference", "howto", "log"] {
+            let (p, _) = base.for_doctype(dt, None);
+            assert!(
+                p.thresholds.contains_key("en.simile_marker_per_1k"),
+                "{dt} から消えている"
+            );
+        }
     }
 
     #[test]
