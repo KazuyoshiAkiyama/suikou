@@ -30,5 +30,6 @@ suikou brief --doctype design                # 生成の前にプロンプトへ
 suikou check docs/design.md                  # 書いたものを検査する
 ```
 
+自分の文書に合わせて調整する手順は[調整](tuning/)にある。
 入れ方と一つずつの説明は[設計](design/)にある。
 指標の厳密な定めは[指標](metrics/)に、決めた経緯は[決定の記録](decisions/)にある。
