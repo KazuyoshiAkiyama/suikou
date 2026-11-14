@@ -1874,3 +1874,104 @@ the remedy is chosen.
 
 No Japanese corpus of ADRs or proposals exists, so the Japanese side is unadjusted:
 `ja.mattr100` and `ja.prose_ratio` stay at their defaults for these types.
+
+## D-44 Documents collected from GitHub today do not make a human reference corpus
+
+### Context
+
+The Japanese thresholds for `design` and `decision` were still at their defaults, for want
+of a Japanese corpus of ADRs and design documents.
+
+One was collected through GitHub code search: 123 files from 95 organisations, filtered for
+at least 300 hiragana and katakana characters. Against the default thresholds the firing
+rates are extreme.
+
+| Metric | 67 Japanese ADRs | 56 Japanese design docs |
+|---|---|---|
+| `ja.mattr100` | 86% | 82% |
+| `ja.prose_ratio` | 88% | 87% |
+| `ja.list_ratio` | 82% | 82% |
+| `ja.renyo_per_1k` | 43% | 39% |
+
+Calibrating would bring those down. Before calibrating, whether the corpus is human writing
+was checked.
+
+### Decision
+
+Nothing is calibrated from this corpus. The Japanese side of `design` and `decision` stays
+at its defaults.
+
+The collected corpus is kept. Filtering it by each file's own commit date may make it
+usable.
+
+Any future collection of a human reference corpus settles first how it will be established
+that the writing predates the spread of LLMs.
+
+### Rationale
+
+The contamination was measured with this tool's own rules. `register/rare-wago` reports
+native-Japanese words repeated where professional technical writing does not use them — a
+rule introduced as a marker of machine writing.
+
+| Group | `register/rare-wago` | `maint/parallel-items` |
+|---|---|---|
+| Reference corpus, concept pages, human translation (67) | 4% | 35% |
+| Kubernetes task pages, human translation (40) | 20% | 52% |
+| Procedures collected from GitHub (160) | 35% | 61% |
+| ADRs collected from GitHub (67) | 31% | 71% |
+
+The groups collected from GitHub carry the machine markers more strongly than human
+translation does: 31% to 35% on `register/rare-wago`, eight times the reference corpus's 4%.
+
+Two effects are mixed. Genre accounts for part of it, since concept pages run 4% and task
+pages 20%. Comparing task pages with task pages still leaves 20% against 35%, so holding
+genre constant does not remove the gap.
+
+Of 25 sampled ADRs, 8 came from repositories created before 2023. A repository's creation
+date is not the date its ADR was written, so that alone does not filter the corpus.
+
+Calibrating from a contaminated group moves the thresholds toward machine style, which
+inverts what the thresholds are for.
+
+### Consequences
+
+Whoever hands a corpus to `suikou baseline` has to establish what it is. `baseline` treats
+every document it is given as human writing and has no way to tell.
+
+The tool already carries the means to check: compare the firing rates of
+`register/rare-wago` and `maint/parallel-items` against the reference corpus. A group eight
+times above it is not a human reference corpus.
+
+The provenance of the corpora already held is recorded here.
+
+| Corpus | Where it came from | Human writing? |
+|---|---|---|
+| `pro_ja`, 798 | Japanese translations of k8s, MDN, Vue, React, the Rust book | Human translation |
+| `pro_en`, 652 | The English originals of the same | Human |
+| `rfcs`, 200 | Rust RFCs | Human; the proposals span years before LLMs |
+| `adrs`, 190 | Published ADRs in English | Unverified |
+| `readmes`, 240 | READMEs chosen by star count | Unverified |
+| `adrs_ja`, 123 | GitHub code search | **Contaminated** |
+| `howto_ja`, 200 | GitHub code search | **Partly contaminated** |
+
+The same measurement was applied to `adrs` and `readmes` on the English side. Since
+`register/rare-wago` is Japanese-only, the maint rules stood in for it.
+
+| Group | `maint/parallel-items` | `maint/trailing-etc` |
+|---|---|---|
+| `pro_en`, 652 (reference) | 51% | 4% |
+| `rfcs`, 200 | 58% | 17% |
+| `adrs`, 190 | 28% | 5% |
+| `readmes`, 240 | 43% | 24% |
+
+Nothing approaches the eightfold gap seen on the Japanese side, and `adrs` runs below the
+reference at 28% against 51%. The calibrations in D-41 and D-43 rest on corpora that pass
+this check.
+
+`readmes` runs 24% against 4% on `maint/trailing-etc`, six times over. Ending a list of
+features with `etc.` is a README convention that long predates LLMs, and selecting by star
+count brings in many old documents, so this reads as genre.
+
+Only the maint rules are available in English, since D-28 settled that no English
+counterpart to `register/rare-wago` gets implemented. The means of measuring contamination
+is weaker there than in Japanese.
