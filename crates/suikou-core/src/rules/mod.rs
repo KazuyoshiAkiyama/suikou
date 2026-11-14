@@ -294,7 +294,20 @@ fn finding(rule: &str, sev: Severity, msg: &str, pos: Vec<Position>) -> Option<L
 /// 一致そのものが入る分だけ、同じ量で伝わる中身が増える。
 /// 参照コーパス60本での実測は、日本語の幅24で 68,936 字、14 で 61,447 字である。
 /// RFC 60本では、英語の幅24で 60,189 字、20 で 58,597 字、旧来の形が 58,745 字であった。
-fn excerpt_at(text: &str, start: usize, len: usize, lang: Lang) -> String {
+pub(crate) fn excerpt_at(text: &str, start: usize, len: usize, lang: Lang) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let at = text[..start].chars().count();
+    let hit: String = chars.iter().skip(at).take(len).collect();
+    let context = context_at(text, start, len, lang);
+    format!("{hit}｜{context}")
+}
+
+/// 一致の位置を中心にした前後の文。一致そのものは接頭に付けない。
+///
+/// 一致を接頭に付ける形は `excerpt_at` が担う。
+/// `register` の指摘は語とその置き換え先を先に示すため、
+/// 一致を二重に出さないようにこちらを使う。
+pub(crate) fn context_at(text: &str, start: usize, len: usize, lang: Lang) -> String {
     let around = match lang {
         Lang::Ja => 14,
         Lang::En => 20,
@@ -308,7 +321,7 @@ fn excerpt_at(text: &str, start: usize, len: usize, lang: Lang) -> String {
     let after: String = chars[at + len..to].iter().collect();
     let head = if from > 0 { "…" } else { "" };
     let tail = if to < chars.len() { "…" } else { "" };
-    format!("{hit}｜{head}{before}{hit}{after}{tail}")
+    format!("{head}{before}{hit}{after}{tail}")
 }
 
 /// 係留の無い文の中の一致だけを位置にする。

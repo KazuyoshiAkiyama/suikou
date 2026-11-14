@@ -26,6 +26,24 @@ use std::collections::HashSet;
 use std::sync::OnceLock;
 
 pub const RULE_RARE_WAGO: &str = "register/rare-wago";
+
+/// 形態素の表層形が本文のどこに現れるかを探す。
+///
+/// `Token` は位置を持たない。形態素解析器が空白を落とすことがあるため、
+/// 表層形の文字数を積み上げると位置がずれる。
+/// スキャン位置から表層形を探す形にして、ずれを持ち込まない。
+///
+/// 見つからない場合はスキャン位置をそのまま返す。
+/// 位置が不正確になるより、直前に見つけた語の近くを示す方が読み取れる。
+fn seek(text: &str, cursor: usize, surface: &str) -> usize {
+    if surface.is_empty() || cursor >= text.len() {
+        return cursor.min(text.len());
+    }
+    match text[cursor..].find(surface) {
+        Some(off) => cursor + off,
+        None => cursor,
+    }
+}
 pub const RULE_PREFER_KATAKANA: &str = "register/prefer-katakana";
 
 /// 同じ語がこの回数以上出たときだけ指摘する。
@@ -88,7 +106,12 @@ pub fn check_katakana(
     let mut positions = Vec::new();
     for b in body_blocks(doc) {
         let tokens = morph.tokenize(&b.text);
+        // 位置は見送る語でも前進させる。前進させないと、
+        // 後の語を探すときに同じ表層形の古い出現に当たる。
+        let mut cursor = 0usize;
         for (i, t) in tokens.iter().enumerate() {
+            let at = seek(&b.text, cursor, &t.surface);
+            cursor = (at + t.surface.len()).min(b.text.len());
             if t.pos1 != "名詞" || t.goshu != "漢" {
                 continue;
             }
@@ -106,10 +129,11 @@ pub fn check_katakana(
                 continue;
             }
             if let Some(kata) = pairs.get(lemma.as_str()) {
-                let excerpt: String = b.text.chars().take(44).collect();
+                let n = t.surface.chars().count();
+                let excerpt = crate::rules::context_at(&b.text, at, n, crate::lang::Lang::Ja);
                 positions.push(Position {
                     line: b.line,
-                    column: 1,
+                    column: b.text[..at].chars().count() + 1,
                     text: format!("{lemma}→{kata}｜{excerpt}"),
                 });
             }
@@ -231,7 +255,11 @@ pub fn check(
     let mut counts: std::collections::BTreeMap<String, u64> = Default::default();
     let mut doc_words: u64 = 0;
     for b in body_blocks(doc) {
+        // 位置は見送る語でも前進させる。理由は check_katakana と同じである。
+        let mut cursor = 0usize;
         for t in morph.tokenize(&b.text) {
+            let at = seek(&b.text, cursor, &t.surface);
+            cursor = (at + t.surface.len()).min(b.text.len());
             if CONTENT.contains(&t.pos1.as_str()) {
                 doc_words += 1;
             }
@@ -249,12 +277,13 @@ pub fn check(
             *counts.entry(lemma.clone()).or_default() += 1;
             // どの語が指摘されたのかを位置に添える。
             // 語が分からないと、どこを直せばよいか読み取れない。
-            let excerpt: String = b.text.chars().take(48).collect();
+            let n = t.surface.chars().count();
+            let excerpt = crate::rules::context_at(&b.text, at, n, crate::lang::Lang::Ja);
             hits.push((
                 lemma.clone(),
                 Position {
                     line: b.line,
-                    column: 1,
+                    column: b.text[..at].chars().count() + 1,
                     text: format!("{lemma}｜{excerpt}"),
                 },
             ));
