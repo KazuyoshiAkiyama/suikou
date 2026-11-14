@@ -117,3 +117,8 @@ rules:
   - expected: 照合する
     patterns:
       - 突き合わせる
+  # establish as a norm: `置く` は物を据える像、`敷く` は面に広げる像で、どちらも規範を受けない
+  - expected: 規範とする
+    patterns:
+      - 規範を置く
+      - 規範を敷く
