@@ -134,6 +134,10 @@ def main() -> None:
         if not src or not is_japanese_prose(src):
             return False
         fname = f"{owner}__{rname}__{name}"
+        # 同じリポジトリの別の場所に同じ名前がある場合は上書きせず、取らない。
+        # 上書きすると件数と実ファイルが食い違う。
+        if (out / fname).exists():
+            return False
         (out / fname).write_text(src, encoding="utf-8")
         org_count[owner] = org_count.get(owner, 0) + 1
         total += 1

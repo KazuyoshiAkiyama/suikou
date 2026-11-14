@@ -23,6 +23,7 @@ code search の結果は手掛かりにすぎない。
 - `_index.md`、テンプレート、CHANGELOG 系、content_type が concept か reference のものを除く
 
 上限（owner は GitHub の組織またはユーザー）:
+- 全体で 200 件まで。目標の範囲に収めるため。
 - kubernetes 組織からは 40 件まで。kubernetes/website は単一プロジェクトの文書群が大きく、
   その書き方が手順書という型の性質と取り違えられるのを防ぐため。
   上限に達したら、パスの昇順で先頭から取る（再現性のため無作為にしない）。
@@ -45,6 +46,8 @@ K8S_REPO = "kubernetes/website"
 K8S_PREFIX = "content/ja/docs/tasks/"
 CAP_K8S = 40
 CAP_OTHER = 5
+# 全体の上限。目標の 100 から 200 件に収める。
+CAP_TOTAL = 200
 MIN_KANA = 300
 MIN_TOTAL = 400
 MIN_SIGNALS = 2
@@ -175,7 +178,7 @@ def main() -> None:
             ):
                 paths.append(p)
     for p in sorted(paths):
-        if owner_count.get(K8S_OWNER, 0) >= CAP_K8S:
+        if owner_count.get(K8S_OWNER, 0) >= CAP_K8S or sum(owner_count.values()) >= CAP_TOTAL:
             break
         src = fetch_text(K8S_REPO, p)
         if src is None or content_type(src) != "task" or not is_text_ok(src):
@@ -188,11 +191,17 @@ def main() -> None:
     # 2. それ以外の owner。code search の手掛かりから、手順の目印で絞る。
     rejected = {"concept": 0, "reference": 0, "text": 0, "signal": 0}
     for q in QUERIES:
+        if sum(owner_count.values()) >= CAP_TOTAL:
+            break
         for page in (1, 2):
+            if sum(owner_count.values()) >= CAP_TOTAL:
+                break
             hits = search(q, page)
             if not isinstance(hits, dict) or not hits.get("items"):
                 break
             for item in hits["items"]:
+                if sum(owner_count.values()) >= CAP_TOTAL:
+                    break
                 repo = item["repository"]["full_name"]
                 path = item["path"]
                 owner = repo.split("/")[0]
