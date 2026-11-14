@@ -228,64 +228,58 @@ Where the word's own translation collides with a frame noun there is nothing to 
 `configure` translates to 設定, which the frame 設定を already holds. The tool then reports
 that it cannot measure rather than printing a figure.
 
-### Two questions
+### Step 6: take the fainter image
 
-Ask them in order.
+Where two candidates come out equally narrow, take the one whose bodily image is fainter.
+**Words of this kind mark a text as AI-written.** Technical prose explains a mechanism; it
+does not move objects around.
 
-1. Would someone writing in this field choose this word in a specification or a procedure?
-2. Does it map word for word back into English?
+| Avoid | Take |
+|---|---|
+| 外す | 除外する |
+| 落とす | 除去する |
+| 拾う | 検出する |
+| 寄せる | 統一する |
+| 突き合わせる | 照合する |
 
-The first asks what gets written, not what gets understood in speech. A yes to the second
-and a no to the first marks a phrase copied word by word from English: `根因` for root
-cause, `時間窓` for time window, `基準線` for baseline.
+This repository used the words on the left 8 to 32 times more than the reference corpus:
+`外す` runs 0.06 per 10,000 characters there and 1.90 here.
 
-Repetition within the same document, or across this repository, is not evidence for the
-first question. Vocabulary from one AI-written document carries into the next, so
-repetition says nothing about what is established.
+`register/rare-wago` cannot reach them, because the reference does use them a little and
+its floor is 128 times the reference rate. Frequency does not get there; a preference
+does, and `glossary/variant` carries it. A word absent from the table is avoided for the
+same reason: ask whether it suggests a movement of the hand or the body.
 
-### Where the evidence comes from
+### The mistake in the other direction
 
-Two sources answer the first question.
+No word is swapped merely to lower the kanji ratio. `確認`, `使用`, `停止` and `動作` are
+ordinary in technical Japanese and stay; D-27 records what happened when they did not.
 
-```sh
-grep -c "根因" corpus/cache/pro_ja/*.md
-plamo-translate --from English --to Japanese --input "The root cause was a missing index."
-```
+Formal words carrying no content, such as `多角的`, are a separate matter and do get
+revisited. Where particles were dropped to pack Sino-Japanese words together, the words
+stay and the particles and verbs come back.
 
-The reference corpus is professional translation, so it shows the word that was chosen in
-writing. PLaMo Translate is a model built for translation, so it shows the Japanese put
-against an English term. Where both point at the same word, that word is the common one.
+### Step 8: record it in the glossary
 
-### What decides a word is how narrow it is
+What the lookup settles goes into `crates/suikou-core/data/glossary_ja.toml` alongside the
+figure that settled it. `research/glossary/build_glossary.py` regenerates the portable
+forms under `glossary/`.
 
-Not whether it is native or Sino-Japanese: how far the meaning is pinned down. `置く`
-covers 配置する, 設定する, 敷設する, 据える and 記載する alike, leaving the reader to judge
-which, and a wrong judgement there is a misreading.
+Orthography is kept apart from word choice, because the authority differs.
 
-Moving a native word to a Sino-Japanese one gains nothing when the destination is just as
-broad. Step 5 above holds the method and the figures.
+### Repetition is not evidence
 
-### The right pairing does not settle itself
+What step 3 asks is whether someone writing in this field would choose the word in a
+specification or a procedure, not whether it is understood in speech.
 
-No tool picks the verb for a pair that step 4 reported. Ranking candidates from 32,822
+Finding the word again in the same document, or elsewhere in this repository, is not
+evidence. Vocabulary from one AI-written document carries into the next, so repetition
+says nothing about what is established. These documents were written by a model, so this
+applies to them.
+
+Nothing settles the right pairing for what step 4 reports. Ranking candidates from 32,822
 verbs by corpus statistics reaches 80% accuracy only within the top 600 or so (Nakano and
 Tomiura, 2011), so a person decides. T19 records it.
-
-### Leave ordinary Sino-Japanese alone
-
-No word is swapped merely to lower the kanji ratio. `確認`, `使用`, `停止`, and `動作` are
-ordinary in technical Japanese and are not replaced with native equivalents; D-27 records
-what happened when they were. Formal words carrying no content, such as `多角的`, are a
-separate matter and do get revisited.
-
-### A settled word goes into the glossary
-
-What the lookup settles is written into `crates/suikou-core/data/glossary_ja.toml`
-alongside the figure that settled it. `research/glossary/build_glossary.py` regenerates
-the portable forms under `glossary/`.
-
-Orthography is kept apart from word choice, because the authority differs. Orthography
-starts from the JTCA guideline and is confirmed per word against the reference corpus.
 
 ## Using PLaMo Translate
 
