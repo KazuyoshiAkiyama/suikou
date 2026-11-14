@@ -34,9 +34,9 @@ const EXPECTED = {
         "time-dependent": 2,
         "trailing-etc": 1,
     },
-    "ja_prose.md": {
-        "item-count": 1,
-    },
+    // M2 は数が前方参照しているときだけ当てる（D-45）。
+    // この文書の数は同じ文で列挙を済ませているため、発火しない。
+    "ja_prose.md": {},
     "en_prose.md": {},
     "en_escaped.md": {},
 };

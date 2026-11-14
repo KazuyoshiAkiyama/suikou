@@ -1975,3 +1975,73 @@ count brings in many old documents, so this reads as genre.
 Only the maint rules are available in English, since D-28 settled that no English
 counterpart to `register/rare-wago` gets implemented. The means of measuring contamination
 is weaker there than in Japanese.
+
+## D-45 M2 applies only where the count points forward
+
+### Context
+
+M2 reports a count of items stated in running prose, because adding or removing an item
+leaves the prose wrong.
+
+The implementation ran on prose and never asked what the count referred to. TASKS.md
+recorded the consequence — that it also fires on ordinary explanation stating a count with
+no list after it — and pointed at `tests/golden/input/ja_prose.md`:
+
+```
+無効化の方法は大きく分けて二つある。時間で切る方法と、変更を検知して切る方法である。
+```
+
+The count and the enumeration resolve in the same sentence. Adding a third method means
+rewriting that sentence, so there is nothing left to fall out of step.
+
+### Decision
+
+M2 applies only where the count points forward, signalled in one of three ways.
+
+The sentence contains 以下, 次の or 下記, which promises what follows.
+
+A list, a heading or a table comes next — a structure editable separately from the
+sentence.
+
+Prose carrying an enumerating word (第一に, 1つ目, まず) comes next.
+
+### Rationale
+
+The 168 firings across 798 reference documents were sorted.
+
+| | List | Heading | Prose | Nothing |
+|---|---|---|---|---|
+| With 以下/次の | 38 | 4 | 14 | 6 |
+| Without | 17 | 2 | 81 | 6 |
+
+Of the 81 without a marker and followed by prose, only 3 carry an enumerating word. The
+other 78 resolve in the same sentence.
+
+The first count treated "no list follows" as the false-positive condition and produced a
+rate of 67%. That was wrong. Reading the cases shows the prose goes just as stale when a
+heading follows:
+
+```
+次の3つの命名規則がよく使われます。
+
+### DNSサブドメイン名
+```
+
+Add a fourth convention and 次の3つ is wrong. Whether the counted things are list items or
+headings has nothing to do with how it breaks. What matters is whether the count points
+somewhere else.
+
+### Consequences
+
+Firings across the reference corpus fell from 112 documents to 67, and the golden example is
+no longer reported.
+
+Deciding how far a rule applies means deriving the condition from the rule's reason. M2's
+reason is that adding or removing an item leaves the prose wrong, which happens only when
+the count and the items can be edited separately. Whether a list follows was only part of
+that condition.
+
+The English side takes the same condition, with `following`, `below` and `these` as the
+forward-pointing words and `first`, `second` and `one is` as the enumerating ones. The
+English reference corpus was not sorted this way, so those lists are carried over from the
+Japanese rather than measured.

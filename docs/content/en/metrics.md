@@ -252,9 +252,24 @@ For English, `two` through `seven`, or `2` through `7`, followed by one of
 Writing the number of items into the prose breaks the prose the moment an item is added
 or removed.
 
-How far this rule should reach is not settled.
-It also catches plain explanatory prose that states a number with no list behind it.
-`tests/golden/input/ja_prose.md` is an example of that case.
+**It is reported only where the count points forward.** These are the signals.
+
+| Signal | Why |
+|---|---|
+| The sentence contains 以下, 次の, 下記, `following`, `below` or `these` | It promises what follows |
+| A list, a heading or a table comes next | A structure editable separately from the sentence |
+| Prose carrying an enumerating word comes next | Likewise editable separately |
+
+A count that resolves within the same sentence is left alone:
+`無効化の方法は大きく分けて二つある。時間で切る方法と、変更を検知して切る方法である。`
+Adding a third method means rewriting that sentence, so nothing is left to fall out of step.
+
+The condition came from sorting the 168 firings across 798 reference documents. Of the 81
+that carry no marker and are followed by prose, only 3 carry an enumerating word. Firings
+fell from 112 documents to 67. D-45 records it.
+
+The English enumerating words, `first`, `second` and `one is`, are carried over from the
+Japanese rather than measured on an English corpus.
 
 ### M3, numbered headings
 

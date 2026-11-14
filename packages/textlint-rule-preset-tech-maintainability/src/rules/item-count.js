@@ -4,10 +4,18 @@
 // crates/suikou-core/src/rules/mod.rs の check_all() のうち M2 部分を移植。
 // 対象は Prose ブロックのみ（見出しと箇条書きの本文は含まない）。
 // 1行に複数の一致があれば、それぞれを別の指摘として報告する（D-13）。
+// 数が前方参照しているときだけ当てる（D-45）。
 
 const { parseDocument } = require("../lib/blocks");
 const { detectLang } = require("../lib/lang");
-const { RE_M2_JA, RE_M2_EN } = require("../lib/patterns");
+const {
+    RE_M2_JA,
+    RE_M2_EN,
+    RE_M2_FORWARD_JA,
+    RE_M2_FORWARD_EN,
+    RE_M2_ENUM_JA,
+    RE_M2_ENUM_EN,
+} = require("../lib/patterns");
 const { makeLineCursor } = require("../lib/position");
 const { messageFor } = require("../lib/messages");
 
@@ -21,8 +29,27 @@ module.exports = function itemCount(context) {
             const message = messageFor("item-count", lang);
             const re = lang === "ja" ? RE_M2_JA : RE_M2_EN;
 
-            for (const b of blocks) {
-                if (b.kind !== "Prose") {
+            const forward = lang === "ja" ? RE_M2_FORWARD_JA : RE_M2_FORWARD_EN;
+            const enumerate = lang === "ja" ? RE_M2_ENUM_JA : RE_M2_ENUM_EN;
+
+            // 数が別の場所を指しているかどうか。Rust 側の m2_forward_reference と同じ条件。
+            const pointsForward = (b, i) => {
+                if (forward.test(b.text)) {
+                    return true;
+                }
+                const next = blocks[i + 1];
+                if (!next) {
+                    return false;
+                }
+                if (next.kind === "ListItem" || next.kind === "Heading" || next.kind === "Table") {
+                    return true;
+                }
+                return next.kind === "Prose" && enumerate.test(next.text);
+            };
+
+            for (let bi = 0; bi < blocks.length; bi += 1) {
+                const b = blocks[bi];
+                if (b.kind !== "Prose" || !pointsForward(b, bi)) {
                     continue;
                 }
                 re.lastIndex = 0;

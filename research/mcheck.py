@@ -17,6 +17,34 @@ M2_JA = re.compile(r'[0-9０-９一二三四五六七八九十]+\s*[つ個点種
 M2_EN = re.compile(r'\b(two|three|four|five|six|seven|2|3|4|5|6|7)\s+'
                    r'(reasons|ways|steps|things|types|categories|benefits|points|factors|'
                    r'approaches|options|principles|rules|components|parts|key\s+\w+|main\s+\w+)\b', re.I)
+
+# M2 は数が前方参照しているときだけ当てる（D-45）。
+# 同じ文で列挙を済ませた文は、数を増やすならその文を書き換えることになり壊れない。
+M2_FORWARD_JA = re.compile(r'以下|次の|次に|下記')
+M2_FORWARD_EN = re.compile(r'\b(following|below|these)\b', re.I)
+# 地の文で列挙を続ける語。これが続く場合は前方参照とみなす。
+M2_ENUM_JA = re.compile(r'^\s*(?:第[一二三四五六七八九1-9１-９]|まず|最初に|一つ目|二つ目'
+                        r'|1つ目|2つ目|ひとつは|もう(?:ひと|一)つ)')
+M2_ENUM_EN = re.compile(r'^\s*(?:first|second|third|the first|one is|another is|to begin)', re.I)
+LIST_RE2 = re.compile(r'^\s*(?:[-*+]\s|[0-9０-９]+[.)．）]\s)')
+TABLE_RE2 = re.compile(r'^\s*\|')
+
+
+def m2_points_forward(lines, i, s, lang):
+    """数が別の場所を指しているかどうか。Rust の m2_forward_reference と同じ条件。"""
+    fwd = M2_FORWARD_JA if lang == 'ja' else M2_FORWARD_EN
+    if fwd.search(s):
+        return True
+    enum = M2_ENUM_JA if lang == 'ja' else M2_ENUM_EN
+    for nxt in lines[i + 1:]:
+        t = nxt.strip()
+        if not t:
+            continue
+        # 箇条書きと見出しと表は、この文とは別に編集できる構造である。
+        if LIST_RE2.match(nxt) or HEAD_RE.match(t) or TABLE_RE2.match(nxt):
+            return True
+        return bool(enum.match(t))
+    return False
 M3_RE = re.compile(r'^#{1,6}\s*(?:第?\s*[0-9０-９]+\s*[.．、)）章節]|[0-9０-９]+\s*[-–]\s)')
 M4_RE = re.compile(r'^\s*[-*+]\s+[0-9０-９]+\s*[.)．）、]\s')
 M6_JA = re.compile(r'現在|現時点|最新の|新しい|今後|将来的に|まもなく|既存の|目下|現行の')
@@ -130,7 +158,8 @@ def analyze(name, text, lang):
             if HEAD_RE.match(s) and M3_RE.match(s):
                 res['m3'] += 1
             if not HEAD_RE.match(s):
-                res['m2'] += len((M2_JA if lang == 'ja' else M2_EN).findall(s))
+                if m2_points_forward(lines, i, s, lang):
+                    res['m2'] += len((M2_JA if lang == 'ja' else M2_EN).findall(s))
                 res['m7'] += len((M7_JA if lang == 'ja' else M7_EN).findall(s))
             res['m6'] += len((M6_JA if lang == 'ja' else M6_EN).findall(s))
             i += 1

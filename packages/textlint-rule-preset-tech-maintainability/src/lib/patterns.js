@@ -87,7 +87,21 @@ const RE_M6_JA = new RegExp(TIME_DEPENDENT_JA.join("|"), "g");
 const RE_M7_JA = /(?:など|等)[。、）)]?\s*$/;
 const RE_M7_EN = /(etc\.|and so on|and more)\s*[.)]?\s*$/i;
 
+// M2 は数が前方参照しているときだけ当てる。
+// crates/suikou-core/src/rules/mod.rs の m2_forward_reference() と同じ条件。
+// 同じ文で列挙を済ませた文は、数を増やすならその文を書き換えることになり壊れない。
+// 経緯は D-45 にある。
+const RE_M2_FORWARD_JA = /以下|次の|次に|下記/;
+const RE_M2_FORWARD_EN = /\b(following|below|these)\b/i;
+// 地の文で列挙を続ける語。これが続く場合は前方参照とみなす。
+const RE_M2_ENUM_JA = /^\s*(?:第[一二三四五六七八九1-9１-９]|まず|最初に|一つ目|二つ目|1つ目|2つ目|ひとつは|もう(?:ひと|一)つ)/;
+const RE_M2_ENUM_EN = /^\s*(?:first|second|third|the first|one is|another is|to begin)/i;
+
 module.exports = {
+    RE_M2_FORWARD_JA,
+    RE_M2_FORWARD_EN,
+    RE_M2_ENUM_JA,
+    RE_M2_ENUM_EN,
     TIME_DEPENDENT_JA,
     EN_LEAD_IN_MARKERS,
     RE_M2_JA,

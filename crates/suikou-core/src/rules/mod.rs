@@ -104,6 +104,28 @@ re!(
     re_m3,
     r"^#{1,6}\s*(?:第?\s*[0-9０-９]+\s*[.．、)）章節]|[0-9０-９]+\s*[-–]\s)"
 );
+// M2 は数が前方参照しているときだけ当てる。
+// 同じ文で列挙を済ませた文は、数を増やすならその文を書き換えることになり、壊れない。
+// `無効化の方法は大きく分けて二つある。時間で切る方法と、変更を検知して切る方法である。`
+// がその形である。
+//
+// 前方参照の兆候は3つある。
+// 文に `以下` や `次の` があるか、リストか見出しが続くか、列挙の語が続くかである。
+//
+// 参照コーパス798件での M2 の発火168件を分類した結果が根拠である。
+// マーカーを持たず地の文が続く81件のうち、列挙の語を持つものは3件だけであった。
+// 残る78件は同じ文で解決している。経緯は D-45 にある。
+re!(re_m2_forward_ja, r"以下|次の|次に|下記");
+re!(re_m2_forward_en, r"(?i)\b(following|below|these)\b");
+// 地の文で列挙を続ける語。これが続く場合は前方参照とみなす。
+re!(
+    re_m2_enum_ja,
+    r"^\s*(?:第[一二三四五六七八九1-9１-９]|まず|最初に|一つ目|二つ目|1つ目|2つ目|ひとつは|もう(?:ひと|一)つ)"
+);
+re!(
+    re_m2_enum_en,
+    r"(?i)^\s*(?:first|second|third|the first|one is|another is|to begin)"
+);
 re!(re_m4, r"^\s*[-*+]\s+[0-9０-９]+\s*[.)．）、]\s");
 re!(re_m7_ja, r"(?:など|等)[。、）\)]?\s*$");
 
@@ -360,6 +382,39 @@ fn enclosing_sentence(ends: &[usize], at: usize, len: usize) -> (usize, usize) {
     (from, to)
 }
 
+/// 数が前方参照しているかどうか。M2 を当てるかの判定に使う。
+///
+/// 数を述べた文が、別の場所にある項目を指している場合に当てる。
+/// 項目とこの文は別々に編集できるため、項目を増減すると本文が合わなくなる。
+///
+/// 同じ文で列挙を済ませた文には当てない。
+/// 数を増やすならその文自体を書き換えることになり、合わなくなる余地がない。
+fn m2_forward_reference(doc: &Document, bi: usize, b: &Block, lang: Lang) -> bool {
+    let forward = match lang {
+        Lang::Ja => re_m2_forward_ja(),
+        Lang::En => re_m2_forward_en(),
+    };
+    // 文そのものが後続を約束している。
+    if forward.is_match(&b.text) {
+        return true;
+    }
+    let Some(next) = doc.blocks.get(bi + 1) else {
+        return false;
+    };
+    match next.kind {
+        // 箇条書きと見出しと表は、この文とは別に編集できる構造である。
+        BlockKind::ListItem | BlockKind::Heading | BlockKind::Table => true,
+        BlockKind::Prose => {
+            let enumerate = match lang {
+                Lang::Ja => re_m2_enum_ja(),
+                Lang::En => re_m2_enum_en(),
+            };
+            enumerate.is_match(&next.text)
+        }
+        _ => false,
+    }
+}
+
 fn pos_of_matches(b: &Block, re: &Regex, lang: Lang) -> Vec<Position> {
     re.find_iter(&b.text)
         .map(|m| Position {
@@ -433,7 +488,7 @@ pub fn check_all(doc: &Document, lang: Lang, morph: &dyn Morphology) -> Vec<Loca
         .find(|b| b.kind == BlockKind::Heading)
         .is_some_and(|b| b.raw.trim_start().starts_with("# "));
     let mut m6 = Vec::new();
-    for b in &doc.blocks {
+    for (bi, b) in doc.blocks.iter().enumerate() {
         match b.kind {
             BlockKind::Heading => {
                 // 標題の番号は識別子であって節の連番ではない。
@@ -446,14 +501,16 @@ pub fn check_all(doc: &Document, lang: Lang, morph: &dyn Morphology) -> Vec<Loca
                 is_title = false;
             }
             BlockKind::Prose => {
-                m2.extend(pos_of_matches(
-                    b,
-                    match lang {
-                        Lang::Ja => re_m2_ja(),
-                        Lang::En => re_m2_en(),
-                    },
-                    lang,
-                ));
+                if m2_forward_reference(doc, bi, b, lang) {
+                    m2.extend(pos_of_matches(
+                        b,
+                        match lang {
+                            Lang::Ja => re_m2_ja(),
+                            Lang::En => re_m2_en(),
+                        },
+                        lang,
+                    ));
+                }
                 if match lang {
                     Lang::Ja => re_m7_ja().is_match(b.text.trim()),
                     Lang::En => re_m7_en().is_match(b.text.trim()),
@@ -569,11 +626,55 @@ mod tests {
         );
     }
 
+    // M2 は数が前方参照しているときだけ当てる。
+    // 兆候は、文に 以下 や 次の があるか、別に編集できる構造が続くか、列挙の語が続くかである。
     #[test]
-    fn detects_item_count_in_prose() {
-        let d = Document::parse("よくある失敗は3つある。\n");
+    fn detects_item_count_when_a_list_follows() {
+        let d = Document::parse("よくある失敗は3つある。\n\n- 一つ目\n- 二つ目\n");
         let f = check_all(&d, Lang::Ja, &morph());
         assert!(f.iter().any(|x| x.rule_id == RULE_ITEM_COUNT));
+    }
+
+    #[test]
+    fn detects_item_count_when_the_sentence_promises_a_list() {
+        let d = Document::parse("以下の3つの方法がある。\n");
+        let f = check_all(&d, Lang::Ja, &morph());
+        assert!(f.iter().any(|x| x.rule_id == RULE_ITEM_COUNT));
+    }
+
+    #[test]
+    fn detects_item_count_when_a_heading_follows() {
+        let d = Document::parse("命名の規則は3つある。\n\n## 第一の規則\n\n本文である。\n");
+        let f = check_all(&d, Lang::Ja, &morph());
+        assert!(f.iter().any(|x| x.rule_id == RULE_ITEM_COUNT));
+    }
+
+    #[test]
+    fn detects_item_count_when_prose_enumerates() {
+        let d = Document::parse(
+            "必要なステップは2つある。\n\n第一に、設定を書く。\n\n第二に、適用する。\n",
+        );
+        let f = check_all(&d, Lang::Ja, &morph());
+        assert!(f.iter().any(|x| x.rule_id == RULE_ITEM_COUNT));
+    }
+
+    // 同じ文で列挙を済ませた文には当てない。
+    // 数を増やすならその文自体を書き換えることになり、合わなくなる余地がない。
+    #[test]
+    fn a_self_contained_count_is_not_reported() {
+        let d = Document::parse(
+            "無効化の方法は大きく分けて二つある。時間で切る方法と、変更を検知して切る方法である。\n\n\
+             時間で切る方法は実装が簡単である。\n",
+        );
+        let f = check_all(&d, Lang::Ja, &morph());
+        assert!(!f.iter().any(|x| x.rule_id == RULE_ITEM_COUNT));
+    }
+
+    #[test]
+    fn a_count_at_the_end_of_a_document_is_not_reported() {
+        let d = Document::parse("よくある失敗は3つある。\n");
+        let f = check_all(&d, Lang::Ja, &morph());
+        assert!(!f.iter().any(|x| x.rule_id == RULE_ITEM_COUNT));
     }
 
     #[test]

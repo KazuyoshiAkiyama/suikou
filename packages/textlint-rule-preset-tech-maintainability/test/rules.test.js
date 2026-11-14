@@ -30,12 +30,46 @@ test("list-lead-in: en colon with 'the following' is ok", async () => {
     await expectCount("Apply the change by doing the following:\n\n- a\n- b\n", "list-lead-in", 0);
 });
 
-test("item-count: ja states the number of items in prose", async () => {
-    await expectCount("よくある失敗は3つある。\n", "item-count", 1);
+// M2 は数が前方参照しているときだけ当てる（D-45）。
+// 兆候は、文に 以下 や 次の があるか、別に編集できる構造が続くか、列挙の語が続くかである。
+test("item-count: ja counts items with a list after it", async () => {
+    await expectCount("よくある失敗は3つある。\n\n- 一つ目\n- 二つ目\n", "item-count", 1);
 });
 
-test("item-count: en states the number of items in prose", async () => {
-    await expectCount("There are three reasons to do this.\n", "item-count", 1);
+test("item-count: ja sentence promises a list", async () => {
+    await expectCount("以下の3つの方法がある。\n", "item-count", 1);
+});
+
+test("item-count: ja prose enumerates after it", async () => {
+    await expectCount(
+        "必要なステップは2つある。\n\n第一に、設定を書く。\n\n第二に、適用する。\n",
+        "item-count",
+        1,
+    );
+});
+
+test("item-count: ja self-contained count is left alone", async () => {
+    await expectCount(
+        "無効化の方法は大きく分けて二つある。時間で切る方法と、変更を検知して切る方法である。\n\n時間で切る方法は実装が簡単である。\n",
+        "item-count",
+        0,
+    );
+});
+
+test("item-count: en counts items with a list after it", async () => {
+    await expectCount(
+        "There are three reasons to do this.\n\n- one\n- two\n",
+        "item-count",
+        1,
+    );
+});
+
+test("item-count: en self-contained count is left alone", async () => {
+    await expectCount(
+        "There are three reasons to do this. Speed, cost and clarity.\n\nSpeed comes first.\n",
+        "item-count",
+        0,
+    );
 });
 
 test("item-count: no count when no shape matches", async () => {
