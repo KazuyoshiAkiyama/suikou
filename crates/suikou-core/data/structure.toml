@@ -74,6 +74,22 @@ description = "定義。必須の節は置かない"
 description_en = "A reference: no section is required"
 sections = []
 
+# 記録を束ねた文書。決定の記録の一覧、作業の一覧、変更の履歴である。
+# 必須の節は置かない。記録ごとの様式は記録の側が持つ。
+#
+# `work_notes_ok` をこの型に与える。
+# 何を試して何が駄目だったかは、記録を束ねた文書では伝えるべき中身である。
+# `structure/work-note` が決定の記録そのものに発火していたため分けた。
+#
+# この型は検出を足さない。`reference` から緩めるだけである。
+# 外部のコーパスで測っていないが、緩める方向であり、
+# 当たらない規則を増やす側の危険は無い。経緯は D-42 にある。
+[doctype.log]
+work_notes_ok = true
+description = "記録を束ねた文書。決定の記録、作業の一覧、変更の履歴"
+description_en = "A log of records: decisions, tasks, or changes"
+sections = []
+
 # README の型。必須は先頭の一段落だけとする。
 # 著名 OSS の README 240件（199組織、8言語）に当てて測った結果である。
 # 見出しで同定できる節は、最も多い `入れ方` でも 62% にとどまる。

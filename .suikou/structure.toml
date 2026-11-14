@@ -6,7 +6,7 @@
 [paths]
 "README.md" = "readme"
 "README.ja.md" = "readme"
-"TASKS.md" = "reference"
+"TASKS.md" = "log"
 "CLAUDE.md" = "reference"
 "skills/suikou/SKILL.md" = "reference"
 "glossary/README.md" = "readme"

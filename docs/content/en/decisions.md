@@ -1,7 +1,7 @@
 ---
 title: "Decisions"
 weight: 30
-doctype: "reference"
+doctype: "log"
 ---
 
 This page exists so that a later reader never has to repeat the same investigation.
@@ -1709,3 +1709,70 @@ unused in the built-ins.
 
 A document declaring no type gets no adjustment. Listing it under `[paths]` in
 `.suikou/structure.toml`, or writing `doctype:` in its front matter, turns it on.
+
+## D-42 A log of records gets its own type, and verification reads warnings
+
+### Context
+
+After `structure/work-note` went in, it fired 11 times on this repository: 7 in `TASKS.md`,
+3 in `decisions.md`, 1 in `metrics.md`.
+
+Ten of those were the rule's fault. CLAUDE.md designates `TASKS.md` and `decisions.md` as
+where accounts of the work belong, so the rule was telling a decision record to move its
+account to the decision record.
+
+Both declared the `reference` type, chosen only because it requires no section. The type
+system was treating a document's purpose and its required sections as one axis.
+
+A fault in the verification turned up at the same time. `suikou check --quiet` exits 1 for
+an error only; a warning exits 0. Checking every document by that exit code alone had
+missed 47 warnings, while the condition CLAUDE.md sets is no errors and no warnings.
+
+### Decision
+
+A `log` type, for a document that collects records: a decision log, a task list, a change
+history. It carries `work_notes_ok` and requires no section.
+
+`TASKS.md` and `decisions.md` move to it.
+
+Verification counts findings rather than reading the exit code.
+
+### Rationale
+
+The `log` type adds no detection; it only loosens `reference`. It is unmeasured against an
+outside corpus, but loosening carries none of the risk that adding a rule does.
+
+After the move, work-note fires zero times across the three documents. The one in
+`metrics.md` remained and proved true on inspection: a sentence recounting that the
+substitution had once been decided by position sat in a document of definitions. It was
+rewritten as a definition, with the account left to a reference to D-31.
+
+The remaining 47 warnings were this repository's own prose, pushed over the line by the
+sections written in this session. Each replacement was settled by counting the reference
+corpus.
+
+| Word used | Reference corpus | Replacement | Reference corpus |
+|---|---|---|---|
+| `読み手` | 0 | `読者` | 13 |
+| `向き` | 54 | `方向` | 155 |
+| `測る` | 0 | `測定` | 63 |
+| `要る` | 0 | `必要` | 3,503 |
+| `入り口` | 1 | `起点` | 20 |
+
+That `読み手` appears nowhere in the reference corpus was not apparent until it was counted.
+Nothing about it felt wrong by ear.
+
+### Consequences
+
+Findings across all documents went from 58 to 0.
+
+The verification step changed. The exit code reads errors only, so it is not used.
+
+```sh
+for f in <all Markdown>; do suikou check "$f" --format text; done | grep -c ':[0-9]*:[0-9]*:'
+```
+
+A type needs to hold a document's purpose separately from whether it requires sections.
+`reference` and `log` both require none and differ in purpose. `work_notes_ok` is the first
+field to carry that difference; where the same need arises for another rule, another field
+answers it.

@@ -999,14 +999,27 @@ mod tests {
     }
 
     // 型の旗が意図した型にだけ立っていることを確かめる。
+    //
+    // design と decision は、何を試したかが伝えるべき中身である。
+    // log は記録を束ねた文書であり、記録そのものが中身である。
+    // 旗が増えると検出が静かに消えるため、一覧で固定する。
     #[test]
-    fn only_design_and_decision_allow_work_notes() {
+    fn only_the_three_record_types_allow_work_notes() {
         let mut ok: Vec<&str> = doctypes()
             .iter()
             .filter(|(_, dt)| dt.work_notes_ok)
             .map(|(n, _)| n.as_str())
             .collect();
         ok.sort_unstable();
-        assert_eq!(ok, vec!["decision", "design"]);
+        assert_eq!(ok, vec!["decision", "design", "log"]);
+    }
+
+    // 記録を束ねた型では、作業について述べた文を検出しない。
+    #[test]
+    fn a_log_keeps_its_account_of_the_work() {
+        let dt = doctypes().get("log").unwrap();
+        let src = "# 作業の一覧\n\n別の案も試したが、うまく動かなかった。\n";
+        assert!(check_work_notes(&Document::parse(src), Lang::Ja, dt).is_empty());
+        assert!(dt.sections.is_empty());
     }
 }

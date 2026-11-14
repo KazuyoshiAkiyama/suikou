@@ -430,6 +430,7 @@ a heading, the question each section answers, and what belongs in it.
 | `decision` | A decision record: the context, the decision, the consequences |
 | `howto` | A procedure: it starts at the prerequisites and ends at the check |
 | `reference` | A reference: no section is required |
+| `log` | A log of records: decisions, tasks, or changes |
 | `readme` | A README: the first paragraph says what the thing is |
 | `overview` | An entry point: it starts by saying what the thing is |
 
