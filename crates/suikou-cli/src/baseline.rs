@@ -86,7 +86,13 @@ fn build_profile(name: String, spec: &Profile, samples: &Samples) -> Profile {
             },
         );
     }
-    Profile { name, thresholds }
+    // baseline は閾値だけを出す。型ごとの調整は実測の対象ではなく、
+    // 型ごとにコーパスを分けて測ったうえで人が決めるものである。
+    Profile {
+        name,
+        thresholds,
+        doctype: Default::default(),
+    }
 }
 
 pub fn run(opts: Options) -> Result<()> {

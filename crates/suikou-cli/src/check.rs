@@ -139,7 +139,20 @@ pub(crate) fn analyze(
     let doc = Document::parse(src);
     let lang = resolve_lang(lang_spec, src)?;
     let morph = morphology::load(lang)?;
-    let mut report = evaluate_with_glossary(&doc, lang, morph.as_ref(), profile, &glossary());
+
+    // 型は指標より先に解決する。型ごとに閾値が変わるためである。
+    // 入り口の README と参照の文書で硬さが違う。経緯は D-41 にある。
+    let declared = path.and_then(|p| resolve_doctype(src, p));
+    let dt = match (&declared, path) {
+        (Some(name), Some(p)) => Some(known_doctype(name, p)?),
+        _ => None,
+    };
+    let (tuned, silenced) = match &declared {
+        Some(name) => profile.for_doctype(name, read_override()?.as_ref()),
+        None => (profile.clone(), Vec::new()),
+    };
+
+    let mut report = evaluate_with_glossary(&doc, lang, morph.as_ref(), &tuned, &glossary());
     // 構造の規則は言語を問わない。型を宣言していない文書にも段落と節の規則は当てる。
     report
         .local
@@ -148,35 +161,50 @@ pub(crate) fn analyze(
     report
         .local
         .extend(suikou_core::structure::check_lead(&doc, lang));
+    if let Some(dt) = dt {
+        report
+            .local
+            .extend(suikou_core::structure::check_doctype(&doc, lang, dt));
+        // 作業について述べた文は、型によって中身になるか混ざり物になるかが変わる。
+        // 型を宣言していない文書では判定できないため、ここに置く。
+        report
+            .local
+            .extend(suikou_core::structure::check_work_notes(&doc, lang, dt));
+    }
     if let Some(path) = path {
-        if let Some(name) = resolve_doctype(src, path) {
-            // 知らない名前を黙って読み飛ばすと、綴りを誤ったときに検査が消える。
-            // 較正で同じ失敗をした経緯が D-22 にある。ここでは落とす。
-            let dt = suikou_core::structure::doctypes()
-                .get(&name)
-                .ok_or_else(|| {
-                    let mut names: Vec<&str> = suikou_core::structure::doctypes()
-                        .keys()
-                        .map(String::as_str)
-                        .collect();
-                    names.sort_unstable();
-                    anyhow::anyhow!(
-                        "{} が宣言した型 {name} を知らない。使えるのは {}",
-                        path.display(),
-                        names.join("、")
-                    )
-                })?;
-            report
-                .local
-                .extend(suikou_core::structure::check_doctype(&doc, lang, dt));
-        }
         if let Some(heads) = crate::plot::plot_headings(path) {
             report
                 .local
                 .extend(suikou_core::structure::check_plot(&doc, &heads));
         }
     }
+    // 型で黙らせた局所の規則を落とす。指標と違い、閾値では緩められない。
+    if !silenced.is_empty() {
+        report.local.retain(|f| !silenced.contains(&f.rule_id));
+    }
     Ok((lang, report))
+}
+
+/// 宣言された型の名前を引く。知らない名前は落とす。
+///
+/// 黙って読み飛ばすと、綴りを誤ったときに検査が消える。
+/// 較正で同じ失敗をした経緯が D-22 にある。
+fn known_doctype(
+    name: &str,
+    path: &std::path::Path,
+) -> Result<&'static suikou_core::structure::DocType> {
+    suikou_core::structure::doctypes().get(name).ok_or_else(|| {
+        let mut names: Vec<&str> = suikou_core::structure::doctypes()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        names.sort_unstable();
+        anyhow::anyhow!(
+            "{} が宣言した型 {name} を知らない。使えるのは {}",
+            path.display(),
+            names.join("、")
+        )
+    })
 }
 
 pub struct Options {
@@ -216,16 +244,24 @@ pub(crate) fn load_profile(name: &str) -> Result<Profile> {
 /// プロファイルごと差し替えると、変えたい1つの値のために全部を写すことになる。
 /// 漢語率と漢字率は分野で幅が大きく、どこを警告とするかは文書の性質で変わる。
 /// その判断をプロジェクトに渡すために、変えたい閾値だけを書けるようにする。
+const OVERRIDE_PATH: &str = ".suikou/profile.toml";
+
+/// `.suikou/profile.toml` を読む。無い場合は上書き無しとする。
+fn read_override() -> Result<Option<suikou_core::profile::ProfileOverride>> {
+    let Ok(src) = std::fs::read_to_string(OVERRIDE_PATH) else {
+        return Ok(None);
+    };
+    let ov = toml::from_str(&src).with_context(|| format!("{OVERRIDE_PATH} を解釈できない"))?;
+    Ok(Some(ov))
+}
+
 fn apply_override(profile: &mut Profile) -> Result<()> {
-    const PATH: &str = ".suikou/profile.toml";
-    let Ok(src) = std::fs::read_to_string(PATH) else {
+    let Some(ov) = read_override()? else {
         return Ok(());
     };
-    let ov: suikou_core::profile::ProfileOverride =
-        toml::from_str(&src).with_context(|| format!("{PATH} を解釈できない"))?;
     profile
         .apply(&ov)
-        .map_err(|e| anyhow::anyhow!("{PATH}: {e}"))?;
+        .map_err(|e| anyhow::anyhow!("{OVERRIDE_PATH}: {e}"))?;
     Ok(())
 }
 

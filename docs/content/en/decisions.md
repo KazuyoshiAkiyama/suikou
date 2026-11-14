@@ -1525,6 +1525,12 @@ Notes-to-self in a README are now caught by where the document starts, not by vo
 Words like `currently` and `TODO` are used by notable open source too: 45 of the 240
 contain `currently`. There was no ground for forbidding them.
 
+That measurement, though, counted two different things as one. `currently` and `Roadmap` in
+notable open source address the reader: they give what is planned, help the decision to
+adopt, and ask for help. They are not the writer's notes. No wonder vocabulary could not
+separate them — what separates them is not the word but what the sentence conveys to the
+reader. D-40 takes that up.
+
 What the lead holds, by contrast, has a clear norm. Make the subject the subject and say
 what it is. Do not open on background, intent, or history.
 
@@ -1532,3 +1538,174 @@ The rule does not find the notes themselves. Notes placed in the middle of a doc
 out of its reach. The lead is where reading starts, and settling that it begins with the
 subject pushes the notes backwards. Removing them from there is the job of the norm that
 asks each section to answer the question its heading poses.
+
+## D-40 What the sentence conveys to the reader is the test, not the words it uses
+
+### Context
+
+D-39 concluded that there was no ground for catching the writer's notes by vocabulary: 45
+of 240 notable READMEs contain `currently` and 48 carry a Status or Roadmap heading.
+
+That measurement counted two different things as one.
+
+`currently` and `Roadmap` in notable open source address the reader. They give what is
+planned, they help the decision to adopt, and they ask for help. They hand the reader
+something to do next.
+
+What an agent writes runs the other way: context for its own later use, which hands the
+reader nothing.
+
+The words coincide while the job differs, so of course vocabulary could not separate them.
+
+### Decision
+
+The test is what the sentence conveys to the reader.
+
+A new rule, `structure/work-note`, reports sentences about the work itself: what was tried,
+what was discovered, the state of the work, a former state.
+
+The rule is switched by doctype. In a design or a decision record, what was tried and why
+it failed is the message. `work_notes_ok` in `structure.toml` carries that.
+
+### Rationale
+
+Across 240 notable READMEs, 307 sentences containing forward-looking words were sorted by
+where they sit.
+
+| Placement | Count | Share |
+|---|---|---|
+| Under a heading that announces it | 125 | 41% |
+| Mixed into explanatory prose | 182 | 59% |
+
+Of the 182 in prose, **none** was about the work. 17 handed the reader something to do and
+the rest described a feature or a plan.
+
+What separates them is the subject, not the vocabulary.
+
+| Form | README | Reference (en) | Reference (ja) | Rust RFC | ADR |
+|---|---|---|---|---|---|
+| What was tried | 0.4% | 0.2% | 0.1% | 4.5% | 3.2% |
+| What was discovered | 0% | 0.3% | 0.1% | 7.5% | 1.6% |
+| The state of the work | 0% | 0% | 0.1% | 0% | 0.5% |
+| A former state | 0% | 0.3% | 0.3% | 5.0% | 0.5% |
+
+In reader-facing documents these run from 0.1% to 0.4%. In Rust RFCs and ADRs they run from
+1.6% to 7.5%, because there the same form is the message. That is the ground for switching
+by doctype.
+
+`we refactored` and its Japanese equivalent were dropped from the candidates.
+
+In English, 8 of 11 occurrences handed the reader a destination: `moved to their own
+repositories`, `renamed Redis Open Source with the v8.0 release` — where to look, what to
+call it. The remaining three were an FAQ heading and an anecdote about naming.
+
+In Japanese the form cannot be told apart from an ordinary verb: `フォーカスを移動した`
+(the focus moved) matches, and all 43 matches in the reference corpus were of that kind.
+
+| Corpus | Doctype applied | Fires |
+|---|---|---|
+| 240 READMEs | `readme` | 0 |
+| 200 Rust RFCs | `design` | 0 |
+| 190 ADRs | `decision` | 0 |
+| 652 reference (en) | `reference` | 3 (0.5%) |
+| 798 reference (ja) | `reference` | 5 (0.6%) |
+
+### Consequences
+
+The same sentence is now content in one doctype and clutter in another:
+`We tried another approach and it did not work` is reported in a README and passes in a
+decision record.
+
+This differs in kind from the vocabulary rules. `register/rare-wago` is settled by
+frequency and never looks at the context. `structure/work-note` changes its verdict on the
+same words according to the type of document they sit in.
+
+A document that declares no type is not checked, because whether it addresses a reader
+cannot be known. Listing it under `[paths]` in `.suikou/structure.toml` turns the rule on.
+
+Plans and calls for help under a heading of their own are not reported. 41% of notable open
+source does exactly that, which lets the reader skip them. Nothing here asks a README to
+drop its plans; it asks that a heading announce them.
+
+## D-41 How strictly a norm applies is settled per doctype
+
+### Context
+
+One set of thresholds was applied to entry points and reference documents alike.
+
+With the default thresholds, `en.mattr100` fires on 70% of 240 notable open source READMEs
+against 15% of 652 reference documents, and `en.simile_marker_per_1k` fires on 74%.
+
+A metric firing on 70% of a genre is reporting a mismatched threshold rather than a
+property of the documents. The user raised the same point: an entry-point README and the
+documents under `docs/` are not equally formal.
+
+### Decision
+
+The profile carries per-doctype adjustment: replacing a threshold, dropping a metric, and
+silencing a local rule.
+
+An adjustment requires a `reason`, and a test checks that every built-in one has it. The
+adjustment is where an agreement with the user is recorded, not something the tool settles
+on its own.
+
+The order of application is the built-in profile, the built-in doctype adjustment, the
+project's override, then the project's doctype adjustment.
+
+### Rationale
+
+240 READMEs in English (199 organisations, 8 languages) and 150 in Japanese (144
+organisations) were measured.
+
+| Metric | README | Reference | Ratio |
+|---|---|---|---|
+| `en.mattr100` | 70% | 15% | 4.7 |
+| `en.prose_ratio` | 32% | 11% | 2.9 |
+| `en.simile_marker_per_1k` | 74% | 45% | 1.6 |
+
+The share of running prose varies threefold by kind of document.
+
+| Corpus | Measured `prose_ratio` |
+|---|---|
+| 240 READMEs | 0.170 |
+| 652 reference (en) | 0.427 |
+| 200 Rust RFCs | 0.544 |
+
+A README is 17% prose and the rest lists and code; a reference document is 43% and a Rust
+RFC 54%. The default `en.prose_ratio` threshold of 0.65 puts every README below the line.
+
+After adjustment the rates fall, and the reference corpus is untouched.
+
+| Metric | README before | README after | Reference |
+|---|---|---|---|
+| `en.mattr100` | 70% | 6% | 15% |
+| `en.prose_ratio` | 32% | 7% | 11% |
+| `en.simile_marker_per_1k` | 74% | 0% | 45% |
+
+Across 150 Japanese READMEs the adjusted rates fall between 0% and 2%.
+
+Formality does not differ in one direction.
+
+| Metric | README (ja) | Reference (ja) |
+|---|---|---|
+| `ja.kango_ratio` | 0.620 | 0.521 |
+| `ja.mattr100` | 0.752 | 0.674 |
+| `ja.renyo_te_ratio` | 10.16 | 6.00 |
+
+Japanese READMEs carry more Sino-Japanese than the reference corpus, because naming
+features and components piles up compounds. Loosening everything for an entry point would
+be wrong; the direction differs by metric.
+
+### Consequences
+
+The same metric is now judged against different thresholds depending on the doctype. So
+that it stays possible to follow which document was judged by what, a doctype adjustment
+cannot add a metric; the across-the-board override does that.
+
+No local rule is silenced by default for any doctype. The rules that fire most on READMEs,
+`maint/list-lead-in` at 340 occurrences and `maint/parallel-items` at 271, rest on published
+style guidance and hold in a README too. The mechanism is handed to the project and left
+unused in the built-ins.
+
+A document declaring no type gets no adjustment. Listing it under `[paths]` in
+`.suikou/structure.toml`, or writing `doctype:` in its front matter, turns it on.

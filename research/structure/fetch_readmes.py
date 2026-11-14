@@ -91,3 +91,41 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+# 日本語の README。`README.ja.md` と `README_ja.md` を手掛かりにする。
+# 型ごとの閾値を日本語側でも実測するために要る。
+def fetch_ja(out: pathlib.Path, total: int = 150, per_org: int = 3) -> None:
+    out.mkdir(parents=True, exist_ok=True)
+    org_count: dict[str, int] = {}
+    seen = 0
+    for name in ["README.ja.md", "README_ja.md", "README-ja.md", "README.ja-JP.md"]:
+        for page in range(1, 6):
+            if seen >= total:
+                break
+            hits = gh(f"search/code?q=filename:{name}&per_page=30&page={page}")
+            if not isinstance(hits, dict) or not hits.get("items"):
+                break
+            for item in hits["items"]:
+                if seen >= total:
+                    break
+                repo = item["repository"]["full_name"]
+                org = repo.split("/")[0]
+                if org_count.get(org, 0) >= per_org:
+                    continue
+                blob = gh(f"repos/{repo}/contents/{item['path']}")
+                if not isinstance(blob, dict) or blob.get("encoding") != "base64":
+                    continue
+                try:
+                    src = base64.b64decode(blob["content"]).decode("utf-8", "replace")
+                except (KeyError, ValueError):
+                    continue
+                # 日本語の地の文を持たないものは対象にならない。
+                kana = sum(1 for c in src if "぀" <= c <= "ヿ")
+                if len(src) < 400 or kana < 100:
+                    continue
+                stem = repo.replace("/", "__")
+                (out / f"{stem}.md").write_text(src, encoding="utf-8")
+                org_count[org] = org_count.get(org, 0) + 1
+                seen += 1
+    print(f"readmes_ja: {seen} 件 / {len(org_count)} 組織")

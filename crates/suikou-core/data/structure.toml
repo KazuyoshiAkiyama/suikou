@@ -29,6 +29,8 @@
 # `Explanation` は `Guide-level explanation` と `Reference-level explanation` を含む。
 # RFC テンプレートが「どう動くか」をこの名前で呼ぶためである。
 [doctype.design]
+# 何を試して何が駄目だったかは、この型では伝えるべき中身である。
+work_notes_ok = true
 description = "提案と設計。何を作るか、なぜ要るか、どこまでやるかを示す"
 description_en = "A proposal or design: what is being built, why it is needed, and how far it goes"
 sections = [
@@ -42,6 +44,8 @@ sections = [
 ]
 
 [doctype.decision]
+# 何を試して何が駄目だったかは、この型では伝えるべき中身である。
+work_notes_ok = true
 description = "決定の記録。文脈、決定、帰結を残す"
 description_en = "A decision record: the context, the decision, and the consequences"
 sections = [

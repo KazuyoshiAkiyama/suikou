@@ -29,6 +29,7 @@ pub const RULE_LONG_PARAGRAPH: &str = "structure/long-paragraph";
 pub const RULE_EMPTY_SECTION: &str = "structure/empty-section";
 pub const RULE_PLOT_MISMATCH: &str = "structure/plot-mismatch";
 pub const RULE_LEAD_OPENER: &str = "structure/lead-opener";
+pub const RULE_WORK_NOTE: &str = "structure/work-note";
 
 /// 段落の文の数の上限。これを超えたら分割の目安とする。
 /// Google のスタイルガイドが「5〜6文を超えたら多くを詰め込みすぎている目安」と定める。
@@ -44,6 +45,13 @@ pub struct DocType {
     description: String,
     #[serde(default)]
     description_en: String,
+    /// 作業について述べた文が、この型では読み手に向けた中身になるかどうか。
+    ///
+    /// 何を試して何が駄目だったかは、設計と決定の記録では伝えるべき中身である。
+    /// README と参照の文書では読み手に何も与えない。
+    /// 同じ文が、型によって中身になるか混ざり物になるかが変わる。
+    #[serde(default)]
+    pub work_notes_ok: bool,
     pub sections: Vec<Section>,
 }
 
@@ -333,6 +341,92 @@ pub fn check_universal(doc: &Document, lang: Lang) -> Vec<LocalFinding> {
         "末端の節に本文が無い。節を書くか、見出しを消す",
         empty,
     ));
+    out
+}
+
+/// 作業そのものについて述べた形。
+///
+/// 読み手に向けた文書に、著者が自分のために残した文脈が混ざることがある。
+/// 試した案、判明したこと、作業の段階、以前の状態である。
+/// 読み手はそこから次の行動を得られない。
+///
+/// 同じ形が、設計と決定の記録では伝えるべき中身になる。
+/// `work_notes_ok` を持つ型では検出しない。
+///
+/// 採否は実測で決めた。文書数に対する割合である。
+///
+/// | 形 | README | 参照(英) | 参照(日) | Rust RFC | ADR |
+/// |---|---|---|---|---|---|
+/// | 試した案 | 0.4% | 0.2% | 0.1% | 4.5% | 3.2% |
+/// | 判明したこと | 0% | 0.3% | 0.1% | 7.5% | 1.6% |
+/// | 作業の段階 | 0% | 0% | 0.1% | 0% | 0.5% |
+/// | 以前はこうだった | 0% | 0.3% | 0.3% | 5.0% | 0.5% |
+///
+/// `変更の経緯`（`we refactored`、`移動した`）は候補から除いた。
+/// 英語では 11 件のうち 8 件が読み手に行き先を与えており、
+/// `moved to their own repositories` のように、どこを見ればよいかを伝えている。
+/// 日本語では `フォーカスを移動した` のような通常の動詞と区別できない。
+/// 43 件すべてがこの種類の誤検出であった。経緯は D-40 にある。
+const WORK_NOTE_JA: &[(&str, &str)] = &[
+    (
+        r"(試し|検討し|実験し)(た|たが|てみた)(が|結果|ところ|。)|うまく(いかな|動かな)かった",
+        "試した案を述べている。読み手に要るのは結果だけである。経緯は決定の記録へ移す",
+    ),
+    (
+        r"(判明した|分かった|気付いた|発覚した)(。|ため|ので)",
+        "作業の途中で判明したことを述べている。読み手に向けた結論に書き換える",
+    ),
+    (
+        r"(第|フェーズ|段階|ステップ)\s*\d+\s*(は|が)?(完了|終了|済み|進行中)|(実装|移行|対応)(は|が)(完了|進行中|途中)(した|である|。)",
+        "作業の段階を述べている。読み手が使えるかどうかを書く",
+    ),
+    (
+        r"(もともと|元々|当初|以前)は[^。]{0,40}(だった|していた)|(旧|古い)(版|バージョン)では",
+        "以前の状態を述べている。読み手に行き先が要るなら版と移行先を示す",
+    ),
+];
+
+const WORK_NOTE_EN: &[(&str, &str)] = &[
+    (
+        r"(?i)\b(we|i) (tried|attempted|experimented with|considered)\b|\bafter (trying|testing|experimenting)\b",
+        "This recounts what was tried. The reader needs the outcome; move the account to the decision record",
+    ),
+    (
+        r"(?i)\b(we|i) (found|noticed|realized|discovered|learned) that\b|\bit turn(s|ed) out\b",
+        "This recounts what was discovered while working. State the conclusion for the reader instead",
+    ),
+    (
+        r"(?i)\b(phase|step|stage|milestone) \d+ (is|was|has been) (complete|completed|done|finished)\b|\b(implementation|migration|refactor(ing)?|rewrite) is (complete|done|ongoing|in progress)\b",
+        "This reports the state of the work. Say whether the reader can use it",
+    ),
+    (
+        r"(?i)\boriginally (this|it|the|we|there)\b|\bused to (be|use|have|work|live)\b|\bin (earlier|previous) versions,? (this|it|we)\b",
+        "This recounts a former state. If the reader needs it, give the version and where to go now",
+    ),
+];
+
+/// 作業について述べた文を、読み手に向けた型の文書で検出する。
+pub fn check_work_notes(doc: &Document, lang: Lang, dt: &DocType) -> Vec<LocalFinding> {
+    // 設計と決定の記録では、何を試したかが伝えるべき中身である。
+    if dt.work_notes_ok {
+        return Vec::new();
+    }
+    let table = match lang {
+        Lang::Ja => WORK_NOTE_JA,
+        _ => WORK_NOTE_EN,
+    };
+    let mut out = Vec::new();
+    for (pat, msg) in table {
+        let re = regex::Regex::new(pat).expect("作業の形の正規表現");
+        let mut positions = Vec::new();
+        for (line, text) in doc.paragraphs() {
+            if let Some(m) = re.find(&text) {
+                let excerpt: String = text[m.start()..].chars().take(36).collect();
+                positions.push(pos(line, excerpt));
+            }
+        }
+        out.extend(finding(RULE_WORK_NOTE, Severity::Warning, msg, positions));
+    }
     out
 }
 
@@ -835,5 +929,84 @@ mod tests {
         assert_eq!(req, vec!["what"]);
         let src = "# suikou\n\nsuikou は技術文書の lint である。\n";
         assert!(check_doctype(&Document::parse(src), Lang::Ja, dt).is_empty());
+    }
+
+    // 作業について述べた文。型によって中身になるか混ざり物になるかが変わる。
+    #[test]
+    fn a_work_note_in_a_readme_is_reported() {
+        let dt = doctypes().get("readme").unwrap();
+        let src = "# suikou\n\nsuikou は lint である。\n\n## 使い方\n\n\
+                   別の案も試したが、うまく動かなかった。\n";
+        let f = check_work_notes(&Document::parse(src), Lang::Ja, dt);
+        assert_eq!(f.len(), 1);
+        assert_eq!(f[0].rule_id, RULE_WORK_NOTE);
+    }
+
+    // 設計と決定の記録では、何を試したかが伝えるべき中身である。
+    #[test]
+    fn a_work_note_in_a_decision_record_is_not_reported() {
+        for name in ["design", "decision"] {
+            let dt = doctypes().get(name).unwrap();
+            let src = "# x\n\n## 文脈\n\n別の案も試したが、うまく動かなかった。\n";
+            assert!(
+                check_work_notes(&Document::parse(src), Lang::Ja, dt).is_empty(),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_state_of_the_work_is_reported_in_a_readme() {
+        let dt = doctypes().get("readme").unwrap();
+        let src = "# suikou\n\nsuikou は lint である。\n\nフェーズ 2 は完了している。\n";
+        assert_eq!(
+            check_work_notes(&Document::parse(src), Lang::Ja, dt).len(),
+            1
+        );
+    }
+
+    // 読み手に向けた文は検出しない。
+    #[test]
+    fn a_sentence_for_the_reader_is_not_reported() {
+        let dt = doctypes().get("readme").unwrap();
+        let src = "# suikou\n\nsuikou は lint である。\n\n\
+                   設定は .suikou/profile.toml で変更する。\n";
+        assert!(check_work_notes(&Document::parse(src), Lang::Ja, dt).is_empty());
+    }
+
+    #[test]
+    fn the_english_work_note_rule_fires_on_the_same_forms() {
+        let dt = doctypes().get("readme").unwrap();
+        for src in [
+            "# x\n\nIt is a linter.\n\nWe tried a different approach first.\n",
+            "# x\n\nIt is a linter.\n\nWe found that the parser was too slow.\n",
+            "# x\n\nIt is a linter.\n\nPhase 2 is complete.\n",
+            "# x\n\nIt is a linter.\n\nOriginally this used a different format.\n",
+        ] {
+            assert_eq!(
+                check_work_notes(&Document::parse(src), Lang::En, dt).len(),
+                1,
+                "{src}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_english_sentence_for_the_reader_is_not_reported() {
+        let dt = doctypes().get("readme").unwrap();
+        let src = "# x\n\nIt is a linter.\n\nThe docs moved to the project wiki.\n";
+        assert!(check_work_notes(&Document::parse(src), Lang::En, dt).is_empty());
+    }
+
+    // 型の旗が意図した型にだけ立っていることを確かめる。
+    #[test]
+    fn only_design_and_decision_allow_work_notes() {
+        let mut ok: Vec<&str> = doctypes()
+            .iter()
+            .filter(|(_, dt)| dt.work_notes_ok)
+            .map(|(n, _)| n.as_str())
+            .collect();
+        ok.sort_unstable();
+        assert_eq!(ok, vec!["decision", "design"]);
     }
 }

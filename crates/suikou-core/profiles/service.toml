@@ -67,3 +67,41 @@ value = 0.8
 direction = "below"
 severity = "warning"
 guidance = "If you use a comparison, mark it as a simile or an example"
+
+# 型ごとの調整。入り口の README と参照の文書では硬さが違う。
+#
+# 著名な OSS の README を実測して導いた。
+# 英語 240件（199組織、8言語）、日本語 150件（144組織）である。
+# 既定の閾値を当てると、README では次の率で発火する。
+#
+# | 指標 | README | 参照 | 比 |
+# |---|---|---|---|
+# | en.mattr100 | 70% | 15% | 4.7 |
+# | en.prose_ratio | 32% | 11% | 2.9 |
+# | en.simile_marker_per_1k | 74% | 45% | 1.6 |
+#
+# 発火率が 70% の指標は、文書の性質ではなく閾値の不一致を示している。
+# 日本語の README は参照より漢語率が高い（0.62 対 0.52）。
+# 硬さの差は一方向ではない。経緯は D-41 にある。
+[doctype.readme]
+reason = "入り口の文書。地の文が少なく、語彙は広く、名前と機能の列挙で漢語が増える"
+# 地の文が足りず、比喩の標識の密度を測れない。README 240件の 74% で発火した。
+disable = ["en.simile_marker_per_1k"]
+
+[doctype.readme.thresholds."en.mattr100"]
+value = 0.87
+
+[doctype.readme.thresholds."en.prose_ratio"]
+value = 0.17
+
+[doctype.readme.thresholds."ja.mattr100"]
+value = 0.75
+
+[doctype.readme.thresholds."ja.prose_ratio"]
+value = 0.20
+
+[doctype.readme.thresholds."ja.kango_ratio"]
+value = 0.62
+
+[doctype.readme.thresholds."ja.renyo_te_ratio"]
+value = 10.0

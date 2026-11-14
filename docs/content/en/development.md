@@ -322,6 +322,29 @@ The questions remain, though. `suikou plot README.md --doctype readme` lays them
 | Contributing | How does someone contribute? |
 | License | Under what terms? |
 
+### Formality is settled per doctype
+
+One set of thresholds cannot serve a README and a reference document. A README is 17%
+running prose, a reference document 43%, a Rust RFC 54%.
+
+The adjustment goes in `.suikou/profile.toml`.
+
+```toml
+[doctype.readme]
+reason = "Agreed with the user: an entry point is mostly lists"
+rules = ["structure/long-paragraph"]
+
+[doctype.readme.thresholds."ja.kango_ratio"]
+value = 0.65
+```
+
+`reason` is close to mandatory: a test checks that every built-in adjustment carries one. A
+loosening is recorded as something agreed with the user, never decided here.
+
+Formality does not differ in one direction. Japanese READMEs carry more Sino-Japanese than
+the reference corpus, 0.62 against 0.52. Loosening everything would be wrong; the direction
+is read per metric. D-41 has the detail.
+
 ### The writer's notes stay out
 
 The state of the work, what turned out to be true on trying it, what has not been fixed

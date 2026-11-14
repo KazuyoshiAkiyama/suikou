@@ -578,6 +578,82 @@ the question it answers and what belongs in it, together with the rules for buil
 paragraph and for putting the conclusion first.
 The text of that guidance lives in one place, `structure::writing_rules`.
 
+## Adjusting a threshold
+
+### Across the board
+
+Only the fields written into `.suikou/profile.toml` replace the built-in values. Swapping
+the whole profile would mean copying all of it to change one number.
+
+```toml
+[thresholds."ja.kango_ratio"]
+value = 0.55
+
+# Metrics to stop reporting
+disable = ["en.simile_marker_per_1k"]
+```
+
+Adding a metric the built-in profile has no threshold for takes both `value` and
+`direction`. One of the two cannot decide anything, so the run fails rather than ignoring
+it silently.
+
+### Per doctype
+
+What a document is for changes how a metric applies to it. A README is an entry point and
+is not as formal as a reference.
+
+```toml
+[doctype.readme]
+reason = "Agreed with the user: an entry point is mostly lists"
+rules = ["structure/long-paragraph"]
+
+[doctype.readme.thresholds."ja.kango_ratio"]
+value = 0.65
+```
+
+`reason` is there to keep the account of the adjustment, so that whoever reads it later does
+not repeat the same deliberation. Every built-in adjustment carries one, and a test checks
+that.
+
+`rules` silences a local rule. A metric can be loosened by its threshold; a local rule
+either reports or it does not.
+
+The order of application is the built-in profile, the built-in doctype adjustment, the
+project's own override, then the project's own doctype adjustment. What the project writes
+always comes last, because a built-in adjustment that cannot be undone leaves no way out
+where the measurement does not fit.
+
+A doctype adjustment cannot add a metric; the across-the-board override does that. Metrics
+appearing per doctype would make it impossible to follow which document was judged by what.
+
+### The built-in adjustment
+
+Only `readme` carries one, derived from measuring notable open source: 240 READMEs in
+English and 150 in Japanese.
+
+With the default thresholds applied, READMEs fire at these rates.
+
+| Metric | README | Reference | Ratio |
+|---|---|---|---|
+| `en.mattr100` | 70% | 15% | 4.7 |
+| `en.prose_ratio` | 32% | 11% | 2.9 |
+| `en.simile_marker_per_1k` | 74% | 45% | 1.6 |
+
+A metric firing on 70% of a genre is reporting a mismatched threshold, not a property of
+the documents.
+
+| Metric | README, adjusted | Reference, unchanged |
+|---|---|---|
+| `en.mattr100` | 6% | 15% |
+| `en.prose_ratio` | 7% | 11% |
+| `en.simile_marker_per_1k` | 0% | 45% |
+
+Across 150 Japanese READMEs the adjusted rates fall between 0% and 2%.
+
+The difference in formality does not run one way. Japanese READMEs carry a higher
+Sino-Japanese ratio than the reference corpus, 0.62 against 0.52, because naming features
+and components piles up compounds. D-41 records it.
+
 ## The excerpt beside a finding
 
 A position carries the text that matched, then a narrow window around it.
