@@ -144,6 +144,10 @@ pub(crate) fn analyze(
     report
         .local
         .extend(suikou_core::structure::check_universal(&doc, lang));
+    // 書き出しの規則も型を問わない。実測で0件だった形だけを見るため、型で分けない。
+    report
+        .local
+        .extend(suikou_core::structure::check_lead(&doc, lang));
     if let Some(path) = path {
         if let Some(name) = resolve_doctype(src, path) {
             // 知らない名前を黙って読み飛ばすと、綴りを誤ったときに検査が消える。

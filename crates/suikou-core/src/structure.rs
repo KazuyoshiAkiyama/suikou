@@ -28,6 +28,7 @@ pub const RULE_SECTION_ORDER: &str = "structure/section-order";
 pub const RULE_LONG_PARAGRAPH: &str = "structure/long-paragraph";
 pub const RULE_EMPTY_SECTION: &str = "structure/empty-section";
 pub const RULE_PLOT_MISMATCH: &str = "structure/plot-mismatch";
+pub const RULE_LEAD_OPENER: &str = "structure/lead-opener";
 
 /// 段落の文の数の上限。これを超えたら分割の目安とする。
 /// Google のスタイルガイドが「5〜6文を超えたら多くを詰め込みすぎている目安」と定める。
@@ -335,6 +336,86 @@ pub fn check_universal(doc: &Document, lang: Lang) -> Vec<LocalFinding> {
     out
 }
 
+/// 先頭の段落。標題の後、最初の節の見出しより前にある最初の地の文である。
+fn lead_paragraph(doc: &Document) -> Option<(usize, String)> {
+    let first_section = sections(doc).first().map(|o| o.block.line);
+    doc.paragraphs()
+        .into_iter()
+        .find(|(line, _)| first_section.is_none_or(|h| *line < h))
+}
+
+/// 文書の書き出しとして避ける形。
+///
+/// 書き手が自分のために残す覚書は、書き出しに現れる。
+/// 一般論、自分の経緯、文書の目的の宣言である。
+/// 読み手はそれを必要としない。Diátaxis が言う、
+/// 一つの文書が複数の必要に応えようとしている状態である。
+///
+/// 採否は実測で決めた。先頭の段落 831 件（著名 OSS の README 199、
+/// Rust RFC 20、ADR 10、参照コーパスの英語 602）で、
+/// ここに挙げた3つの形はいずれも0件であった。
+/// 日本語も参照コーパスの先頭の段落 653 件で0件であった。
+///
+/// 自己言及（`本文書は`、`This document describes`）はここに入れない。
+/// 参照コーパスの英語で 37/602 件（6%）現れる。API の説明では成り立つ形である。
+/// README と入口の文書に限って別に見る。経緯は D-39 にある。
+const LEAD_AVOID_JA: &[(&str, &str)] = &[
+    (
+        r"^(近年|昨今|現代|今日|最近|かつて|従来)(では|は|、|において)",
+        "一般論から始めている。主題を主語にして、何であるかから書く",
+    ),
+    (
+        r"^(筆者|私|我々|著者)(は|が)|^(もともと|元々|当初)(は|、)",
+        "書き手の経緯から始めている。読み手に要るのは経緯ではなく主題である",
+    ),
+    (
+        r"^(本文書|この文書|本稿|本書)の(目的|狙い|ねらい)は",
+        "文書の目的を宣言している。目的ではなく主題を述べる",
+    ),
+];
+
+const LEAD_AVOID_EN: &[(&str, &str)] = &[
+    (
+        r"(?i)^(in recent years|as (software|systems|applications|projects)|traditionally|nowadays|in today's|modern (software|development)|with the (rise|growth|increase))",
+        "The lead opens on generalities. Make the subject the subject, and say what it is",
+    ),
+    (
+        r"(?i)^(i (built|made|wrote|created|started|have)|we (built|made|started|decided)|this (started|began) as|originally)",
+        "The lead opens on how it came about. The reader needs the subject, not the history",
+    ),
+    (
+        r"(?i)^(the (goal|purpose|aim|objective) of this|this (aims|intends|seeks) to)",
+        "The lead declares an intent. State the subject instead",
+    ),
+];
+
+/// 先頭の段落の書き出しを見る。
+pub fn check_lead(doc: &Document, lang: Lang) -> Vec<LocalFinding> {
+    let Some((line, text)) = lead_paragraph(doc) else {
+        return Vec::new();
+    };
+    let head = text.trim_start();
+    let table = match lang {
+        Lang::Ja => LEAD_AVOID_JA,
+        _ => LEAD_AVOID_EN,
+    };
+    for (pat, msg) in table {
+        let re = regex::Regex::new(pat).expect("書き出しの正規表現");
+        if re.is_match(head) {
+            let excerpt: String = head.chars().take(40).collect();
+            return finding(
+                RULE_LEAD_OPENER,
+                Severity::Warning,
+                msg,
+                vec![pos(line, excerpt)],
+            )
+            .into_iter()
+            .collect();
+        }
+    }
+    Vec::new()
+}
+
 /// 標題の直後に、最初の節の見出しより前の地の文があるかどうか。
 ///
 /// ここに置いた段落は、`lead_ok` を持つ節の役目を果たす。
@@ -636,17 +717,20 @@ mod tests {
     }
 
     // 代えられるのは最初の節だけとする。ほかの節は見出しを求める。
+    // overview は必須の後続節を持たないため、design で確かめる。
+    // design は summary が導入で代えられ、motivation と design を必須に持つ。
     #[test]
     fn a_lead_paragraph_does_not_stand_in_for_a_later_section() {
-        let dt = doctypes().get("overview").unwrap();
-        let src = "# suikou\n\n何であるかをここで述べる。\n\n## なぜ\n\n理由である。\n";
+        let dt = doctypes().get("design").unwrap();
+        let src = "# suikou\n\n何についての文書かをここで述べる。\n\n## 設計\n\n構成である。\n";
         let f = check_doctype(&Document::parse(src), Lang::Ja, dt);
         let m = f
             .iter()
             .find(|x| x.rule_id == RULE_MISSING_SECTION)
             .unwrap();
+        // 導入は summary を代える。残る必須は motivation だけである。
         assert_eq!(m.positions.len(), 1);
-        assert!(m.positions[0].text.starts_with("使い方"));
+        assert!(m.positions[0].text.starts_with("動機"));
     }
 
     // 標題のすぐ後に節が続く文書には導入が無い。
@@ -674,5 +758,82 @@ mod tests {
             .find(|x| x.rule_id == RULE_MISSING_SECTION)
             .unwrap();
         assert!(m.positions[0].text.starts_with("帰結"));
+    }
+
+    // 書き出しの規則。実測で0件だった3つの形だけを見る。
+    #[test]
+    fn a_lead_that_opens_on_generalities_is_reported() {
+        let src = "# suikou\n\n近年、技術文書の品質が問題になっている。そこでこの道具を作った。\n";
+        let f = check_lead(&Document::parse(src), Lang::Ja);
+        assert_eq!(f.len(), 1);
+        assert_eq!(f[0].rule_id, RULE_LEAD_OPENER);
+    }
+
+    #[test]
+    fn a_lead_that_opens_on_the_writer_is_reported() {
+        let src = "# suikou\n\n筆者は技術文書の lint を探していたが、見つからなかった。\n";
+        let f = check_lead(&Document::parse(src), Lang::Ja);
+        assert_eq!(f.len(), 1);
+    }
+
+    #[test]
+    fn a_lead_that_declares_an_intent_is_reported() {
+        let src = "# suikou\n\n本文書の目的は、この道具の使い方を説明することである。\n";
+        let f = check_lead(&Document::parse(src), Lang::Ja);
+        assert_eq!(f.len(), 1);
+    }
+
+    #[test]
+    fn a_lead_that_names_the_subject_is_not_reported() {
+        let src = "# suikou\n\nsuikou は技術文書の lint である。日本語と英語を扱う。\n";
+        assert!(check_lead(&Document::parse(src), Lang::Ja).is_empty());
+    }
+
+    // 自己言及は規則に入れない。参照コーパスの英語で6%現れるためである。
+    #[test]
+    fn a_lead_that_refers_to_the_document_is_not_reported() {
+        let src = "# suikou\n\n本文書は、この道具が課す規則を述べる。\n";
+        assert!(check_lead(&Document::parse(src), Lang::Ja).is_empty());
+    }
+
+    #[test]
+    fn the_english_lead_rule_fires_on_the_same_three_forms() {
+        for src in [
+            "# suikou\n\nIn recent years, documentation quality has become a problem.\n",
+            "# suikou\n\nI built this because no linter covered technical Japanese.\n",
+            "# suikou\n\nThe goal of this document is to explain how the tool works.\n",
+        ] {
+            let f = check_lead(&Document::parse(src), Lang::En);
+            assert_eq!(f.len(), 1, "{src}");
+        }
+    }
+
+    #[test]
+    fn an_english_lead_that_names_the_subject_is_not_reported() {
+        let src =
+            "# suikou\n\nsuikou is a linter for technical documentation in Japanese and English.\n";
+        assert!(check_lead(&Document::parse(src), Lang::En).is_empty());
+    }
+
+    // 先頭の段落が無い文書には当てるものが無い。
+    #[test]
+    fn a_document_with_no_lead_is_not_reported() {
+        let src = "# suikou\n\n## 概要\n\n近年、問題になっている。\n";
+        assert!(check_lead(&Document::parse(src), Lang::Ja).is_empty());
+    }
+
+    // readme の型は240件で測った。発火率が高すぎないことを確かめる。
+    #[test]
+    fn the_readme_doctype_requires_only_the_lead() {
+        let dt = doctypes().get("readme").unwrap();
+        let req: Vec<&str> = dt
+            .sections
+            .iter()
+            .filter(|s| s.required)
+            .map(|s| s.id.as_str())
+            .collect();
+        assert_eq!(req, vec!["what"]);
+        let src = "# suikou\n\nsuikou は技術文書の lint である。\n";
+        assert!(check_doctype(&Document::parse(src), Lang::Ja, dt).is_empty());
     }
 }

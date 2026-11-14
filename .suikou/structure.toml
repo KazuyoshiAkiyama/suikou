@@ -4,10 +4,11 @@
 # 文書を開いた人がその場で型を見られるためである。
 # 接頭辞が重なった場合は長いほうが勝つ。
 [paths]
-"README.md" = "overview"
-"README.ja.md" = "overview"
+"README.md" = "readme"
+"README.ja.md" = "readme"
 "TASKS.md" = "reference"
 "CLAUDE.md" = "reference"
 "skills/suikou/SKILL.md" = "reference"
-"packages/textlint-rule-preset-tech-maintainability/README.md" = "overview"
-"packages/textlint-rule-preset-tech-maintainability/README.ja.md" = "overview"
+"glossary/README.md" = "readme"
+"packages/textlint-rule-preset-tech-maintainability/README.md" = "readme"
+"packages/textlint-rule-preset-tech-maintainability/README.ja.md" = "readme"

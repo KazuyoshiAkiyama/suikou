@@ -18,7 +18,7 @@ corpus = "corpus/cache/pro_ja"
 corpus_chars = 4382318
 sources = ["kubernetes/website(ja)", "mdn/translated-content(ja)", "vuejs-translations/docs-ja"]
 probe = "pfnet/plamo-3-translate-2b-GGUF Q4_K_M"
-orthography_rule = "語ごとに実測で決める。決まらない語は長音に倒す（D-38）"
+orthography_rule = "語ごとに実測で決める。決まらない語は長音を付ける（D-38）"
 orthography_reference = "JTCA 外来語（カタカナ）表記ガイドライン 第3版（2015）"
 
 # ---------------------------------------------------------------------------

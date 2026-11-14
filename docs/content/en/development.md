@@ -281,6 +281,67 @@ Nothing settles the right pairing for what step 4 reports. Ranking candidates fr
 verbs by corpus statistics reaches 80% accuracy only within the top 600 or so (Nakano and
 Tomiura, 2011), so a person decides. T19 records it.
 
+## Writing a README
+
+### The lead holds the subject
+
+Measuring 240 READMEs from notable open source showed the structure sitting in the lead
+paragraph rather than in the headings.
+
+| Measured | Value |
+|---|---|
+| Has a lead paragraph | 78% |
+| Of those, within 300 characters | 83% |
+| Median length of the lead | 121 characters |
+
+Make the name the subject and say what it is, within 300 characters.
+
+```markdown
+# suikou
+
+suikou is a linter for technical documentation. It handles Japanese and English.
+```
+
+Do not open on background, intent or history. Those three openings occurred zero times
+across 831 lead paragraphs drawn from READMEs, Rust RFCs, ADRs and the reference corpus.
+`structure/lead-opener` reports them.
+
+### No heading is required
+
+The most commonly identified section, install, is found in 62% of them. The `readme` type
+requires the lead and nothing else.
+
+The questions remain, though. `suikou plot README.md --doctype readme` lays them out.
+
+| Section | Question |
+|---|---|
+| What it is | What is it, in one sentence? |
+| Install | How is it installed? |
+| Usage | What is the shortest way to use it? |
+| Documentation | Where is the detail? |
+| Contributing | How does someone contribute? |
+| License | Under what terms? |
+
+### The writer's notes stay out
+
+The state of the work, what turned out to be true on trying it, what has not been fixed
+yet: none of it belongs in a README, because the reader has no use for it.
+
+Diátaxis holds that most documentation problems come from content trying to serve more than
+one need at once. A note to self and a README serve different needs.
+
+Each kind has its place.
+
+| Content | Where it goes |
+|---|---|
+| A judgement that could have gone either way | `docs/content/*/decisions.md` |
+| A figure you are unsure of, an option set aside | `TASKS.md` |
+| The fuller explanation | `docs/content/` |
+
+Vocabulary cannot catch it. `currently` and `TODO` are used by notable open source too, 45
+of the 240 containing `currently`, so there is no ground for forbidding them. Where the
+document starts is the only part that can be checked. D-39 records it.
+
 ## Using PLaMo Translate
 
 PLaMo Translate is a translation model that runs locally. It is optional, and it is used

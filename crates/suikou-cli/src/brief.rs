@@ -166,7 +166,9 @@ fn render_ja(detail: Detail) -> String {
             out.push_str(&format!("- 次の語を使わない。{words}\n"));
             out.push_str("- 時点に触れる場合は、同じ文に西暦かバージョン番号を置く。\n");
             out.push_str(
-                "- 意味の狭い語を選ぶ。置く・作る・行うは複数の動作を兼ねる。\n\
+                "- 先頭の段落は主題を主語にして、何であるかを述べる。背景や経緯から始めない。\n\
+                 - 著者の備忘は本文に混ぜない。進行の状態、試して判明したことである。\n\
+                 - 意味の狭い語を選ぶ。置く・作る・行うは複数の動作を兼ねる。\n\
                  - 名詞と動詞の組を確かめる。規範を置く→規範とする。\n\
                  - 身体の動作の像に寄った和語を使わない。外す→除外する、拾う→検出する。\n",
             );
@@ -184,7 +186,11 @@ fn render_ja(detail: Detail) -> String {
             out.push_str("- 次の語は時点に依存し、文書を風化させる。使わない。\n");
             out.push_str(&format!("  {words}\n"));
             out.push_str(
-                "- 時点ではなく条件で書く。「現時点では A」ではなく「B の場合は A」とする。\n\
+                "- 先頭の段落は主題を主語にして、何であるかを述べる。\n  \
+                 背景、目的、経緯から始めない。参照した冒頭 831 件でこの3つは0件であった。\n\
+                 - 著者の備忘は本文に混ぜない。進行の状態、試して判明したこと、未着手の箇所である。\n  \
+                 読む側はそれを必要としない。決定の記録か作業の一覧へ回す。\n\
+                 - 時点ではなく条件で書く。「現時点では A」ではなく「B の場合は A」とする。\n\
                  - 時点に触れる必要がある場合は、同じ文に西暦かバージョン番号を置いて係留する。\n\
                  - 意味の狭い語を選ぶ。和語か漢語かではなく、意味が限定されるかで選ぶ。\n  \
                  置く・作る・行うは複数の動作を兼ねる。替えた先が同じくらい広ければ得がない。\n\
@@ -195,6 +201,23 @@ fn render_ja(detail: Detail) -> String {
             );
         }
         Detail::Detailed => {
+            out.push_str("## 先頭の段落\n\n");
+            out.push_str(
+                "文書の先頭の段落は、主題を主語にして何であるかを述べる。\
+                 著名な OSS の README 240 件では、先頭に段落を持つものが 78%、\
+                 そのうち 300 字以内が 83%、字数の中央値は 121 であった。\n\n\
+                 背景、目的、経緯のどれからも始めない。\
+                 参照した冒頭 831 件（README、Rust RFC、ADR、参照コーパス）で、\
+                 この3つの形はいずれも0件であった。\n\n",
+            );
+            out.push_str("## 著者の備忘を混ぜない\n\n");
+            out.push_str(
+                "進行の状態、試して判明したこと、未着手の箇所は本文に置かない。\
+                 読む側はそれを必要としない。一つの文書が複数の必要に同時に応えようとすると、\
+                 どちらの読み手にも使いにくくなる。\n\n\
+                 置き場所は分かれている。判断が分かれた箇所は決定の記録へ、\
+                 確信のない値と見送った案は作業の一覧へ回す。\n\n",
+            );
             out.push_str("## 箇条書きの導入文\n\n");
             out.push_str(
                 "箇条書きの前に置く文は、それだけで完結した文にする。助詞や連用形で終えて\
@@ -275,6 +298,24 @@ fn render_en(detail: Detail) -> String {
             );
         }
         Detail::Detailed => {
+            out.push_str("## The lead paragraph\n\n");
+            out.push_str(
+                "The first paragraph makes the subject the subject and says what it is. \
+                 Across 240 READMEs from notable open source, 78% carry a lead paragraph, 83% \
+                 of those stay within 300 characters, and the median length is 121.\n\n\
+                 It opens on none of background, intent or history. Across 831 lead \
+                 paragraphs — READMEs, Rust RFCs, ADRs and the reference corpus — each of \
+                 those three forms occurred zero times.\n\n",
+            );
+            out.push_str("## The writer's notes stay out\n\n");
+            out.push_str(
+                "The state of the work, what turned out to be true on trying it, and what is \
+                 not done yet do not go in the body. The reader has no use for them, and a \
+                 document serving more than one need at once serves neither reader well.\n\n\
+                 Each kind has its place: a judgement that could have gone either way goes to \
+                 the decision record, a figure you are unsure of or an option set aside to the \
+                 task list.\n\n",
+            );
             out.push_str("## The list lead-in\n\n");
             out.push_str(
                 "Introduce every bulleted or numbered list with a sentence that stands on its \

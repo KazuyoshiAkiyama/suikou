@@ -385,6 +385,7 @@ Strunk の The Elements of Style による。
 | `decision` | 決定の記録。文脈、決定、帰結を残す |
 | `howto` | 手順。前提から始めて、確認で終わる |
 | `reference` | 定義。必須の節は置かない |
+| `readme` | README。先頭の一段落で何であるかを述べる |
 | `overview` | 入口の文書。何であるかから始める |
 
 型の宣言は近いところから順に見る。
@@ -393,7 +394,7 @@ Strunk の The Elements of Style による。
 |---|---|
 | フロントマター | `doctype: "design"` |
 | ほかの道具が付けた欄の読み替え | `[front_matter]` と `[front_matter.map]` |
-| `.suikou/structure.toml` の `[paths]` | `"README.md" = "overview"` |
+| `.suikou/structure.toml` の `[paths]` | `"README.md" = "readme"` |
 | プロットの先頭 | `<!-- suikou:doctype design -->` |
 
 接頭辞が重なった場合は長いほうが勝つ。
@@ -488,6 +489,34 @@ severity は warning とする。
 
 プロットはバージョン管理しない作業用の文書である。そのため CI では見えない。
 手元とエージェントのループの中でだけ働く。
+
+### structure/lead-opener 冒頭の形
+
+先頭の段落の冒頭を検出する。重大度は warning である。
+
+先頭の段落とは、標題の後、最初の節の見出しより前にある最初の地の文である。
+先頭の段落を持たない文書では何も検出しない。
+
+検出する形は言語ごとに持つ。
+
+| 形 | 日本語 | 英語 |
+|---|---|---|
+| 一般論から始める | `近年`、`従来`、`昨今` | `In recent years`、`Traditionally` |
+| 著者の経緯から始める | `筆者は`、`当初は` | `I built`、`We decided`、`Originally` |
+| 文書の目的を宣言する | `本文書の目的は` | `The goal of this`、`This aims to` |
+
+採否は実測で決めた。先頭の段落 831件（著名 OSS の README 199、Rust RFC 20、
+ADR 10、参照コーパスの英語 602）で、3つの形はいずれも0件であった。
+日本語も参照コーパスの先頭の段落 653件で0件であった。
+
+自己言及（`本文書は`、`This document describes`）は検出しない。
+参照コーパスの英語で 37/602 件（6%）現れる。API の説明では成立する形である。
+
+実際の文書 2,080件での発火は0件である。経緯は D-39 にある。
+
+この規則は著者の備忘を見つけるものではない。
+文書の途中に置かれた備忘には届かない。
+先頭の段落を主題で始めると決めることで、備忘が後方へ移る。
 
 ### 書き方の指針
 

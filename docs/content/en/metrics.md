@@ -430,6 +430,7 @@ a heading, the question each section answers, and what belongs in it.
 | `decision` | A decision record: the context, the decision, the consequences |
 | `howto` | A procedure: it starts at the prerequisites and ends at the check |
 | `reference` | A reference: no section is required |
+| `readme` | A README: the first paragraph says what the thing is |
 | `overview` | An entry point: it starts by saying what the thing is |
 
 A declaration is looked for in three places, nearest first.
@@ -438,7 +439,7 @@ A declaration is looked for in three places, nearest first.
 |---|---|
 | The front matter | `doctype: "design"` |
 | A field another tool wrote | `[front_matter]` and `[front_matter.map]` |
-| `[paths]` in `.suikou/structure.toml` | `"README.md" = "overview"` |
+| `[paths]` in `.suikou/structure.toml` | `"README.md" = "readme"` |
 | The head of the plot | `<!-- suikou:doctype design -->` |
 
 Where two prefixes match, the longer one wins.
@@ -537,6 +538,34 @@ warning.
 
 A plot is a working document that is kept out of version control, so CI cannot see it.
 The rule works on a local machine and inside an agent loop.
+
+### structure/lead-opener
+
+Reports how the lead paragraph opens, at warning.
+
+The lead paragraph is the first prose after the title and before the first section heading.
+A document without one is not reported.
+
+The forms reported are held per language.
+
+| Form | Japanese | English |
+|---|---|---|
+| Opens on generalities | `近年`, `従来`, `昨今` | `In recent years`, `Traditionally` |
+| Opens on how it came about | `筆者は`, `当初は` | `I built`, `We decided`, `Originally` |
+| Declares what the document is for | `本文書の目的は` | `The goal of this`, `This aims to` |
+
+Adoption was decided by measurement. Across 831 lead paragraphs — 199 notable open source
+READMEs, 20 Rust RFCs, 10 ADRs and 602 English reference documents — each of these forms
+occurred zero times. In Japanese they were likewise absent from 653 lead paragraphs in the
+reference corpus.
+
+Self-reference (`This document describes`, `本文書は`) is not reported. It occurs in 37 of
+602 English reference documents (6%), where API documentation makes it work.
+
+Against 2,080 real documents the rule fires zero times. D-39 records it.
+
+The rule does not find the writer's notes. Notes placed in the middle of a document are out
+of its reach. Settling that the lead begins with the subject is what pushes them backwards.
 
 ### Guidance for writing
 
