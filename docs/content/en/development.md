@@ -147,6 +147,87 @@ python research/structure/fetch_adrs.py corpus/cache/adrs 200 12
 
 A word is not chosen by ear. The common way of saying it is looked up first.
 
+### The order the checks run in
+
+Applying the rules in whatever order they come to mind gives an unstable answer, so the
+order is fixed.
+
+**Constraints** come first: each one settles whether a candidate holds at all, and the
+field narrows. **Preferences** come second and rank what is left. Orthography and the
+record come last.
+
+| Step | What is checked | Kind | Method |
+|---|---|---|---|
+| 1 | Is it a defined name? | Constraint | Read `.suikou/defined.toml`; if it is there, that settles it and the rest is skipped |
+| 2 | List the candidates | — | Whatever comes to mind; ear is allowed here |
+| 3 | Is it written in this field? | Constraint | Frequency in the reference corpus; drop a candidate with none |
+| 4 | Does the noun take the verb? | Constraint | Read the pair on its own |
+| 5 | Is the meaning narrow? | Preference | How the translation spreads; take the one that converges |
+| 6 | Does it lean on bodily imagery? | Preference | Among equally narrow words, take the one with the fainter image |
+| 7 | Settle the orthography | — | Count per word in the reference corpus; the long vowel where counting does not decide |
+| 8 | Record it | — | Write it into `glossary_ja.toml` with the figure that settled it |
+
+Constraints run first because ranking a candidate and then discarding it is wasted work.
+A candidate that fails step 4 goes back to step 2, and swapping the verb makes step 5
+start over.
+
+### Step 3: frequency in the reference corpus
+
+```sh
+grep -c "根因" corpus/cache/pro_ja/*.md
+```
+
+The reference corpus is professional translation, so it shows the word chosen in writing.
+None of a word there means the field does not write it.
+
+It does not reach a mismatch of genre. The reference is API documentation and never sets
+a norm or a limit, which is why no replacement for を置く could be grounded; T19 records
+that.
+
+### Step 4: read the pair on its own
+
+```sh
+cargo run --release --features lindera-unidic --example collocation -- <human side> <AI side>
+```
+
+That counts noun-particle-verb triples through the morphological analyzer and lists the
+pairs present on the AI side and absent on the human side. Nothing settles the right
+pairing automatically, so a person reads what comes out.
+
+### Step 5: how the translation spreads
+
+```sh
+plamo-translate server &
+python research/glossary/narrow.py --ja2en 置く 配置する 設定する
+python research/glossary/narrow.py --en2ja place configure deploy
+```
+
+The two directions measure different things.
+
+| Direction | What it measures | When it is used |
+|---|---|---|
+| `--ja2en` | How many English words one Japanese word splits into | To learn how broad a Japanese word is |
+| `--en2ja` | How many Japanese words one English word splits into | To decide which one to standardise on |
+
+The word goes into a minimal frame. A corpus sentence brings its own subject matter along
+and nothing can be measured through it.
+
+| Word | Converges | Translation |
+|---|---|---|
+| 配置する | 100% | place×6 |
+| 作成する | 100% | create×6 |
+| 作る | 83% | create×5 make×1 |
+| 置く | 67% | place×4 set×1 establish×1 |
+| 設定する | 67% | set×4 configure×2 |
+
+置く and 設定する are equally broad, so moving from one to the other removes no ambiguity;
+配置する is the one to take. Before this tool existed the suggestion had been to move a
+broad word to another broad word.
+
+Where the word's own translation collides with a frame noun there is nothing to measure.
+`configure` translates to 設定, which the frame 設定を already holds. The tool then reports
+that it cannot measure rather than printing a figure.
+
 ### Two questions
 
 Ask them in order.
@@ -175,42 +256,20 @@ The reference corpus is professional translation, so it shows the word that was 
 writing. PLaMo Translate is a model built for translation, so it shows the Japanese put
 against an English term. Where both point at the same word, that word is the common one.
 
-### Prefer the word with the narrower meaning
+### What decides a word is how narrow it is
 
-What decides a word is not whether it is native or Sino-Japanese but how far its meaning
-is pinned down. `置く` covers 設定する, 配置する, 敷設する and 記載する alike, leaving the
-reader to supply which one from context, and a wrong guess there is a misreading.
+Not whether it is native or Sino-Japanese: how far the meaning is pinned down. `置く`
+covers 配置する, 設定する, 敷設する, 据える and 記載する alike, leaving the reader to judge
+which, and a wrong judgement there is a misreading.
 
-Swapping a native word for a Sino-Japanese one gains nothing when the replacement is just
-as broad. `置く` to `設定する` is worth doing only because `設定する` is narrower.
+Moving a native word to a Sino-Japanese one gains nothing when the destination is just as
+broad. Step 5 above holds the method and the figures.
 
-How narrow a verb is can be measured by how its translation spreads. Translate sentences
-holding the verb into English and see whether one English verb dominates.
+### The right pairing does not settle itself
 
-| Japanese | Commonest English | Out of 8 |
-|---|---|---|
-| 置く | place | 3 |
-| 作る | create | 3 |
-| 配置する | place | 5 |
-| 設定する | configure | 6 |
-| 作成する | create | 6 |
-
-`置く` and `作る` scatter; `設定する` and `作成する` converge. Eight sentences is a coarse
-instrument, so the figures are read as an ordering. `research/glossary/verb_spread.py`
-holds the procedure.
-
-### Check the noun against the verb
-
-Choosing each word well is not enough; the pairing can fail on its own. Neither `規範` nor
-`置く` is wrong, and `規範を置く` still does not hold. `規範とする` does, and `規範を敷く`
-does not either.
-
-After writing, read the noun and the verb on their own. If the pair alone sounds wrong,
-the pairing has failed.
-
-Nothing settles the right pairing automatically. Ranking candidates from 32,822 verbs by
-corpus statistics reaches 80% accuracy only within the top 600 or so (Nakano and Tomiura,
-2011), so a person decides. T19 records it.
+No tool picks the verb for a pair that step 4 reported. Ranking candidates from 32,822
+verbs by corpus statistics reaches 80% accuracy only within the top 600 or so (Nakano and
+Tomiura, 2011), so a person decides. T19 records it.
 
 ### Leave ordinary Sino-Japanese alone
 
