@@ -175,6 +175,43 @@ The reference corpus is professional translation, so it shows the word that was 
 writing. PLaMo Translate is a model built for translation, so it shows the Japanese put
 against an English term. Where both point at the same word, that word is the common one.
 
+### Prefer the word with the narrower meaning
+
+What decides a word is not whether it is native or Sino-Japanese but how far its meaning
+is pinned down. `置く` covers 設定する, 配置する, 敷設する and 記載する alike, leaving the
+reader to supply which one from context, and a wrong guess there is a misreading.
+
+Swapping a native word for a Sino-Japanese one gains nothing when the replacement is just
+as broad. `置く` to `設定する` is worth doing only because `設定する` is narrower.
+
+How narrow a verb is can be measured by how its translation spreads. Translate sentences
+holding the verb into English and see whether one English verb dominates.
+
+| Japanese | Commonest English | Out of 8 |
+|---|---|---|
+| 置く | place | 3 |
+| 作る | create | 3 |
+| 配置する | place | 5 |
+| 設定する | configure | 6 |
+| 作成する | create | 6 |
+
+`置く` and `作る` scatter; `設定する` and `作成する` converge. Eight sentences is a coarse
+instrument, so the figures are read as an ordering. `research/glossary/verb_spread.py`
+holds the procedure.
+
+### Check the noun against the verb
+
+Choosing each word well is not enough; the pairing can fail on its own. Neither `規範` nor
+`置く` is wrong, and `規範を置く` still does not hold. `規範とする` does, and `規範を敷く`
+does not either.
+
+After writing, read the noun and the verb on their own. If the pair alone sounds wrong,
+the pairing has failed.
+
+Nothing settles the right pairing automatically. Ranking candidates from 32,822 verbs by
+corpus statistics reaches 80% accuracy only within the top 600 or so (Nakano and Tomiura,
+2011), so a person decides. T19 records it.
+
 ### Leave ordinary Sino-Japanese alone
 
 No word is swapped merely to lower the kanji ratio. `確認`, `使用`, `停止`, and `動作` are

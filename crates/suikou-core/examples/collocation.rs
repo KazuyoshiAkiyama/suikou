@@ -15,22 +15,54 @@ use std::path::Path;
 use suikou_core::markdown::Document;
 use suikou_core::tokenizer::{LinderaMorphology, Morphology};
 
-/// 意味の薄い動詞。これが取る名詞を見る。
-/// 名詞の側に意味が寄るため、動詞が当たっていなくても文が成立しているように見える。
-const LIGHT: [&str; 12] = [
-    "置く",
-    "行う",
-    "図る",
-    "担保する",
-    "実施する",
-    "持つ",
-    "与える",
-    "立てる",
-    "取る",
-    "作る",
-    "付ける",
-    "掛ける",
-];
+/// 動詞の広さ。取る名詞の種類が多い動詞は、意味が限定されていない。
+///
+/// 広い動詞を使うと、読み手はどの意味かを文脈から埋めることになる。
+/// 置き換え先として別の広い動詞を選んでも、曖昧さは減らない。
+/// どの動詞が広いかは、取る名詞の種類を数えれば分かる。推測で決めない。
+struct Breadth {
+    /// 取った名詞の種類。
+    nouns: std::collections::HashSet<String>,
+    /// 出現の総数。
+    total: usize,
+}
+
+/// 動詞ごとの広さを数える。
+fn breadth(dir: &Path, morph: &dyn Morphology) -> HashMap<String, Breadth> {
+    let mut out: HashMap<String, Breadth> = HashMap::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return out;
+    };
+    let mut paths: Vec<_> = entries
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.extension().is_some_and(|x| x == "md"))
+        .collect();
+    paths.sort();
+    for p in paths {
+        let Ok(src) = std::fs::read_to_string(&p) else {
+            continue;
+        };
+        let doc = Document::parse(&src);
+        let tokens = morph.tokenize(&doc.body());
+        for w in tokens.windows(3) {
+            if w[0].pos1 != "名詞" || w[1].surface != "を" || w[2].pos1 != "動詞" {
+                continue;
+            }
+            let noun = if w[0].lemma.is_empty() {
+                &w[0].surface
+            } else {
+                &w[0].lemma
+            };
+            let e = out.entry(w[2].lemma.clone()).or_insert_with(|| Breadth {
+                nouns: std::collections::HashSet::new(),
+                total: 0,
+            });
+            e.nouns.insert(noun.clone());
+            e.total += 1;
+        }
+    }
+    out
+}
 
 fn collect(dir: &Path, morph: &dyn Morphology) -> HashMap<String, usize> {
     let mut out: HashMap<String, usize> = HashMap::new();
@@ -59,9 +91,6 @@ fn collect(dir: &Path, morph: &dyn Morphology) -> HashMap<String, usize> {
             } else {
                 &w[0].lemma
             };
-            if !LIGHT.contains(&verb) {
-                continue;
-            }
             *out.entry(format!("{noun}を{verb}")).or_default() += 1;
         }
     }
@@ -87,7 +116,23 @@ fn main() -> anyhow::Result<()> {
         ai.iter().filter(|(k, _)| !human.contains_key(*k)).collect();
     only.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
 
-    println!("人間の側 {} 組 / AI の側 {} 組", human.len(), ai.len());
+    // 動詞の広さ。取る名詞の種類が多い動詞は意味が限定されていない。
+    let mut b: Vec<(String, usize, usize)> = breadth(Path::new(&args[0]), &morph)
+        .into_iter()
+        .map(|(v, e)| (v, e.nouns.len(), e.total))
+        .filter(|(_, _, total)| *total >= 20)
+        .collect();
+    b.sort_by_key(|x| std::cmp::Reverse(x.1));
+    println!("人間の側で広い動詞（取る名詞の種類／出現の総数）:");
+    for (v, kinds, total) in b.iter().take(16) {
+        println!("  {v:<10} {kinds:>4} 種 / {total:>4} 回");
+    }
+    println!("\n狭い動詞:");
+    for (v, kinds, total) in b.iter().rev().take(10) {
+        println!("  {v:<10} {kinds:>4} 種 / {total:>4} 回");
+    }
+
+    println!("\n人間の側 {} 組 / AI の側 {} 組", human.len(), ai.len());
     println!("\n人間の側に現れず AI の側に2回以上あるもの:");
     for (k, v) in only.iter().filter(|(_, v)| **v >= 2) {
         println!("  {k}  ×{v}");
