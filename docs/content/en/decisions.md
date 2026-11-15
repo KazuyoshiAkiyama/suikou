@@ -2291,3 +2291,74 @@ documents; applying it is separate work.
 
 The same table does not go in several places. One of `CLAUDE.md` and the README is the
 source, and the other points at it.
+
+## D-49 The documentation site stays on Hugo; Zensical cannot hold two languages
+
+### Context
+
+Moving the documentation site to Zensical was proposed. It is a Rust and Python site
+generator from the makers of Material for MkDocs.
+
+This site builds English and Japanese together, with `defaultContentLanguage` set to
+English and `[languages]` pointing at `content/en` and `content/ja`.
+
+### Decision
+
+It stays on Hugo.
+
+### Rationale
+
+Zensical cannot hold two languages in one build, and says so:
+
+> Zensical only supports setting a canonical language for the entire project.
+
+`docs_dir` takes a single path and the language is a project-wide setting. A language
+selector is hand-written links to separate sites.
+
+No plugin route exists either. As of 0.1.1 the documentation states that Zensical does not
+run arbitrary MkDocs plugins and does not expose the MkDocs plugin API.
+
+`mkdocs-static-i18n` appears on none of the supported, unsupported or planned lists, and
+configuration for an unlisted plugin is silently ignored. A Module API is planned, but
+reaches the paid Spark tier first.
+
+The roadmap carries `Language organization` and `Language publishing`, neither of them in
+the `Now available`, `In development` or `Up next` table, and the roadmap states that it
+promises no dates and no order. The project's own update says it stays on 0.x while the
+module system takes shape.
+
+### What was established by trying it
+
+0.1.1 was installed and run to settle whether the move was possible. Two things the
+documentation does not state turned up, and are recorded for whoever revisits this.
+
+| Question | Result |
+|---|---|
+| Publishing under a subpath | Works; output is relative, so no base-path setting is needed |
+| The language-selector key | `[[project.extra.alternate]]`; the documentation does not name it |
+| `site_dir` | Must sit inside the project; anything outside is rejected |
+| Custom front matter | Preserved, so `doctype` is unaffected |
+| Build | 0.26s, 592K of output against Hugo's 796K |
+
+Two projects — a configuration file each under `docs/en` and `docs/ja` — does work. Both
+were built, and `<html lang>` comes out correctly per language.
+
+### Why it was declined
+
+Two projects means maintaining `nav` in two configuration files. D-48 had just settled that
+the same table does not go in several places, and this runs against it.
+
+There is something to gain — the Material-grade appearance, search, and dropping 57 lines
+of hand-written layout — but weighed against multilingual support being unscheduled, the
+project stating it stays on 0.x, and no plugin route until the Module API, staying is the
+better position.
+
+This gets revisited when i18n reaches the roadmap's status table.
+
+### Consequences
+
+`docs/hugo.toml`'s policy of taking no external theme stands, as do the four hand-written
+layouts totalling 57 lines.
+
+So does the absence of search. Zensical ships a `search.json`, but not at the price of
+assembling the two languages by hand.
