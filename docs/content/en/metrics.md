@@ -453,6 +453,10 @@ median, so it does not separate. Only `readme` carries one. D-46 records it.
 | `readme` | A README: the first paragraph says what the thing is |
 | `overview` | An entry point: it starts by saying what the thing is |
 
+`suikou doctype` puts the questions that settle which type to use, two at most. The tool
+asks nothing; it prints the tree, because it is called from CI and from agents. The tree
+lives in `[[select]]` in `structure.toml`, and a test holds every type reachable from it.
+
 A declaration is looked for in three places, nearest first.
 
 | Where | How it reads |

@@ -130,3 +130,75 @@ sections = [
   { id = "why",   required = false, ja = ["なぜ", "動機", "考え方"], en = ["Why", "Motivation", "How it is built"] , question = "なぜこれがあるのか", writes = "解く問題と、ほかとの違いを書く" , question_en = "Why does it exist?", writes_en = "State the problem it solves and how it differs from the alternatives" },
   { id = "usage", required = false, ja = ["使い方", "入れ方", "インストール", "始め方"], en = ["Usage", "Using it", "Install", "Installation", "Setup", "Getting started", "Quick start"] , question = "どう使うのか", writes = "最短の使い方を示す。網羅は参照の文書に譲る" , question_en = "How is it used?", writes_en = "Show the shortest path to using it. Leave the exhaustive detail to the reference" },
 ]
+
+# 型を選ぶための問い。`suikou doctype` が出力する。
+#
+# ツールは問わない。木を出力して、呼び出す側が読者に問う。
+# CI とエージェントから呼ばれるため、対話的な入力を置かない。
+# `brief` が指示を出力して書く側に委ねるのと同じ形である。
+#
+# 各選択肢は `next`（次の問い）か `doctype`（決まった型）のどちらかを持つ。
+# 試験が、すべての型にこの木から到達できることと、
+# すべての選択肢の行き先が実在することを確かめている。
+#
+# 最初の問いは Diátaxis の軸から取った。
+# 読者が何をしようとしているかで分けると、文書の形が決まる。
+[[select]]
+id = "purpose"
+ja = "この文書の読者は何をしようとしているか"
+en = "What is the reader trying to do?"
+
+[[select.options]]
+ja = "このプロジェクトを初めて見る"
+en = "Seeing this project for the first time"
+doctype = "readme"
+
+[[select.options]]
+ja = "手順どおりに作業する"
+en = "Following a procedure"
+doctype = "howto"
+
+[[select.options]]
+ja = "値や定義を引く"
+en = "Looking up a value or a definition"
+doctype = "reference"
+
+[[select.options]]
+ja = "何であるか、なぜこうなっているかを理解する"
+en = "Understanding what it is, or why it is this way"
+next = "proposal"
+
+[[select.options]]
+ja = "決定や変更の経緯を追う"
+en = "Following the record of decisions or changes"
+next = "record"
+
+[[select]]
+id = "proposal"
+ja = "これから作るものの提案か、既にあるものの入口か"
+en = "A proposal for what will be built, or an entry point to what exists?"
+
+[[select.options]]
+ja = "これから作るものの提案"
+en = "A proposal for what will be built"
+doctype = "design"
+
+[[select.options]]
+ja = "既にあるものの入口"
+en = "An entry point to what exists"
+doctype = "overview"
+
+[[select]]
+id = "record"
+ja = "1件の決定か、記録を束ねたものか"
+en = "One decision, or a collection of records?"
+
+[[select.options]]
+ja = "1件の決定"
+en = "One decision"
+doctype = "decision"
+
+[[select.options]]
+ja = "記録を束ねたもの"
+en = "A collection of records"
+doctype = "log"

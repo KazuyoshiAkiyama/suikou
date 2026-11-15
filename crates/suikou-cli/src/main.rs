@@ -7,6 +7,7 @@
 mod baseline;
 mod brief;
 mod check;
+mod doctype;
 mod mcp;
 mod morphology;
 mod plot;
@@ -95,10 +96,18 @@ enum Command {
     Mcp,
     /// 常駐モードについて、置かないと決めた理由を出す
     Daemon,
+    /// 文書の型を選ぶための問いと、型の一覧を出す
+    Doctype {
+        #[arg(long, default_value = "ja")]
+        lang: String,
+        /// 問いを出さず、型の一覧だけを出す
+        #[arg(long)]
+        list: bool,
+    },
     /// 書く前に構成を決めるための型枠を出す
     Plot {
         path: String,
-        /// 文書の型。design、decision、howto、reference、overview
+        /// 文書の型。一覧は `suikou doctype --list` で出る
         #[arg(long, default_value = "design")]
         doctype: String,
         #[arg(long, default_value = "ja")]
@@ -138,6 +147,7 @@ fn selftest() -> Result<()> {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
+        Command::Doctype { lang, list } => doctype::run(doctype::Options { lang, list }),
         Command::Plot {
             path,
             doctype,

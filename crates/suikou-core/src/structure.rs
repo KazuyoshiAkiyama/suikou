@@ -38,6 +38,8 @@ pub const MAX_SENTENCES_PER_PARAGRAPH: usize = 6;
 #[derive(Debug, Deserialize)]
 struct RawStructure {
     doctype: std::collections::HashMap<String, DocType>,
+    #[serde(default)]
+    select: Vec<Question>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -61,6 +63,49 @@ impl DocType {
         match lang {
             Lang::Ja => &self.description,
             Lang::En => &self.description_en,
+        }
+    }
+}
+
+/// 型を選ぶための問い。`structure.toml` の `[[select]]` から読む。
+///
+/// ツールは問わない。木を出力して、呼び出す側が読者に問う。
+/// CI とエージェントから呼ばれるため、対話的な入力を置かない。
+#[derive(Debug, Clone, Deserialize)]
+pub struct Question {
+    pub id: String,
+    ja: String,
+    en: String,
+    pub options: Vec<Choice>,
+}
+
+impl Question {
+    pub fn text(&self, lang: Lang) -> &str {
+        match lang {
+            Lang::Ja => &self.ja,
+            Lang::En => &self.en,
+        }
+    }
+}
+
+/// 問いの選択肢。次の問いか、決まった型のどちらかを指す。
+#[derive(Debug, Clone, Deserialize)]
+pub struct Choice {
+    ja: String,
+    en: String,
+    /// 次の問いの id。
+    #[serde(default)]
+    pub next: Option<String>,
+    /// 決まった型の名前。
+    #[serde(default)]
+    pub doctype: Option<String>,
+}
+
+impl Choice {
+    pub fn text(&self, lang: Lang) -> &str {
+        match lang {
+            Lang::Ja => &self.ja,
+            Lang::En => &self.en,
         }
     }
 }
@@ -167,6 +212,16 @@ pub fn doctypes() -> &'static std::collections::HashMap<String, DocType> {
 
 /// 書き方の指針。違反の検出ではなく、書く前に示すために持つ。
 ///
+/// 型を選ぶための問い。並びは `structure.toml` に書いた順である。
+pub fn questions() -> &'static [Question] {
+    static Q: OnceLock<Vec<Question>> = OnceLock::new();
+    Q.get_or_init(|| {
+        let raw: RawStructure = toml::from_str(include_str!("../data/structure.toml"))
+            .expect("structure.toml を解釈できない");
+        raw.select
+    })
+}
+
 /// `suikou plot` と `suikou brief --doctype` がこれを出す。
 /// 出どころは段落の単位が Google developer documentation style guide と Strunk、
 /// 結論を先に置くことと見出しで筋が分かることが「公用文作成の考え方」である。
@@ -1067,5 +1122,61 @@ mod tests {
                 );
             }
         }
+    }
+
+    // 型を選ぶ木と型の一覧を、試験で同期させる。
+    // 選択肢の行き先が実在しないと、問いに答えても型に届かない。
+    #[test]
+    fn every_choice_points_at_something_that_exists() {
+        let ids: Vec<&str> = questions().iter().map(|q| q.id.as_str()).collect();
+        for q in questions() {
+            assert!(!q.options.is_empty(), "{} に選択肢が無い", q.id);
+            for c in &q.options {
+                match (&c.next, &c.doctype) {
+                    (Some(n), None) => assert!(ids.contains(&n.as_str()), "{n} という問いが無い"),
+                    (None, Some(d)) => assert!(doctypes().contains_key(d), "{d} という型が無い"),
+                    _ => panic!("{} の選択肢は next か doctype のどちらか一方を持つ", q.id),
+                }
+            }
+        }
+    }
+
+    // すべての型に木から到達できる。到達できない型は選べない。
+    #[test]
+    fn every_doctype_is_reachable_from_the_tree() {
+        let mut reached: Vec<&str> = questions()
+            .iter()
+            .flat_map(|q| q.options.iter())
+            .filter_map(|c| c.doctype.as_deref())
+            .collect();
+        reached.sort_unstable();
+        reached.dedup();
+        let mut all: Vec<&str> = doctypes().keys().map(String::as_str).collect();
+        all.sort_unstable();
+        assert_eq!(reached, all, "木から到達できない型がある");
+    }
+
+    #[test]
+    fn every_question_is_given_in_both_languages() {
+        for q in questions() {
+            assert!(
+                !q.text(Lang::Ja).is_empty() && !q.text(Lang::En).is_empty(),
+                "{}",
+                q.id
+            );
+            for c in &q.options {
+                assert!(
+                    !c.text(Lang::Ja).is_empty() && !c.text(Lang::En).is_empty(),
+                    "{} の選択肢が片方の言語しか持たない",
+                    q.id
+                );
+            }
+        }
+    }
+
+    // 最初の問いは先頭に置く。出力の順序がこれに依る。
+    #[test]
+    fn the_first_question_comes_first() {
+        assert_eq!(questions().first().map(|q| q.id.as_str()), Some("purpose"));
     }
 }
