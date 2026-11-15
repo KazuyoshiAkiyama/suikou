@@ -135,6 +135,7 @@ cd docs && hugo server
 | design | The design as a whole, with the measurements behind it |
 | metrics | The strict definition of each metric, for anyone porting them |
 | decisions | The reasoning behind each decision |
+| writing | The norms for choosing a word and laying out a README |
 | development | The repository layout, how to build, how versions are pinned, how the tokenizer is handled |
 
 `CLAUDE.md` records the constraints, and `TASKS.md` records the order of work.

@@ -15,7 +15,8 @@
 | `docs/content/*/design.md` | 設計の全体。測定した値と根拠を含む |
 | `docs/content/*/metrics.md` | 指標の厳密な定義 |
 | `docs/content/*/decisions.md` | 決めたことの経緯 |
-| `docs/content/*/development.md` | 作り方と、遵守する事項 |
+| `docs/content/*/writing.md` | 文書を書くときの規範と手順 |
+| `docs/content/*/development.md` | 作り方と、変えてはならない不変条件 |
 
 ## 状態
 
@@ -53,7 +54,8 @@ cargo clippy --all-targets -- -D warnings
 
 ## 遵守する事項
 
-遵守する事項の詳細は `docs/content/ja/development.md` にある。
+文書を書くときの規範の詳細は `docs/content/ja/writing.md` にある。
+コードの不変条件は `docs/content/ja/development.md` にある。
 ここには要点だけを書く。
 
 ### 直感で規則を足さない
@@ -136,7 +138,7 @@ README は `readme` の型で書く。必須は先頭の一段落だけである
 
 8段ある。制約（段1、3、4）を先に当てて候補を減らし、選好（段5、6）で順序を付け、
 表記を決めて記録する。段ごとの手法と実測の値は
-`docs/content/ja/development.md` の「選定の手順」にある。
+`docs/content/ja/writing.md` の「選定の手順」にある。
 
 要になるのは段5である。和語か漢語かではなく、意味がどれだけ限定されるかで選ぶ。
 `置く` も `設定する` も対訳の収束が 67% で同程度に広く、`配置する` が 100% である。

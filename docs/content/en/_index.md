@@ -29,6 +29,7 @@ suikou brief --doctype design                # paste into the prompt before gene
 suikou check docs/design.md                  # check what was written
 ```
 
+[Writing](writing/) holds the norms and procedures for writing a document with it, and
 [Tuning](tuning/) covers fitting it to your own documents. The [design](design/) document
 covers installation and each command in turn. [Metrics](metrics/) holds the exact
 definitions, and [decisions](decisions/) holds the record of what was settled and why.

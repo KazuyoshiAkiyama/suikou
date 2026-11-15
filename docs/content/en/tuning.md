@@ -92,7 +92,7 @@ carries one. It is there so that whoever reads it later does not repeat the deli
 
 The format and the order of application are in [Metrics]({{< relref "metrics.md" >}}), under
 adjusting a threshold. Why the glossary keeps three separate stores is in
-[Development]({{< relref "development.md" >}}).
+[Writing]({{< relref "writing.md" >}}).
 
 ## How to tune
 
@@ -174,8 +174,8 @@ Count the candidate in the reference corpus before replacing a flagged word. `�
 not appear once in four million characters of professional Japanese, while `読者` appears 13
 times, and nothing reveals that gap except counting.
 
-The procedure for choosing a word is in [Development]({{< relref "development.md" >}}),
-under the order the checks run in.
+The procedure for choosing a word is in [Writing]({{< relref "writing.md" >}}), under
+the order the checks run in.
 
 ## Verify
 

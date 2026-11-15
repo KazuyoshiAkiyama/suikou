@@ -129,6 +129,7 @@ cd docs && hugo server
 | design | 設計の全体。測定した値と根拠を含む |
 | metrics | 指標の厳密な定義。移すときに使う |
 | decisions | 決めたことの経緯 |
+| writing | 語の選び方と README の構成の規範 |
 | development | 置き場、構成方、バージョンの固定方、形態素解析の扱い |
 
 `CLAUDE.md` に遵守する事項を、`TASKS.md` に作業の順序を書いてある。
