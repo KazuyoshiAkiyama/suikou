@@ -439,6 +439,10 @@ The doctypes live in `crates/suikou-core/data/structure.toml`.
 Each one carries its required sections, the recommended order, the synonyms accepted for
 a heading, the question each section answers, and what belongs in it.
 
+A section may also carry a `scale`, how much to write, which `plot` and `brief` print and
+`check` never reports: across human documents the quartiles spread to 2.5 or 3 times the
+median, so it does not separate. Only `readme` carries one. D-46 records it.
+
 | Doctype | What it is for |
 |---|---|
 | `design` | A proposal or design: what is built, why it is needed, how far it goes |

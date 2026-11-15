@@ -2045,3 +2045,71 @@ The English side takes the same condition, with `following`, `below` and `these`
 forward-pointing words and `first`, `second` and `one is` as the enumerating ones. The
 English reference corpus was not sorted this way, so those lists are carried over from the
 Japanese rather than measured.
+
+## D-46 How much to write belongs to the doctype, but not to the rules
+
+### Context
+
+A doctype carried which sections to use and the question each one answers. It did not carry
+how much to write, leaving that to whoever was writing and leaving the sections uneven.
+
+### Decision
+
+Each section may carry a `scale`, which `plot` and `brief` print.
+
+`check` never reports it. It is not a rule.
+
+It is expressed as the ordering between sections and the composition of each, not as an
+absolute character count.
+
+### Rationale
+
+221 READMEs from notable open source were measured, the 19 Chinese ones among the 240
+collected being outside what this tool handles.
+
+| Section | Count | Median characters | First to third quartile | Bullet lines | Prose lines |
+|---|---|---|---|---|---|
+| License | 96 | 212 | 109 to 452 | 0 | 2 |
+| Documentation | 91 | 349 | 171 to 854 | 0 | 1 |
+| Contributing | 157 | 386 | 202 to 766 | 0 | 2 |
+| Install | 203 | 455 | 186 to 954 | 0 | 3 |
+| Usage | 72 | 480 | 211 to 920 | 0 | 2 |
+| About | 32 | 668 | 403 to 969 | 0 | 3 |
+| Configuration | 54 | 739 | 327 to 1568 | 0 | 7 |
+| Features | 78 | 1032 | 495 to 1815 | 6 | 2 |
+
+Five times the range from license to features, with a stable ordering and composition:
+features is the only bullet-led section, and configuration carries the most prose.
+
+**It is not a rule because the quartiles spread to 2.5 or 3 times the median.** Human
+documents do not separate, and a figure that does not separate cannot be a threshold. D-43
+and `[rejected]` in `corpus/baselines.toml` hold the candidates dropped for the same reason.
+
+A code block cannot be required either. Of 203 install sections, 100 carry one (49%). The
+rest point at a wiki, explain the build system in prose, or list the available downloads.
+
+### The measurement was wrong three times
+
+The first pass carried three faults.
+
+| Fault | Effect |
+|---|---|
+| Sections with an almost empty body were counted | Sections whose content sits in subsections entered the sample |
+| Headings were classified by substring | `What's New` landed in the about section |
+| Chinese READMEs were included | A language outside the tool's scope entered the sample |
+
+After fixing them the about section fell from 49 to 32 instances and the median length of
+the features section moved from 731 to 1032.
+`research/structure/measure_granularity.py` holds the procedure.
+
+### Consequences
+
+Only `readme` carries a `scale`, the other types being unmeasured. A test holds the set of
+types carrying one to `readme` alone.
+
+A test also holds each `scale` to being given in both languages, since one alone drops out
+of that language's output.
+
+No README variants were added. Whether libraries and applications separate was measured,
+and they do not: only 10% carry an API section and 14% show a package-manager install, and
+56% fall into no group at all. The section composition is continuous rather than clustered.

@@ -116,6 +116,10 @@ fn render_structure(dt: &DocType, lang: Lang) -> String {
                     s.question(lang),
                     s.writes(lang)
                 ));
+                // どれだけ書くかは、持っている型でだけ示す。
+                if !s.scale(lang).is_empty() {
+                    out.push_str(&format!("  どれだけ: {}\n", s.scale(lang)));
+                }
             }
             out.push_str("\n# 書き方\n\n");
         }
@@ -140,6 +144,10 @@ fn render_structure(dt: &DocType, lang: Lang) -> String {
                     s.question(lang),
                     s.writes(lang)
                 ));
+                // How much to write is shown only for the types that carry it.
+                if !s.scale(lang).is_empty() {
+                    out.push_str(&format!("  How much: {}\n", s.scale(lang)));
+                }
             }
             out.push_str("\n# How to write it\n\n");
         }

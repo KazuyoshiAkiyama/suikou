@@ -90,6 +90,17 @@ pub struct Section {
     writes: String,
     #[serde(default)]
     writes_en: String,
+    /// どれだけ書くか。検出ではなく誘導のために持つ。
+    ///
+    /// 規則にはしない。著名な OSS の README 221件で四分位が中央値の 2.5 倍から
+    /// 3 倍に広がり、人間の文書が分離しない。分離しない値を閾値にはできない。
+    ///
+    /// 絶対の字数ではなく、節のあいだの順序と中身の構成で示す。
+    /// 節ごとの実測は D-46 にある。
+    #[serde(default)]
+    scale: String,
+    #[serde(default)]
+    scale_en: String,
     #[serde(default)]
     pub ja: Vec<String>,
     #[serde(default)]
@@ -117,6 +128,14 @@ impl Section {
         match lang {
             Lang::Ja => &self.writes,
             Lang::En => &self.writes_en,
+        }
+    }
+
+    /// その節にどれだけ書くか。持たない節では空を返す。
+    pub fn scale(&self, lang: Lang) -> &str {
+        match lang {
+            Lang::Ja => &self.scale,
+            Lang::En => &self.scale_en,
         }
     }
 
@@ -1021,5 +1040,32 @@ mod tests {
         let src = "# 作業の一覧\n\n別の案も試したが、うまく動かなかった。\n";
         assert!(check_work_notes(&Document::parse(src), Lang::Ja, dt).is_empty());
         assert!(dt.sections.is_empty());
+    }
+
+    // どれだけ書くかは、持っている型でだけ示す。規則にはしない。
+    #[test]
+    fn only_the_readme_type_carries_a_scale() {
+        let mut with: Vec<&str> = doctypes()
+            .iter()
+            .filter(|(_, dt)| dt.sections.iter().any(|s| !s.scale(Lang::Ja).is_empty()))
+            .map(|(n, _)| n.as_str())
+            .collect();
+        with.sort_unstable();
+        assert_eq!(with, vec!["readme"]);
+    }
+
+    // 持つ節は、日本語と英語の両方を持つ。片方だけでは出力が欠ける。
+    #[test]
+    fn a_scale_is_given_in_both_languages() {
+        for (name, dt) in doctypes() {
+            for s in &dt.sections {
+                assert_eq!(
+                    s.scale(Lang::Ja).is_empty(),
+                    s.scale(Lang::En).is_empty(),
+                    "{name} の {} が片方の言語しか持たない",
+                    s.id
+                );
+            }
+        }
     }
 }

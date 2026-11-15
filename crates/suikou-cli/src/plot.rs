@@ -57,6 +57,10 @@ fn render_ja(dt: &DocType, dt_id: &str, target: &str) -> String {
         out.push_str(&format!("## {name}{mark}\n\n"));
         out.push_str(&format!("問い: {}\n", s.question(lang)));
         out.push_str(&format!("書くこと: {}\n", s.writes(lang)));
+        // どれだけ書くかは、持っている型でだけ示す。
+        if !s.scale(lang).is_empty() {
+            out.push_str(&format!("どれだけ: {}\n", s.scale(lang)));
+        }
         out.push_str("主張: \n\n");
     }
     out.push_str("## 書き方\n\n");
@@ -85,6 +89,10 @@ fn render_en(dt: &DocType, dt_id: &str, target: &str) -> String {
         out.push_str(&format!("## {name}{mark}\n\n"));
         out.push_str(&format!("Question: {}\n", s.question(lang)));
         out.push_str(&format!("What goes here: {}\n", s.writes(lang)));
+        // How much to write is shown only for the types that carry it.
+        if !s.scale(lang).is_empty() {
+            out.push_str(&format!("How much: {}\n", s.scale(lang)));
+        }
         out.push_str("Claim: \n\n");
     }
     out.push_str("## How to write it\n\n");
