@@ -69,7 +69,7 @@ impl DocType {
 
 /// 型を選ぶための問い。`structure.toml` の `[[select]]` から読む。
 ///
-/// ツールは問わない。木を出力して、呼び出す側が読者に問う。
+/// ツールは問わない。ツリーを出力して、呼び出す側が読者に問う。
 /// CI とエージェントから呼ばれるため、対話的な入力を置かない。
 #[derive(Debug, Clone, Deserialize)]
 pub struct Question {
@@ -597,6 +597,15 @@ fn has_lead(doc: &Document) -> bool {
 /// 型を宣言した文書に当てる規則。必須の節と、その順序を見る。
 pub fn check_doctype(doc: &Document, lang: Lang, dt: &DocType) -> Vec<LocalFinding> {
     let heads = sections(doc);
+    // 節があるかどうかは、見出しの階層を問わずに見る。
+    //
+    // 見出しの階層は書式の選択であって、意味ではない。
+    // KEP は `Goals` を `## Motivation` の下に `###` で置く。
+    // 目標が動機に属するという判断であり、節が無いわけではない。
+    //
+    // 順序は最上位の見出しだけで見る。
+    // 入れ子の見出しを最上位と並べて順序を論じても意味がない。
+    let nested = outline(doc);
     let lead = has_lead(doc);
     let mut out = Vec::new();
     let mut missing = Vec::new();
@@ -604,6 +613,8 @@ pub fn check_doctype(doc: &Document, lang: Lang, dt: &DocType) -> Vec<LocalFindi
     for (i, sec) in dt.sections.iter().enumerate() {
         match heads.iter().position(|h| sec.matches(&h.block.text, lang)) {
             Some(at) => found.push((i, at)),
+            // 入れ子の見出しにあれば、節はある。順序には数えない。
+            None if nested.iter().any(|h| sec.matches(&h.block.text, lang)) => {}
             // 主題を述べる節だけは、標題の直下の導入で代えられる。
             None if i == 0 && lead && sec.lead_ok => {}
             None if sec.required => {
@@ -914,18 +925,32 @@ mod tests {
         assert!(m.positions[0].text.starts_with("何であるか"));
     }
 
-    // 節の中の小見出しは節ではない。型が定めるのは最上位の並びである。
+    // 節があるかどうかは階層を問わない。下の階層にあっても節はある。
+    //
+    // D-33 はこれを緩めないと決めていた。理由は順序の判定が狂うことであった。
+    // 存在と順序を分けたため、その理由は当たらない。経緯は D-47 にある。
     #[test]
-    fn a_subheading_does_not_satisfy_a_section() {
+    fn a_subheading_satisfies_a_section() {
         let dt = doctypes().get("decision").unwrap();
         let src = "# 題\n\n## 文脈\n\n事情。\n\n### 帰結\n\n下位の見出し。\n\n\
                    ## 決定\n\n決めた。\n";
         let f = check_doctype(&Document::parse(src), Lang::Ja, dt);
-        let m = f
-            .iter()
-            .find(|x| x.rule_id == RULE_MISSING_SECTION)
-            .unwrap();
-        assert!(m.positions[0].text.starts_with("帰結"));
+        assert!(
+            !f.iter().any(|x| x.rule_id == RULE_MISSING_SECTION),
+            "下の階層にある帰結を見つけられていない"
+        );
+    }
+
+    // 順序は最上位の見出しだけで見る。
+    // 入れ子の見出しを最上位と並べて順序を論じても意味がない。
+    #[test]
+    fn a_subheading_is_not_counted_in_the_order() {
+        let dt = doctypes().get("decision").unwrap();
+        // 帰結が文脈の下にあり、決定より前に現れる。順序の指摘にはしない。
+        let src = "# 題\n\n## 文脈\n\n事情。\n\n### 帰結\n\n下位。\n\n\
+                   ## 決定\n\n決めた。\n";
+        let f = check_doctype(&Document::parse(src), Lang::Ja, dt);
+        assert!(!f.iter().any(|x| x.rule_id == RULE_SECTION_ORDER));
     }
 
     // 書き出しの規則。実測で0件だった3つの形だけを見る。
@@ -1074,18 +1099,18 @@ mod tests {
 
     // 型の旗が意図した型にだけ立っていることを確かめる。
     //
-    // design と decision は、何を試したかが伝えるべき中身である。
+    // design と decision と enhancement は、何を試したかが伝えるべき中身である。
     // log は記録を束ねた文書であり、記録そのものが中身である。
     // 旗が増えると検出が静かに消えるため、一覧で固定する。
     #[test]
-    fn only_the_three_record_types_allow_work_notes() {
+    fn only_the_record_types_allow_work_notes() {
         let mut ok: Vec<&str> = doctypes()
             .iter()
             .filter(|(_, dt)| dt.work_notes_ok)
             .map(|(n, _)| n.as_str())
             .collect();
         ok.sort_unstable();
-        assert_eq!(ok, vec!["decision", "design", "log"]);
+        assert_eq!(ok, vec!["decision", "design", "enhancement", "log"]);
     }
 
     // 記録を束ねた型では、作業について述べた文を検出しない。
@@ -1124,7 +1149,7 @@ mod tests {
         }
     }
 
-    // 型を選ぶ木と型の一覧を、試験で同期させる。
+    // 型を選ぶツリーと型の一覧を、試験で同期させる。
     // 選択肢の行き先が実在しないと、問いに答えても型に届かない。
     #[test]
     fn every_choice_points_at_something_that_exists() {
@@ -1141,7 +1166,7 @@ mod tests {
         }
     }
 
-    // すべての型に木から到達できる。到達できない型は選べない。
+    // すべての型にツリーから到達できる。到達できない型は選べない。
     #[test]
     fn every_doctype_is_reachable_from_the_tree() {
         let mut reached: Vec<&str> = questions()
@@ -1153,7 +1178,7 @@ mod tests {
         reached.dedup();
         let mut all: Vec<&str> = doctypes().keys().map(String::as_str).collect();
         all.sort_unstable();
-        assert_eq!(reached, all, "木から到達できない型がある");
+        assert_eq!(reached, all, "ツリーから到達できない型がある");
     }
 
     #[test]

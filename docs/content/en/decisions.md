@@ -2113,3 +2113,102 @@ of that language's output.
 No README variants were added. Whether libraries and applications separate was measured,
 and they do not: only 10% carry an API section and 14% show a package-manager install, and
 56% fall into no group at all. The section composition is continuous rather than clustered.
+
+## D-47 A type for staged proposals, and section presence stops depending on heading level
+
+### Context
+
+`design`, taken from the Rust RFC template, was the only design type.
+
+The same word covers different demands. A Kubernetes Enhancement Proposal asks about
+operating the thing: the test plan, the graduation criteria, the rollback, version skew and
+monitoring. Anything rolled out in stages cannot ship without settling those.
+
+### Decision
+
+An `enhancement` type, taken from the KEP template.
+
+Summary, Motivation, Goals and Proposal are required.
+
+Whether a section exists is judged regardless of heading level; order is judged on
+top-level headings only.
+
+### Rationale
+
+265 published KEPs were measured, from 19 SIGs and capped at 25 per SIG, with the ones
+still carrying unedited template text excluded — 212 of 402 candidates fell to that filter.
+
+| Section | Present |
+|---|---|
+| Summary | 98% |
+| Motivation | 95% |
+| Goals | 94% |
+| Proposal | 94% |
+| Graduation Criteria | 92% |
+| Implementation History | 91% |
+| Non-Goals | 87% |
+| Risks and Mitigations | 77% |
+| Test Plan | 76% |
+| Design Details | 71% |
+| Alternatives | 71% |
+| Production Readiness Review | 61% |
+| Version Skew Strategy | 58% |
+| Upgrade / Downgrade Strategy | 57% |
+| Drawbacks | 53% |
+| User Stories | 39% |
+
+The required set was chosen on the combined rate, since one missing section fires the rule
+and the individual rates do not settle it.
+
+| Required set | Fires |
+|---|---|
+| Summary | 2% |
+| + Motivation | 6% |
+| + Goals + Proposal | 9% |
+| + Non-Goals | 15% |
+| + Graduation Criteria + Test Plan | 29% |
+
+The 9% set was taken, which puts it in the same band as the other types.
+
+The operational sections stay optional, keeping their question and their guidance so that
+`plot` and `brief` go on asking — the treatment D-31 and D-32 settled.
+
+### Presence stops depending on heading level
+
+Applied as it stood, the type fired on 262 of 265 (98%).
+
+Heading level was the cause. A KEP puts `Goals` under `## Motivation` as a `###`, and
+section matching looked only at the top level.
+
+**A heading's level is a formatting choice, not a meaning.** Goals belonging to the
+motivation is a judgement about where they sit, not an absence.
+
+D-33 had declined to relax this, on the grounds that "looking at lower levels makes a
+subheading inside one section match another and corrupts the order judgement".
+
+Separating presence from order removes that ground. Presence ignores the level; order reads
+only top-level headings, since ordering a nested heading against a top-level one means
+nothing.
+
+With them separated, `enhancement` fell from 98% to 8%.
+
+### Consequences
+
+The other types were affected too, all downward.
+
+| Doctype | Corpus | Fires |
+|---|---|---|
+| `readme` | 240 READMEs | 4% |
+| `design` | 200 Rust RFCs | 8% |
+| `decision` | 190 ADRs | 7% |
+| `enhancement` | 265 KEPs | 8% |
+| `howto` | 41 Kubernetes task pages | 0% |
+
+The 11 MADR documents D-33 had set aside now pass: they put consequences under `Decision
+Outcome`, which was a placement rather than an absence.
+
+D-33 also named splitting the type per template as the alternative to relaxing. Adding
+`enhancement` is that alternative, so both were done in the end.
+
+The selection tree gained a branch, `design` and `enhancement` parting on whether the
+thing is rolled out in stages. A test holds every type reachable from the tree.

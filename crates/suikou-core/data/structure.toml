@@ -131,14 +131,59 @@ sections = [
   { id = "usage", required = false, ja = ["使い方", "入れ方", "インストール", "始め方"], en = ["Usage", "Using it", "Install", "Installation", "Setup", "Getting started", "Quick start"] , question = "どう使うのか", writes = "最短の使い方を示す。網羅は参照の文書に譲る" , question_en = "How is it used?", writes_en = "Show the shortest path to using it. Leave the exhaustive detail to the reference" },
 ]
 
+# 段階的に出す提案。Kubernetes Enhancement Proposal の様式から取った。
+#
+# `design` との違いは、運用の準備を問うことである。
+# 試験計画、昇格条件、切り戻し、版の食い違い、監視を節として持つ。
+# 段階的に出すものを扱うときは、これらを決めないと出せない。
+#
+# 必須は Summary、Motivation、Goals、Proposal の4つとする。
+# 公開されている KEP 265件（19 SIG、1 SIG から25件まで）に当てて測った。
+# 雛形のまま埋めていない KEP は除外してある。
+#
+# | 必須の組 | 発火率 |
+# |---|---|
+# | Summary | 2% |
+# | + Motivation | 6% |
+# | + Goals + Proposal | 9% |
+# | + Non-Goals | 15% |
+# | + Graduation Criteria + Test Plan | 29% |
+#
+# 運用の準備の節は必須から外した。Test Plan が 76%、Graduation Criteria が 92%、
+# Upgrade / Downgrade が 57%、Version Skew が 58%、Production Readiness が 61% である。
+# 必須から外しても、問いと書くことは残す。plot と brief はそこを尋ね続ける。
+# 経緯は D-47 にある。
+[doctype.enhancement]
+work_notes_ok = true
+description = "段階的に出す提案。試験計画と昇格条件と切り戻しを含む"
+description_en = "A staged proposal: it carries the test plan, the graduation criteria and the rollback"
+sections = [
+  { id = "summary",      required = true, lead_ok = true, ja = ["概要", "要約", "サマリー"], en = ["Summary", "Overview", "Abstract"] , question = "何についての提案か", writes = "提案の中身を一段落で述べる。詳細は後の節に置く" , question_en = "What is the proposal?", writes_en = "Give the proposal in one paragraph; leave the detail to the later sections" },
+  { id = "motivation",   required = true, ja = ["動機", "背景", "目的"], en = ["Motivation", "Background"] , question = "なぜ必要なのか", writes = "解こうとしている問題と、放置した場合に何が困るかを書く" , question_en = "Why is it needed?", writes_en = "State the problem and what goes wrong if it is left alone" },
+  { id = "goals",        required = true, ja = ["目標", "達成すること", "ゴール"], en = ["Goals"] , question = "何を達成すれば完了なのか", writes = "達成を判定できる形で書く。判定できない目標は完了を決められない" , question_en = "What counts as done?", writes_en = "Write each goal so that it can be judged met; a goal that cannot be judged cannot be finished" },
+  { id = "non_goals",    required = false, ja = ["扱わない範囲", "非目標", "やらないこと"], en = ["Non-Goals", "Non-goals", "Out of scope"] , question = "何をやらないのか", writes = "扱わないものを明示する。境界を書かないと、読者が期待を広げる" , question_en = "What does it not do?", writes_en = "Name what is left out; without the boundary the reader will expand the expectation" },
+  { id = "proposal",     required = true, ja = ["提案", "提案の内容"], en = ["Proposal"] , question = "何をどう変えるのか", writes = "利用者から見た変化を書く。実装の詳細は設計の節に置く" , question_en = "What changes, and how?", writes_en = "Describe the change as the user sees it; keep the implementation in the design section" },
+  { id = "user_stories", required = false, ja = ["利用者の話", "ユースケース", "利用の場面"], en = ["User Stories", "Use cases"] , question = "誰がどの場面で使うのか", writes = "利用者と場面を具体で書く。抽象のままでは設計を検証できない" , question_en = "Who uses it, and when?", writes_en = "Name the user and the situation concretely; an abstract one cannot check the design" },
+  { id = "risks",        required = false, ja = ["危険と緩和", "リスク", "想定される問題"], en = ["Risks and Mitigations", "Risks"] , question = "何が起きうるか、どう抑えるか", writes = "起きうることと、それぞれの抑え方を対にして書く" , question_en = "What could go wrong, and how is it contained?", writes_en = "Pair each risk with how it is contained" },
+  { id = "design",       required = false, ja = ["設計の詳細", "設計", "仕組み"], en = ["Design Details", "Design"] , question = "どう作るのか", writes = "構成と動き方を書く。判断の根拠は代替案の節に置く" , question_en = "How is it built?", writes_en = "Describe the structure and the behaviour; keep the reasoning in the alternatives section" },
+  { id = "test_plan",    required = false, ja = ["試験計画", "テスト計画", "検証計画"], en = ["Test Plan", "Testing"] , question = "どう検証するのか", writes = "単体、統合、e2e のどこで何を確かめるかを書く" , question_en = "How is it verified?", writes_en = "State what is checked at the unit, integration and end-to-end levels" },
+  { id = "graduation",   required = false, ja = ["昇格条件", "段階", "成熟度"], en = ["Graduation Criteria", "Maturity"] , question = "次の段階へ進む条件は何か", writes = "段階ごとに、進むための条件を判定できる形で書く" , question_en = "What takes it to the next stage?", writes_en = "For each stage, give a condition that can be judged met" },
+  { id = "upgrade",      required = false, ja = ["移行と切り戻し", "アップグレード", "ロールバック"], en = ["Upgrade / Downgrade Strategy", "Upgrade"] , question = "入れたあと戻せるのか", writes = "移行の手順と、戻すときの手順を書く。戻せない変更はそう書く" , question_en = "Can it be rolled back?", writes_en = "Give the path in and the path back; if there is no way back, say so" },
+  { id = "version_skew", required = false, ja = ["版の食い違い", "バージョンスキュー"], en = ["Version Skew Strategy", "Version skew"] , question = "新旧が混在したらどうなるのか", writes = "混在する組み合わせごとに、どう動くかを書く" , question_en = "What happens when versions mix?", writes_en = "State the behaviour for each combination that can coexist" },
+  { id = "readiness",    required = false, ja = ["本番投入の確認", "運用の準備", "可観測性"], en = ["Production Readiness Review", "Production Readiness"] , question = "運用に乗せられるか", writes = "有効化と無効化、監視の指標、依存、規模の限界を書く" , question_en = "Is it ready to operate?", writes_en = "Cover enabling and disabling it, what to monitor, the dependencies and the scaling limits" },
+  { id = "alternatives", required = false, ja = ["代替案", "検討した案", "採らなかった案"], en = ["Alternatives", "Rationale and alternatives"] , question = "ほかにどんな案があったか", writes = "検討して採らなかった案と、採らなかった理由を書く" , question_en = "What else was considered?", writes_en = "Record the options that were rejected, and why" },
+  { id = "drawbacks",    required = false, ja = ["欠点", "不利な点"], en = ["Drawbacks"] , question = "この案の弱点は何か", writes = "採った案の弱点を書く。弱点を書かない提案は信用されない" , question_en = "What is weak about it?", writes_en = "State the weaknesses of the chosen option; a proposal without them is not trusted" },
+  { id = "history",      required = false, ja = ["経過", "実装の経過", "履歴"], en = ["Implementation History", "History"] , question = "いつ何が決まったのか", writes = "節目を日付とともに並べる。経緯の本体は決定の記録に置く" , question_en = "What happened when?", writes_en = "List the milestones with their dates; keep the full account in the decision record" },
+]
+
 # 型を選ぶための問い。`suikou doctype` が出力する。
 #
-# ツールは問わない。木を出力して、呼び出す側が読者に問う。
+# ツールは問わない。ツリーを出力して、呼び出す側が読者に問う。
 # CI とエージェントから呼ばれるため、対話的な入力を置かない。
 # `brief` が指示を出力して書く側に委ねるのと同じ形である。
 #
 # 各選択肢は `next`（次の問い）か `doctype`（決まった型）のどちらかを持つ。
-# 試験が、すべての型にこの木から到達できることと、
+# 試験が、すべての型にこのツリーから到達できることと、
 # すべての選択肢の行き先が実在することを確かめている。
 #
 # 最初の問いは Diátaxis の軸から取った。
@@ -181,12 +226,30 @@ en = "A proposal for what will be built, or an entry point to what exists?"
 [[select.options]]
 ja = "これから作るものの提案"
 en = "A proposal for what will be built"
-doctype = "design"
+next = "staged"
 
 [[select.options]]
 ja = "既にあるものの入口"
 en = "An entry point to what exists"
 doctype = "overview"
+
+# 提案の型を分ける問い。
+# KEP と Rust RFC の違いは、運用の準備を問うかどうかにある。
+# 段階的に出すものは、試験計画と昇格条件と切り戻しを決めないと出せない。
+[[select]]
+id = "staged"
+ja = "段階的に出すか。試験計画、昇格条件、切り戻しを決める必要があるか"
+en = "Is it rolled out in stages, needing a test plan, graduation criteria and a rollback?"
+
+[[select.options]]
+ja = "段階的に出す"
+en = "Rolled out in stages"
+doctype = "enhancement"
+
+[[select.options]]
+ja = "一度に出す"
+en = "Shipped in one step"
+doctype = "design"
 
 [[select]]
 id = "record"

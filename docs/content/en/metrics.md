@@ -446,6 +446,7 @@ median, so it does not separate. Only `readme` carries one. D-46 records it.
 | Doctype | What it is for |
 |---|---|
 | `design` | A proposal or design: what is built, why it is needed, how far it goes |
+| `enhancement` | A staged proposal: the test plan, the graduation criteria and the rollback |
 | `decision` | A decision record: the context, the decision, the consequences |
 | `howto` | A procedure: it starts at the prerequisites and ends at the check |
 | `reference` | A reference: no section is required |
