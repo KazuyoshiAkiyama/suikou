@@ -8,6 +8,17 @@ This page covers building the project, pinning versions, handling the tokenizer,
 running the golden tests. Each of these is a constraint that work in this repository has
 to respect.
 
+## Layout
+
+| Path | Content |
+|---|---|
+| `crates/suikou-core` | The analysis core |
+| `crates/suikou-cli` | The CLI and the MCP server |
+| `packages/` | The textlint rules that carry a position |
+| `skills/suikou` | The skill for agents |
+| `research/` | The Python used for calibration and exploration |
+| `corpus/` | The measurements and the script that fetches the corpus |
+
 ## Building and testing
 
 The commands for checking the core are listed below. The first command is the one to

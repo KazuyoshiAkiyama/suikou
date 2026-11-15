@@ -40,9 +40,21 @@ def m2_points_forward(lines, i, s, lang):
         t = nxt.strip()
         if not t:
             continue
-        # 箇条書きと見出しと表は、この文とは別に編集できる構造である。
-        if LIST_RE2.match(nxt) or HEAD_RE.match(t) or TABLE_RE2.match(nxt):
+        # 箇条書きと表は、この文とは別に編集できる構造である。
+        if LIST_RE2.match(nxt) or TABLE_RE2.match(nxt):
             return True
+        # 見出しは、今いる節の内側にあるものだけを数える（D-48）。
+        # 兄弟の見出しが続くのは、その節が終わっただけである。
+        if HEAD_RE.match(t):
+            here = None
+            for k in range(i - 1, -1, -1):
+                m = re.match(r'^\s*(#{1,6})\s', lines[k].strip())
+                if m:
+                    here = len(m.group(1))
+                    break
+            m2 = re.match(r'^\s*(#{1,6})\s', t)
+            there = len(m2.group(1)) if m2 else 0
+            return here is None or there > here
         return bool(enum.match(t))
     return False
 M3_RE = re.compile(r'^#{1,6}\s*(?:第?\s*[0-9０-９]+\s*[.．、)）章節]|[0-9０-９]+\s*[-–]\s)')

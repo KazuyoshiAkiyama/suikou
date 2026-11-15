@@ -382,6 +382,11 @@ fn enclosing_sentence(ends: &[usize], at: usize, len: usize) -> (usize, usize) {
     (from, to)
 }
 
+/// 見出しの階層。`#` の数を返す。
+fn heading_level(raw: &str) -> usize {
+    raw.trim_start().chars().take_while(|c| *c == '#').count()
+}
+
 /// 数が前方参照しているかどうか。M2 を当てるかの判定に使う。
 ///
 /// 数を述べた文が、別の場所にある項目を指している場合に当てる。
@@ -402,8 +407,29 @@ fn m2_forward_reference(doc: &Document, bi: usize, b: &Block, lang: Lang) -> boo
         return false;
     };
     match next.kind {
-        // 箇条書きと見出しと表は、この文とは別に編集できる構造である。
-        BlockKind::ListItem | BlockKind::Heading | BlockKind::Table => true,
+        // 箇条書きと表は、この文とは別に編集できる構造である。
+        BlockKind::ListItem | BlockKind::Table => true,
+        // 見出しは、今いる節の内側にあるものだけを数える。
+        //
+        // 数が指せるのは自分の節の中のものだけである。
+        // 兄弟の見出しが続くのは、その節が終わっただけであり、
+        // 数がその見出しを指しているわけではない。
+        //
+        // この区別を入れる前は、節の最後の段落に数があると必ず発火した。
+        // 参照コーパスでの件数は、節の中が1件、兄弟が1件で差が出ない。
+        // 根拠は件数ではなく、数が指せる範囲である。経緯は D-48 にある。
+        BlockKind::Heading => {
+            let here = doc.blocks[..bi]
+                .iter()
+                .rev()
+                .find(|b| b.kind == BlockKind::Heading)
+                .map(|b| heading_level(&b.raw));
+            match here {
+                Some(level) => heading_level(&next.raw) > level,
+                // 見出しの前にある段落は、どの節にも属さない。
+                None => true,
+            }
+        }
         BlockKind::Prose => {
             let enumerate = match lang {
                 Lang::Ja => re_m2_enum_ja(),
@@ -642,11 +668,24 @@ mod tests {
         assert!(f.iter().any(|x| x.rule_id == RULE_ITEM_COUNT));
     }
 
+    // 数が指せるのは自分の節の中のものだけである。
     #[test]
-    fn detects_item_count_when_a_heading_follows() {
-        let d = Document::parse("命名の規則は3つある。\n\n## 第一の規則\n\n本文である。\n");
+    fn detects_item_count_when_a_subheading_follows() {
+        let d =
+            Document::parse("## 名前\n\n命名の規則は3つある。\n\n### 第一の規則\n\n本文である。\n");
         let f = check_all(&d, Lang::Ja, &morph());
         assert!(f.iter().any(|x| x.rule_id == RULE_ITEM_COUNT));
+    }
+
+    // 兄弟の見出しが続くのは、その節が終わっただけである。
+    // 節の最後の段落に数があると必ず発火する形を避ける。
+    #[test]
+    fn a_count_before_a_sibling_heading_is_not_reported() {
+        let d = Document::parse(
+            "## 状況\n\n遅れていた部分は3つある。\n\n## ライセンス\n\nMIT である。\n",
+        );
+        let f = check_all(&d, Lang::Ja, &morph());
+        assert!(!f.iter().any(|x| x.rule_id == RULE_ITEM_COUNT));
     }
 
     #[test]

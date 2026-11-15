@@ -10,7 +10,7 @@ It then moves the document toward a shape that stays maintainable.
 
 [日本語](README.ja.md) · [Documentation](docs/)
 
-## How it is built
+## How it works
 
 ### Every rule rests on a measurement or on a written standard
 
@@ -43,7 +43,7 @@ Those rules describe a problem that predates generative AI, so those rules do no
 models change. That is why this layer can be used on its own. A document written before
 generative AI existed, for example, breaks the same rules in the same way.
 
-## Installing
+## Install
 
 GitHub Releases carries an archive for each operating system.
 Each archive embeds the dictionary, so nothing has to be downloaded afterward.
@@ -74,9 +74,16 @@ That build handles English only. Asking that build for Japanese makes it fail on
 Returning an empty analysis would drive every Japanese metric to zero.
 Zero sits below the thresholds, so the run would end in a false report of nothing to fix.
 
-## Using it
+## Usage
 
-A document starts with its outline rather than its prose.
+A document starts by settling which type it is. The questions below reach one in two
+steps at most.
+
+```sh
+suikou doctype
+```
+
+Then the outline comes before the prose.
 
 ```sh
 suikou plot docs/guide.md --doctype howto
@@ -128,38 +135,20 @@ cd docs && hugo server
 | design | The design as a whole, with the measurements behind it |
 | metrics | The strict definition of each metric, for anyone porting them |
 | decisions | The reasoning behind each decision |
-| development | How to build, how versions are pinned, how the tokenizer is handled |
+| development | The repository layout, how to build, how versions are pinned, how the tokenizer is handled |
 
 `CLAUDE.md` records the constraints, and `TASKS.md` records the order of work.
 
-## Layout
+## Status
 
-| Path | Content |
-|---|---|
-| `crates/suikou-core` | The analysis core |
-| `crates/suikou-cli` | The CLI and the MCP server |
-| `packages/` | The textlint rules that carry a position |
-| `skills/suikou` | The skill for agents |
-| `research/` | The Python used for calibration and exploration |
-| `corpus/` | The measurements and the script that fetches the corpus |
+Every subcommand is written, except that `daemon` was decided against: launching the
+binary takes a few milliseconds, which leaves a resident process nothing to save. Tests,
+fmt and clippy pass under the default features and under `--features lindera-unidic`, and
+the golden tests hold the Rust rules, the textlint rules and the reference implementation
+at identical counts.
 
-## State
-
-Every subcommand is written, except that `daemon` was decided against. Launching the
-binary takes a few milliseconds, which leaves a resident process nothing to save.
-Tests, fmt, and clippy pass under the default features and under
-`--features lindera-unidic`.
-
-| Part | State |
-|---|---|
-| Block extraction and preprocessing | Written, with unit tests |
-| Rules M1 through M7 | Written, with unit tests |
-| Japanese and English document metrics | Written |
-| The `check` subcommand | Written |
-| The lindera binding | Written and checked against lindera 6.0.0 |
-| Golden tests | Wired up for the rules and the document metrics |
-| `brief`, `baseline`, `terms`, and `mcp` | Written |
-| The textlint rules | Written |
+`CLAUDE.md` carries the state of each part. It is kept there rather than here because a
+second copy goes stale: this one had fallen five parts behind before it was removed.
 
 ## License
 

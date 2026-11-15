@@ -2212,3 +2212,82 @@ D-33 also named splitting the type per template as the alternative to relaxing. 
 
 The selection tree gained a branch, `design` and `enhancement` parting on whether the
 thing is rolled out in stages. A test holds every type reachable from the tree.
+
+## D-48 README headings take the conventional names, and M2 counts only within a section
+
+### Context
+
+D-46 built the means to measure a README's granularity, which was then turned on this
+repository's own README.
+
+Five of its seven headings were all but absent from 221 notable open source READMEs.
+
+| Heading here | Present in the 221 |
+|---|---|
+| `Installing` | 1% |
+| `Using it` | 0% |
+| `How it is built` | 0% |
+| `Layout` | 0% |
+| `State` | 0% |
+| `Documentation` | 25% |
+| `License` | 41% |
+
+A reader cannot find a section under a name they do not know.
+
+The `Status` section had a second problem. The same table stood in three places —
+`CLAUDE.md` and both READMEs — and the two in the READMEs had gone stale, 8 rows against
+13, missing `plot`, the glossary and the release workflow.
+
+### Decision
+
+The headings take the conventional names: `Install`, `Usage`, `How it works`, `Status`.
+
+`Layout` moves to `development.md`, being contributor material.
+
+The `Status` table leaves the READMEs, which now point at `CLAUDE.md`.
+
+### Rationale
+
+The conventional names were chosen on their rate across the 221: `Install` 41%, `Usage`
+33%, `Documentation` 25%.
+
+`Layout` lists repository paths and appears in 1 of the 221. It is not what a reader weighs
+when deciding whether to adopt something.
+
+`Status` became a sentence because three copies were not being kept in step. A copy goes
+stale; one place holds it.
+
+`Usage` runs 1,052 characters against a measured third quartile of 920. The user decided to
+keep it, and D-46 had already settled that the scale is guidance rather than a rule.
+
+### An M2 false positive, fixed
+
+While doing this, the M2 condition added in D-45 fired wrongly on this repository's own
+README:
+
+    部分ごとの状況は CLAUDE.md にある。
+    ここに写しを置くと古くなる。実際に、取り除く前は5つの部分が遅れていた。
+
+    ## ライセンス
+
+A heading followed, so the count was taken to point forward. `## ライセンス` is not what
+the count refers to; the section merely ended.
+
+**A count can only point at what is inside its own section.** A following heading is
+counted only when it is deeper than the one the count sits under.
+
+The reference corpus gives 1 case each way, so frequency settles nothing. The ground is the
+range a count can reach. A rule that fires whenever a count lands in a section's last
+paragraph is defective however rarely that happens.
+
+All three implementations carry it — Rust, the textlint preset and
+`research/mcheck.py` — and the golden counts are unchanged.
+
+### Consequences
+
+Turning the doctype machinery on this repository's own documents is what revealed that the
+headings had drifted from convention. Building the means to measure does not fix the
+documents; applying it is separate work.
+
+The same table does not go in several places. One of `CLAUDE.md` and the README is the
+source, and the other points at it.

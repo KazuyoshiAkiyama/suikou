@@ -41,8 +41,22 @@ module.exports = function itemCount(context) {
                 if (!next) {
                     return false;
                 }
-                if (next.kind === "ListItem" || next.kind === "Heading" || next.kind === "Table") {
+                if (next.kind === "ListItem" || next.kind === "Table") {
                     return true;
+                }
+                // 見出しは、今いる節の内側にあるものだけを数える（D-48）。
+                // 兄弟の見出しが続くのは、その節が終わっただけである。
+                if (next.kind === "Heading") {
+                    const level = (raw) => (raw.match(/^\s*(#{1,6})\s/) || [, ""])[1].length;
+                    let here = null;
+                    for (let k = i - 1; k >= 0; k -= 1) {
+                        if (blocks[k].kind === "Heading") {
+                            here = level(blocks[k].raw ?? blocks[k].text);
+                            break;
+                        }
+                    }
+                    const there = level(next.raw ?? next.text);
+                    return here === null || there > here;
                 }
                 return next.kind === "Prose" && enumerate.test(next.text);
             };
