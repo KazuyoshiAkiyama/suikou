@@ -59,8 +59,14 @@ def body(src: str) -> str:
     return re.sub(r"`[^`]*`", "", src)
 
 
-def is_ja(name: str) -> bool:
-    return ".ja." in name or name.endswith("_ja.md")
+def is_ja(path: pathlib.Path) -> bool:
+    """中身の仮名の量で判定する。
+
+    ファイル名で判定すると、`README.ja.md` の形を取らない文書を見落とす。
+    実際に 147 件を英語として扱う誤りが起きた。
+    """
+    t = path.read_text(encoding="utf-8", errors="replace")
+    return sum(1 for c in t if "\u3040" <= c <= "\u30ff") >= 300
 
 
 def count(files: list[pathlib.Path], pats: dict[str, str]) -> tuple[dict[str, int], int]:
@@ -92,8 +98,8 @@ def report(label: str, files: list[pathlib.Path], ja: bool) -> None:
 def main() -> None:
     root = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "")
     gen = sorted(p for p in root.rglob("*.md") if p.is_file())
-    report("生成（日本語）", [p for p in gen if is_ja(p.name)], True)
-    report("生成（英語）", [p for p in gen if not is_ja(p.name)], False)
+    report("AI執筆（日本語）", [p for p in gen if is_ja(p)], True)
+    report("AI執筆（英語）", [p for p in gen if not is_ja(p)], False)
     report(
         "人間（英語、著名 OSS の README）",
         sorted(pathlib.Path("corpus/cache/readmes").glob("*.md"))[:60],

@@ -2362,3 +2362,85 @@ layouts totalling 57 lines.
 
 So does the absence of search. Zensical ships a `search.json`, but not at the price of
 assembling the two languages by hand.
+
+## D-50 The rules separate in Japanese and do not separate in English
+
+### Context
+
+Filling the gap T21 named required documents an AI actually wrote, with authorship
+established from the commit log: repositories where 60% or more of recent commits carry
+`Co-Authored-By: Claude`.
+
+140 English and 150 Japanese documents were collected separately.
+
+### Decision
+
+No rule is added. The existing rules already separate in Japanese.
+
+The gap T21 named does not hold as a gap in English, and in Japanese the existing rules
+cover it.
+
+### Rationale
+
+The four memo forms (`structure/work-note`) do not appear in AI-authored English
+documentation: 1% of 140 against 0% of human READMEs. Nor do the four candidate forms, and
+注意書き runs higher in the human documents.
+
+In Japanese the existing rules do separate. Three groups differing in how firmly their
+authorship is established were measured with the same rules.
+
+| Group | Authorship | Count |
+|---|---|---|
+| AI-authored READMEs | Settled from the commit log | 37 |
+| Japanese READMEs from GitHub | Unknown; D-44 found them contaminated | 150 |
+| Reference corpus | Professional translation | 150 |
+
+| Rule | AI-authored | GitHub | Reference |
+|---|---|---|---|
+| `register/rare-wago` | 70% | 34% | 14% |
+| `glossary/variant` | 64% | 45% | 12% |
+| `register/prefer-katakana` | 43% | 34% | 30% |
+| `maint/numbered-heading` | 13% | 10% | 1% |
+
+**All four rules order the three groups the same way as the strength of their attribution.**
+
+The group D-44 found contaminated sits between the other two, and the three were collected
+by separate procedures, so their agreement supports both findings.
+
+### Holding genre constant
+
+Before genre was held constant the gaps looked much larger.
+
+| Rule | Uncontrolled | Controlled |
+|---|---|---|
+| `register/rare-wago`, against the reference corpus | 13.6x | 2.1x |
+| `maint/numbered-heading`, English, against human READMEs | 6.3x | 1.7x |
+
+On the English side the AI corpus carried more `docs/` while the human side was READMEs
+only. A genre difference came within one step of being reported as an authorship one.
+Comparisons are made between documents of the same kind.
+
+### Reading the corpus found its defects
+
+Reading before measuring turned up two defects in the English corpus.
+
+| Defect | Extent |
+|---|---|
+| The language test only looked for kana | 23 Korean and 3 Chinese documents counted as English |
+| Agent instruction files | 42 of 200 (21%): orchestrator runbooks and `.memory/` records |
+
+An instruction file is notes addressed to an agent by design, which is not the genre in
+question. The Japanese collection carried both filters: all 150 are Japanese and the
+instruction files are excluded.
+
+### Consequences
+
+D-28's decision not to implement English style rules is supported from a second direction:
+across 140 AI-authored English documents, no form separates.
+
+In Japanese the existing rules work, and nothing needs adding.
+
+Two limits stand. These are documents committed to public repositories, so a human was in
+the loop; notes in a pre-review draft do not show here. And the share is measured over the
+most recent 100 commits rather than the whole history, with six kept repositories holding
+fewer than 20 commits, whose shares are weak evidence.
