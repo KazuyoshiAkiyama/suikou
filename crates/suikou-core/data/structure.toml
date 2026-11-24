@@ -64,7 +64,7 @@ sections = [
 description = "手順。前提から始めて、確認で終わる"
 description_en = "A procedure: it starts at the prerequisites and ends at the check"
 sections = [
-  { id = "prerequisites", required = true, ja = ["前提", "用意するもの"], en = ["Prerequisites", "Before you begin"] , question = "始める前に何が要るのか", writes = "前提の環境と、読み手が既に知っている必要のあることを書く" , question_en = "What is needed before starting?", writes_en = "State the environment assumed and what the reader must already know" },
+  { id = "prerequisites", required = true, ja = ["前提", "用意するもの", "事前準備"], en = ["Prerequisites", "Before you begin"] , question = "始める前に何が要るのか", writes = "前提の環境と、読み手が既に知っている必要のあることを書く" , question_en = "What is needed before starting?", writes_en = "State the environment assumed and what the reader must already know" },
   { id = "steps",         required = false, ja = ["手順", "やり方", "ステップ"], en = ["Steps", "Procedure", "Instructions"] , question = "どうやるのか", writes = "順番に並べる。一つの手順に一つの操作だけを置く" , question_en = "How is it done?", writes_en = "Put the steps in order, with one action per step" },
   { id = "verify",        required = false, ja = ["確認", "確かめ方"], en = ["Verify", "Verification", "Check your work"] , question = "うまくいったとどう分かるのか", writes = "期待する出力や状態を書く。確かめ方の無い手順は完了を判断できない" , question_en = "How does the reader know it worked?", writes_en = "Give the expected output or state. A procedure with no check cannot be called finished" },
 ]

@@ -755,6 +755,25 @@ mod tests {
         assert!(check_doctype(&doc(src), Lang::Ja, dt).is_empty());
     }
 
+    // 体言止めの名詞句の見出しでも必須の節を満たす。
+    // この道具は見出しを名詞句で書くことを勧めており、
+    // 勧めに従った見出しを構造の規則が拒むと、助言が互いに矛盾する。
+    #[test]
+    fn a_nominal_phrase_heading_satisfies_a_required_section() {
+        let dt = doctypes().get("howto").unwrap();
+        let src = "# 調整
+
+## 事前準備
+
+用意する。
+
+## 調整の進め方
+
+操作する。
+";
+        assert!(check_doctype(&Document::parse(src), Lang::Ja, dt).is_empty());
+    }
+
     // 日本語の文書が英語の見出しを持つことがある。両方の同義語で照合する。
     #[test]
     fn an_english_heading_satisfies_a_section_in_a_japanese_document() {
