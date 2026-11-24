@@ -4,1226 +4,612 @@ weight: 30
 doctype: "log"
 ---
 
-This page exists so that a later reader never has to repeat the same investigation.
-Each place where the call could have gone another way gets recorded here.
+This decision log records every design choice where viable alternatives existed, preventing subsequent readers from repeating completed investigations.
 
-## D-01 Document-wide metrics stay out of textlint
+## D-01 Excluding document-wide metrics from textlint
 
-textlint reports against the position of a node.
-A metric computed across the whole document has no node to attach to.
-Most of those metrics report something missing, namely scarce formal nouns, scarce
-demonstratives, and scarce simile markers. Something missing has no position at all.
-A scarce formal noun, for example, is spread across the whole document rather than
-sitting on one line.
+Diagnostics in textlint attach to specific AST node positions, whereas metrics calculated across an entire document have no single node or line to reference. Most document-wide metrics detect scarcity—specifically scarce formal nouns, scarce demonstratives, and scarce simile markers—and an absence has no location in the source text. For example, a shortage of formal nouns characterizes the document as a whole rather than any individual line.
 
-The first attempt implemented them as textlint rules reporting on the Document node.
-That was wrong. Living inside textlint ties the analysis to JavaScript, which leaves no
-tokenizer that returns the word origin, which makes the kango ratio impossible to compute.
-Dropping a validated metric for the convenience of the implementation inverts the order of
-priorities.
+An early prototype registered these metrics as textlint rules attached to the Document node, which introduced an architectural flaw. Implementing them inside textlint confines analysis to JavaScript, where no tokenizer exposes word origin, preventing computation of the kango ratio. Discarding a validated metric for implementation convenience would invert the project's priorities.
 
-The front-end tool calls textlint and merges the output of textlint with its own
-analysis. The front-end tool can serve MCP itself, and one merged report suits an agent
-better anyway.
+Instead, the front-end CLI invokes textlint and merges textlint findings with its own document-level metrics. This front-end tool can also act directly as an MCP server, and a single combined report is easier for an agent to consume.
 
-## D-02 Rust is the language, and Python is limited to calibration and search
+## D-02 Implementing production analysis in Rust and limiting Python to calibration
 
-Every metric that survived validation can be written in pure Rust, because
-lindera-unidic returns every UniDic feature, including the word origin and the inflected
-form.
+All metrics that passed validation can be written in pure Rust because lindera-unidic supplies every UniDic morphological feature, including word origin and inflected form.
 
-Python was needed for participial clauses, nominalization, modifier stacking, and
-dependency distance. Measurement rejected all four.
-The deeper the parse a metric needs, the more sensitive it proved to the design of the
-experiment, and the less the earlier effect size carried over.
+Python was required only for participial clauses, nominalization, modifier stacking, and dependency distance, and empirical testing rejected all four. Metrics requiring deeper syntactic parsing proved increasingly sensitive to experimental setup, and their previously reported effect sizes failed to reproduce.
 
-The work therefore splits into two tiers. A settled metric is written in Rust, and search
-and calibration happen in Python. A metric moves into Rust only after Python proves that
-metric out.
+Work is therefore divided into two tiers: Python is reserved for exploratory search and threshold calibration, while Rust implements finalized metrics. A metric moves into Rust only after Python experiments confirm its validity.
 
-Running from Claude Code hooks on every Write and every Edit makes launch cost dominant.
-spaCy takes two to five seconds to load, so Python cannot sit in the production path.
+Because Claude Code hooks execute the linter on every Write and Edit action, process startup latency dominates execution cost. Loading spaCy takes two to five seconds, ruling Python out of the production runtime.
 
-## D-03 Lines rather than a Markdown parser
+## D-03 Processing Markdown line by line instead of using a parser
 
-The reference implementation under `research/` works line by line, and matching the golden
-values means working the same way.
-Fewer dependencies also means fewer accidents caused by a version difference.
+The reference implementation under `research/` scans text line by line, so matching its golden outputs requires using the same approach. Avoiding a Markdown parser library also reduces dependencies and prevents unexpected behavioral changes across library versions.
 
-## D-04 The tokenizer hides behind a trait
+## D-04 Isolating the tokenizer behind a trait
 
-The lindera API and the order of the UniDic features both change between versions.
-Confining the version-dependent code to one struct shrinks the breakable surface to a few
-dozen lines.
+Both the lindera API and the positional order of UniDic feature fields change across releases. Encapsulating all version-dependent code inside a single struct limits the affected code to a few dozen lines.
 
-Keeping lindera out of the default features also means the rules and the metrics can be
-tested without downloading a dictionary, which makes checking a change faster.
+Excluding lindera from default Cargo features also enables running unit tests for rules and metrics without downloading a dictionary, accelerating local verification.
 
-## D-05 The feature order is verified at startup
+## D-05 Verifying UniDic feature order at startup
 
-Pinning a version still leaves the problem of a silent break on upgrade.
-When the feature order shifts, the word origin and the inflected form get read from the
-wrong position. A value comes back, and the value that comes back is wrong.
+Pinning a dependency version does not prevent silent misbehavior after an upgrade. If the UniDic feature order shifts, the code reads word origin and inflected form from wrong indices and returns incorrect values without raising an error.
 
-The kango ratio and the renyo count both depend on those two fields, so running on broken
-values makes the findings themselves wrong.
-Pushing a known word through the tokenizer and failing on a mismatch is the better
-outcome.
+Both the kango ratio and the renyo count depend on those two fields, so silent misreads invalidate the resulting findings. Analyzing a known probe word at startup and terminating on any mismatch is preferable to producing erroneous diagnostics.
 
-## D-06 Thresholds do not split by register
+## D-06 Sharing one threshold table across plain and polite registers
 
-Whether the plain and polite registers move the metrics was tested against two models.
-The direction did not agree across models, and no systematic effect appeared.
-The difference is absorbed by the difference between models.
+Experiments across two models tested whether plain and polite registers shift metric values. The direction of change disagreed between models, revealing no consistent pattern; inter-model variance outweighs any register effect.
 
-Register detection stays, but only to decide whether a register-dependent rule such as
-the noun-stopped sentence applies. The threshold table does not need a second copy.
+Register detection remains solely to govern register-specific rules such as noun-stopped sentences. Maintaining a second threshold table is unnecessary.
 
-## D-07 Formal nouns and the kango ratio sit at info
+## D-07 Assigning info severity to formal nouns and kango ratio
 
-Both metrics swing widely with the kind of document.
-Formal nouns touch the threshold in procedures, and the kango ratio approaches the native
-human value in explanations. The kango ratio is sensitive to the subject as well.
+Both formal nouns and the kango ratio vary substantially across document genres. Formal nouns approach the threshold in procedural documentation, whereas the kango ratio approaches native human values in explanatory prose and also varies by technical domain.
 
-The Japanese human corpus leans toward expository books and lacks procedures.
-Both metrics stay at info until baselines exist per kind of document, and both move up to
-warning once they do.
+Because the Japanese human corpus consists mostly of expository books and lacks procedural texts, both metrics remain at info severity until genre-specific baselines exist. Once those baselines are established, both metrics will be raised to warning.
 
-## D-08 An effect size does not carry across tasks
+## D-08 Treating external effect sizes as non-transferable across tasks
 
-For participial clauses in English, a report of 5.3 times the human rate suggested a
-threshold of nine to ten. Measurement put the range on top of the human range, so the
-metric was unusable. Nominalization behaved the same way.
+Prior literature reported English participial clauses at 5.3 times the human rate, suggesting a threshold of nine to ten. Direct measurement instead overlapped with the human distribution, making the metric unusable, and nominalization behaved identically.
 
-The cause appears to be the design of the experiment.
-The source handed over a human passage and asked for a continuation in the same register,
-while this work asked for a document to be written.
+Experimental design accounts for this mismatch. The earlier study provided a human passage and requested a continuation in the same register, whereas this project prompted models to draft complete documents.
 
-Earlier work is a source of hypotheses. Its effect sizes do not transfer.
+Published studies remain useful sources of candidate hypotheses, but their effect sizes do not transfer across task types.
 
-## D-09 The maintainability layer does not match the human average
+## D-09 Setting maintainability standards above the human average
 
-The AWS S3 user guide is the only corpus that writes list lead-ins correctly.
-Incomplete lead-ins dominate the Linux kernel.
-Matching the human average would empty this layer of meaning.
+Among the evaluated human corpora, only the AWS S3 user guide consistently writes proper list lead-ins, whereas incomplete lead-ins predominate in the Linux kernel documentation. Matching the human average would nullify the maintainability layer.
 
-This layer does not remove AI style. It makes a document better than most documents
-written by humans.
+This layer does not aim to strip AI writing traits. Its purpose is to produce documentation of higher structural quality than typical human-authored text.
 
-## D-10 Separate what a prompt can prevent from what only a linter can catch
+## D-10 Dividing constraints between prompt instructions and linting
 
-A condition with a formatting instruction was compared against one without.
-Formatting disappeared completely, and vocabulary and sentence structure did not move.
+Comparing generations with and without a formatting prompt showed that explicit instructions eliminated formatting errors completely while leaving vocabulary and sentence structure unaffected.
 
-The same experiment ran for the maintainability instruction.
-The structural rules held completely under a short instruction, and time-dependent words
-reached zero only under a detailed one.
-Stating the item count, numbering headings, and hand-numbering items never occur even
-without an instruction.
+A matching experiment with maintainability instructions showed that structural rules held completely under a short prompt, while time-dependent words reached zero only under a detailed prompt. Stating item counts, numbering headings, and manually numbering list items never occurred even without instructions.
 
-`brief` therefore carries only what an instruction can enforce.
-A constraint that does not work wastes tokens and risks over-correction.
+Accordingly, `brief` includes only rules that prompting reliably enforces. Including ineffective instructions wastes tokens and risks over-correction.
 
-As a second effect, the maintainability instruction alone improved the document metrics.
-Asking for a lead-in produced prose, and the prose ratio and the list ratio moved toward
-the human range.
+As a secondary benefit, maintainability instructions alone improved quantitative document metrics. Requiring complete list lead-ins generated additional prose, moving both the prose ratio and the list ratio toward the human range.
 
-## D-11 The term list is built from the documents rather than shipped
+## D-11 Generating the term list from project documents instead of shipping one
 
-Telling a live metaphor from a dead one is the hardest part of the metaphor layer.
-Cache and handshake are established terms in the field, not metaphors.
-A sentence that says a buffer behaves like a waiting room marks the comparison, and a
-sentence that calls the buffer a waiting room does not.
+Distinguishing active figurative metaphors from conventionalized terminology is the hardest problem in the metaphor layer. Terms such as cache and handshake are established technical vocabulary rather than metaphors. Similarly, stating that a buffer behaves like a waiting room explicitly marks the comparison, whereas calling a buffer a waiting room leaves the figurative comparison unmarked.
 
-A word that becomes famous for being called out drops in frequency.
-The words called out early in 2024 fell right afterward. A shipped word list ages.
+Furthermore, once specific words gain notoriety as AI indicators, their frequency drops rapidly; terms publicized early in 2024 declined immediately afterward. Any static shipped word list loses accuracy over time.
 
-A list built from your own documents does not age.
-Beyond the fact that terms differ between projects, that property is the structural
-answer to an aging word list.
+Building the term list directly from a project's own documents avoids this obsolescence. Beyond accommodating vocabulary differences across projects, local generation provides the structural solution to outdated word lists.
 
-## D-12 The kango ratio test had the wrong expectation
+## D-12 Correcting the kango ratio test expectation
 
-`kango_ratio_counts_only_content_words` was failing.
-For the input 設定を変更すること the implementation returned 0.5 and the test expected
-more than 0.5.
+The `kango_ratio_counts_only_content_words` test failed on the input 設定を変更すること because the implementation returned 0.5 while the test asserted a value greater than 0.5.
 
-`TASKS.md` says to fix the implementation when a test fails. This case is the exception.
-The comment on the test counted three content words, namely 設定, 変更, and こと, but the
-`FakeMorphology` spec also registers する as a verb, which makes four.
-The metric definition puts every content word whose origin is 和, 漢, 外, or 混 into the
-divisor, so the verb する counts too, and the 2/4 the implementation returns is what the
-definition asks for.
-Matching the implementation to the test would break the definition.
+Although `TASKS.md` instructs fixing the implementation when a test fails, this case is an exception. The test comment counted three content words—設定, 変更, and こと—but the `FakeMorphology` specification also registers する as a verb, resulting in four content words. Because the metric specification includes every content word with origin 和, 漢, 外, or 混 in the denominator, する counts as well, making 2/4 the exact value required by the specification. Changing the implementation to pass the test would violate that specification.
 
-The intent of the test is to confirm that particles stay out of the divisor.
-Changing the expectation to exactly 0.5 preserves that intent.
-Putting the particle を into the divisor would give 0.4, so the two cases remain
-distinguishable.
+Updating the expected value to exactly 0.5 preserves the test's actual purpose of verifying that particles are excluded from the denominator. Including the particle を in the denominator would yield 0.4, keeping both cases clearly distinguishable.
 
-An implementation gets fixed when the implementation departs from the definition.
-An expectation gets fixed when the expectation does.
+Implementation code is corrected when it diverges from the specification; test expectations are corrected when they diverge instead.
 
-## D-13 M2 and M6 count every occurrence
+## D-13 Reporting every occurrence for M2 and M6
 
-The reference implementation counts occurrences per line, while the Rust implementation
-reported at most one per block.
-In `tests/golden/input/en_maintainability.md`, one line holds two of the listed words at
-once, and the reference returned 2 against the 1 from Rust.
+The reference implementation counts every match on a line, whereas the Rust implementation initially emitted at most one finding per block. On `tests/golden/input/en_maintainability.md`, where a single line contains two listed words, the reference returned 2 while Rust returned 1.
 
-Counting every occurrence won, and the reason comes from this project's own constraint.
-Reporting one of two findings on a line means the document, edited to clear the reported
-one, fails `check --quiet` again.
-That collapses the design goal of never linting and fixing layer by layer.
+Per-occurrence counting was adopted to satisfy a core project constraint. When a linter reports only one of two violations on a line, editing the document to resolve that single report causes `check --quiet` to fail again on the remaining violation, defeating the goal of avoiding iterative fix-and-recheck cycles.
 
-The unused `column` field on `Position` shows that per-occurrence positions were the
-original intent.
-Giving each occurrence a column makes two findings on one line distinguishable.
+The previously unused `column` field on `Position` indicates that per-occurrence reporting was the original intent. Recording a column number for each match distinguishes multiple findings on the same line.
 
-M7 anchors to the end of a line, so at most one can fire per line, and the change does not
-touch it.
+Rule M7 anchors to line endings and can trigger at most once per line, so this change does not affect it.
 
-## D-14 Word and sentence counts compare on relative error
+## D-14 Comparing word and sentence counts using relative error
 
-The comparison policy allowed an absolute error of 0.02 on a ratio, 0.5 on a density, and
-exact equality on the M rules. A word count fits none of those.
+The comparison policy allowed an absolute tolerance of 0.02 for ratios, 0.5 for densities, and exact equality for M rules, none of which suited word counts.
 
-The word count of `en_prose.md` came out at 445 from the reference and 444 from Rust.
-The cause is `trade-off`. spaCy splits it into three tokens and drops the punctuation,
-giving two words, while splitting on whitespace gives one.
-The file holds exactly one hyphenated word, which matches the difference exactly.
+On `en_prose.md`, the reference reported 445 words while Rust reported 444. The difference stems from `trade-off`: spaCy splits it into three tokens and discards punctuation to yield two words, whereas whitespace splitting yields one word. The file contains exactly one hyphenated compound, accounting for the entire discrepancy.
 
-That is a difference of definition between tokenizers, not an error in the implementation.
-Demanding exact equality would demand that two different definitions produce one number.
-A relative error of one percent catches systematic drift and tolerates the rest.
+This gap reflects different tokenizer definitions rather than an implementation error, and enforcing exact equality would require incompatible definitions to produce identical counts. A relative error tolerance of one percent detects systematic drift while accommodating minor tokenization differences.
 
-## D-15 The scope of the formal noun metric differs between the definition and the reference
+## D-15 Reconciling formal noun scope between specification and reference implementation
 
-The metric definition measures vocabulary over prose plus the body of list items, and it
-lists formal nouns among them. The Rust implementation follows that.
+The metric specification defines vocabulary metrics—including formal nouns—over prose combined with list-item bodies, and the Rust implementation follows that specification.
 
-The reference implementation `research/jametrics.py` emits demonstratives both over prose
-alone and over prose plus list items.
-For formal nouns, it emits the prose-only figure and nothing else.
+By contrast, the reference script `research/jametrics.py` reports demonstratives for both prose alone and prose plus list items, but reports formal nouns over prose alone.
 
-Measured on `tests/golden/input/ja_maintainability.md`, prose alone gives 14.98 and prose
-plus list items gives 15.77.
-The difference of 0.79 exceeds the 0.5 allowed for a density.
+On `tests/golden/input/ja_maintainability.md`, prose-only calculation yields 14.98 while prose plus list items yields 15.77. The 0.79 difference exceeds the 0.5 tolerance allowed for densities.
 
-The implementation must not change here. The definition states its reason.
-Some models put almost everything into bullet lists, and measuring prose alone throws away
-more than eighty percent of the text for those models.
+The Rust implementation must remain unchanged for the reason given in the specification: some models place nearly all content inside bullet lists, so restricting measurement to prose discards more than eighty percent of their text.
 
-The mismatch belongs to the threshold instead.
-The human range of 11.095 to 11.163 and the D5 threshold of 8.5 were both measured under
-the prose-only definition.
-Including list items raises the value, so D5 now fires less readily than it did at
-calibration time.
-Keeping D5 at info, decided in D-07, holds up for this reason as well.
+The discrepancy belongs to the calibrated threshold instead. Both the human range of 11.095 to 11.163 and the D5 threshold of 8.5 were derived under the prose-only definition. Including list items increases the computed value, causing D5 to trigger less readily than during calibration, which further supports the D-07 decision to keep D5 at info severity.
 
-The mismatch stays open until the calibration is redone.
-Redoing it means adding the prose-plus-list figure to `research/jametrics.py` and
-measuring the corpus again.
+This discrepancy remains open pending recalibration. Recalibrating requires adding the prose-plus-list calculation to `research/jametrics.py` and re-evaluating the corpus.
 
-## D-16 Ship one binary with the dictionary embedded
+## D-16 Shipping a single binary with an embedded dictionary
 
-Deciding how to ship meant measuring the embedded dictionary.
+Evaluating distribution formats began by measuring artifact sizes with and without the dictionary.
 
-| Contents | Size |
+| Artifact | Size |
 |---|---|
-| Binary with the dictionary | 191 MB |
-| The same, compressed with xz | 26 MB |
-| Binary without the dictionary | 1.1 MB |
+| Binary with embedded dictionary | 191 MB |
+| Binary with embedded dictionary (xz-compressed) | 26 MB |
+| Binary without dictionary | 1.1 MB |
 
-`strip` does nothing, because the bulk is dictionary data rather than symbols.
+Running `strip` produces no meaningful size reduction because dictionary data, rather than debug symbols, accounts for nearly the entire file.
 
-Keeping the dictionary outside and fetching it on first run is possible. lindera 6.0.0
-offers `load_dictionary_from_path`, which reads without copying. Embedding won anyway, and
-the reason is the intended use. For a tool launched from hooks on every Write and every
-Edit, the number of failure paths is the reliability.
+Storing the dictionary externally and fetching it on first run is feasible; lindera 6.0.0 offers `load_dictionary_from_path`, which reads directly without copying. Embedding was chosen nonetheless because reliability is critical for a tool invoked from hooks on every Write and Edit, where each added failure mode lowers dependability.
 
-An external dictionary adds three paths, namely absent, corrupt, and mismatched. For
-instance, an upgrade that replaces the dictionary leaves the binary reading features from
-the wrong position. Self-diagnosis catches the mismatch, and catching it still leaves the
-user stuck. Needing no network after download suits this use better.
+An external dictionary introduces three failure modes: missing, corrupted, or version-mismatched files. For example, an upgrade that swaps the dictionary causes the binary to read features from wrong positions; even when self-checks detect the mismatch, the user cannot proceed. Requiring no network access after installation is better suited to hook execution.
 
-The unit of distribution is one archive per operating system.
-Bundling every system into one archive reaches 78 MB compressed and forces every user to
-download the systems they do not use.
+Distribution uses one archive per operating system. Combining all platforms into a single archive reaches 78 MB compressed and forces every user to download binaries for unused platforms.
 
-The targets are x86_64 Linux on musl, Apple Silicon macOS, and x86_64 Windows.
-Linux uses musl so that no version of glibc matters.
-A tool that fails on an older distribution or inside a container hurts when hooks call it.
-Intel Mac and ARM Linux are out. Anyone who needs them builds from source.
+Release targets are x86_64 Linux on musl, Apple Silicon macOS, and x86_64 Windows. Building Linux binaries against musl eliminates glibc version dependencies, preventing hook failures on older distributions or inside containers. Intel Mac and ARM Linux are excluded, and users on those platforms build from source.
 
-## D-17 The dictionary feature stays off by default
+## D-17 Keeping the dictionary Cargo feature disabled by default
 
-`suikou-cli` gained `lindera-unidic`, and the feature stays off by default.
-Turning it on by default would pull the dictionary into `cargo test --all` and break the
-premise from D-04 that the core can be tested without one.
+Although `suikou-cli` gained the `lindera-unidic` feature, that feature remains disabled by default. Enabling it by default would include the dictionary in `cargo test --all`, contradicting the D-04 requirement that core logic remain testable without a dictionary.
 
-Two measures cover the gap instead.
-The release build names the feature explicitly and runs the binary to confirm the
-dictionary before packaging.
-A build without the dictionary fails on the spot inside `morphology::load` when asked for
-Japanese.
+Instead, the release workflow enables the feature explicitly and executes the binary to confirm dictionary availability before packaging, while a dictionary-free build fails immediately inside `morphology::load` whenever Japanese analysis is requested.
 
-Returning an empty analysis silently is not acceptable.
-An empty tokenization drives the kango ratio, the renyo count, and the formal noun count
-all to zero.
-Zero sits below the thresholds, so some findings fire and others do not, and one path
-through that mixture ends in a false report of nothing to fix.
-
-`suikou --version` tells the two builds apart.
-A user who cannot identify the binary in hand cannot trace why Japanese went unanalyzed.
-
-## D-18 Verify the artifact against the dictionary itself
-
-Running the release workflow under `act` exposed this.
-The packaged binary came to 1.2 MB while `--version` claimed the dictionary was embedded.
-The dictionary is 191 MB, so the two cannot both be true.
-
-The cause is dead code elimination.
-With every subcommand still a `todo!()`, nothing reached `morphology::load`, and the
-linker dropped the embedded dictionary along with it.
-Adding a path that reaches it brought the binary to 191.5 MB and produced a real analysis.
-
-The smoke test was at fault too.
-The `--version` string is a compile-time branch on `#[cfg]`, so it reports whether the
-feature was enabled and nothing about whether the dictionary exists.
-A binary with no dictionary passes that check.
-
-A `selftest` subcommand now loads the dictionary and asks it to analyze a sentence.
-Verification runs against the behavior of the artifact rather than the settings of the
-build, which is the same reasoning behind verifying the feature order at startup.
-
-As a second effect, `morphology::load` gained a caller, so the suppression in
-`crates/suikou-cli/src/morphology.rs` came out.
-Users also gain a way to confirm that the binary in hand is what it claims to be.
-
-## D-19 Finding line numbers match the file before preprocessing
-
-Running `suikou check` on this project's own documents exposed this.
-Reported line numbers pointed four lines above the real ones, and four is exactly the
-length of the front matter that had been stripped.
-
-Preprocessing removed the front matter and the fenced code blocks outright, so every line
-below them moved up and the numbers stopped matching the file.
-
-Each removal now leaves the same number of newlines behind.
-Empty lines are not counted, so the count of non-empty lines and the list ratio do not
-change.
-
-A linter finding has to point at a line in the file the user has open.
-A correct value at the wrong position is a finding nobody can use.
-
-## D-20 The documentation is a Hugo site with English as the default
-
-The documentation moved from files directly under `docs/` into `docs/content/{en,ja}/`,
-and English is the default language.
-
-No theme is pulled in from outside, and a minimal set of layouts lives in the repository.
-That keeps the dependency count down, and it holds the project's policy on pinned
-versions on the documentation side too.
-
-Fixing one canonical copy of each page also means the site and the repository never carry
-the same content twice.
-
-## D-21 brief's detail level lives on a flag, not a profile field
-
-The design document sketches an option where a profile carries the detail level for
-brief. This implementation sets that option aside and controls detail through a
-`--detail concise|balanced|detailed` flag alone.
-
-Here is the reasoning. Profile is a struct that holds metric thresholds. Adding a
-brief-specific field to it would split the struct across two jobs: values that
-calibration writes back, and a value that only picks an output shape. Mixing the two
-kinds of value in one struct blurs the range `suikou baseline` is supposed to touch, so
-this implementation keeps Profile to the single job of holding thresholds.
-
-The flag also grew a third level beyond the original sketch. TASKS.md first listed only
-concise and detailed, for example, but the implementation split out a middle level,
-balanced, once the structural rules turned out to fit one short sentence each while the
-time-dependent words still needed a full list every time. Concise trims that list-plus-
-sentences form further, and detailed adds the reasoning behind each rule.
-
-The profile-based option stays on the list of open questions. Whether to move detail
-onto a profile is a call this project can make once a real request for a per-project
-default shows up, not before.
-
-## D-22 The baseline threshold uses the Tukey outlier fence
-
-Implementing `suikou baseline` called for a way to pick the threshold value.
-`docs/content/en/design.md` places each threshold between the top of the human range and
-the bottom of the AI range, for example the 0.60 line drawn for `ja.mattr100`. Baseline,
-though, only ever sees a human corpus, so it never learns where the AI range sits.
-
-The approach chosen derives a boundary from the human distribution alone: a point that
-the distribution itself would call an outlier.
-
-That boundary follows the Tukey outlier fence. The interquartile range is the gap between
-the first and third quartiles, and the fence sits `FENCE_K` times that range beyond the
-nearer quartile. The coefficient 1.5 comes from Tukey's definition of an "outlier" and is
-a standard choice in statistics, easier to justify than an ad-hoc margin invented for this
-project. A looser coefficient of 3.0 defines Tukey's "far out" points, but with the small
-sample counts baseline typically works with, that wider fence would push the threshold too
-far out to mean much, so this project does not use that coefficient.
-
-The quartiles come from the hinge method: split the sorted sample at the median into two
-halves and take the median of each half as Q1 and Q3. An odd-length sample excludes the
-middle value from both halves. A percentile method with linear interpolation exists too,
-but the hinge method is simple enough that its expected values can be checked by hand in a
-test.
-
-A metric with fewer than four samples goes uncalibrated. With three samples or fewer, one
-half of the split collapses to a single value, so the interquartile range tracks that one
-value rather than the shape of the distribution. Filling an uncalibrated metric with zero
-or a placeholder would hide the missing evidence from whoever reads the profile, so that
-metric is left out of the output, and the reason goes to standard error instead.
-
-That first implementation carried a defect. A below-direction metric is a ratio or a
-per-thousand count, and both stay at or above zero by construction. When the samples
-cluster tightly, Q1 - 1.5*IQR can fall below zero. Calibrating against this project's own
-Japanese documents (`docs/content/ja/*.md`, `README.ja.md`, `CLAUDE.md`, `TASKS.md`)
-produced exactly that: a fence of -4.96 for `ja.demonstrative_per_1k` and -4.98 for
-`ja.keishiki_meishi_per_1k`. Since a density or a ratio never goes negative, no real
-document can satisfy the below check (`value < threshold`) against a negative threshold,
-so the rule can never fire. The profile still parses as valid TOML, so running
-`suikou check` against it reports nothing, and a check that only reads "nothing reported"
-mistakes this defect for a successful calibration.
-
-Clamping the fence to zero was not the fix. A density or a ratio is already bounded at
-zero, so a threshold of exactly zero still asks for a value strictly less than zero, which
-still never happens; clamping trades one unreachable threshold for another. Instead, a
-below fence at or under zero is now treated as a calibration failure, the same way too few
-samples is: that metric is dropped from the output and the reason goes to standard error.
-
-The above direction gets no matching treatment. Every metric shares the same lower bound
-(zero), but metrics do not share an upper bound: a ratio tops out at 1, while a
-per-thousand count has no fixed ceiling. Bringing a per-metric ceiling into the
-calibration logic would mix metric-specific knowledge into code that otherwise stays
-generic, so the fix stays on the below side only.
-
-`guidance`, `direction`, and `severity` all carry over from the bundled oss profile
-unchanged. Rewriting that text on every baseline run would leave the baseline output
-stale the next time someone edits oss.toml, so calibration touches only `value`.
-
-The corpus that `corpus/fetch.sh` would fetch is not available here; licensing keeps it
-out of the repository. That leaves the reproduction of `corpus/baselines.toml`, and of the
-bundled profiles' order of magnitude, unverified. The documents under
-`tests/golden/input/` are too few to substitute either, for instance no single metric
-there reaches the four-sample minimum. TASKS.md records this as open until someone runs
-`suikou baseline` against a real human corpus and checks the result against
-`corpus/baselines.toml`.
-
-A below-direction threshold that does survive calibration has been confirmed to work.
-Calibrating against the documents above left `ja.prose_ratio` (fence 0.69) in the profile,
-and running `suikou check --profile` with it against a document that is mostly bullet
-lists fires the rule, while running it against a prose-only document does not, both
-confirmed against real command output.
-
-## D-23 Judgment calls in the textlint preset
-
-Writing `packages/textlint-rule-preset-tech-maintainability` (T7) raised several
-judgment calls that did not fit under one heading. Each judgment call is laid out below,
-and each judgment call gets its own paragraph so that the reasoning for one judgment call
-does not blur into the reasoning for the next judgment call.
-
-**textlint does not print `maint/` as the rule prefix under a standard config.** The
-brief for this task asked for rule IDs that match the Rust side, `maint/list-lead-in`
-and so on. Reading textlint's own preset-loading code showed that the prefix textlint
-prints comes from the config key written in `.textlintrc`, with a leading `preset-`
-stripped back off. Loading this package the standard way, as
-`"preset-tech-maintainability": true`, prints every finding under the prefix
-`tech-maintainability/`. A config key has to start with `preset-` to be recognized as a
-preset at all, and that same `preset-` is always the part stripped away before the rest
-of the key becomes the prefix, so no config key reaches a `maint/` prefix through the
-standard loader.
-
-Each rule's own name (the part after the prefix, such as `list-lead-in`) does match the
-Rust side, as asked. Only the prefix follows textlint's own convention instead, and
-bending that would mean renaming the package itself to something like
-`textlint-rule-preset-maint`, disagreeing with its own directory and confusing readers
-more than the prefix mismatch does. The package name stays aligned with its directory,
-and the README states plainly that a finding's printed prefix reads
-`tech-maintainability/`. The golden-parity tests sidestep the prefix question
-altogether: they call `@textlint/kernel` directly and register each rule under a
-`maint/` prefix by hand, so the constraint above never touches that comparison.
-
-**Match against the raw source, not the textlint AST.** textlint hands a rule the
-Markdown broken into nodes such as paragraphs and headings. A paragraph that soft-wraps
-across lines becomes a single Paragraph node inside textlint. `markdown.rs`, by
-contrast, builds one block per line, and a soft-wrapped continuation stays a separate
-line. The mismatch shows up on a paragraph such as lines 14 and 15 of
-`en_maintainability.md`, where one sentence spans two lines. Matching against the joined
-node text would join those two lines into one string, letting a regex match span words
-the Rust side never joins.
-
-Two paths were open: match against the text of textlint's Paragraph nodes, or port the
-line-based block builder to JavaScript and let textlint supply nothing but the raw
-source string. The first path looks more like a standard textlint rule, but the count
-of findings drifts whenever the node granularity differs from the line granularity. The
-second path was taken. `src/lib/blocks.js` ports the block builder from `markdown.rs`,
-regular expressions included, and each rule reads the raw source through
-`context.getSource(node)` and runs it through this local block builder before judging
-anything. textlint's job becomes reading the file, honoring configuration, and
-reporting; it does no parsing of the document structure on its own.
-
-The cost of this choice is that reported line and column numbers are computed against
-the preprocessed string rather than the raw one. A position in the raw file can drift
-from a position in the preprocessed one wherever an escape sequence was undone or
-inline markup was stripped. `src/lib/position.js` searches for the matched text within
-the target line, left to right, and ties it back to a character position in the raw
-source as an approximation. The approximation exists so that a finding is never
-dropped, not to guarantee an exact position. The check against `tests/golden/` compares
-counts only; position accuracy is not part of that bar.
-
-**IPADIC folds UniDic's four taigen categories into one part of speech.** The Japanese
-judgment for M1 and M5 asks whether the last token at the end of a line or item is a
-taigen, a noun-like word that can end a sentence on its own. suikou-core runs on UniDic
-and treats a token as taigen when its top-level part of speech is noun, suffix,
-pronoun, or adjectival noun stem. kuromojin, the standard analyzer in the textlint
-ecosystem, runs on IPADIC, which has no such four-way split at that level.
-
-Probing kuromojin 3.0.1 directly showed that words UniDic classifies as suffix, pronoun,
-or adjectival noun stem all surface under IPADIC as a noun whose finer subcategory
-reads pronoun, suffix, or adjectival-noun stem instead. "これ" (this) came back as
-noun/pronoun and "静か" (quiet) came back as noun/adjectival-noun-stem. Under IPADIC the
-four-way UniDic check collapses into one condition: that the top-level part of speech
-reads noun. `isTaigen` in `src/lib/morphology-ja.js` rests on this probe.
-
-The check for a verb or auxiliary ending in the ren'youkei needed the same kind of
-verification. UniDic subdivides that form, as in "連用形-一般", while IPADIC reports it
-as the bare string "連用形" with no suffix, confirmed against "使い" and "し". The
-Rust-side check, `cform.startsWith("連用形")`, ports over unchanged.
-
-**Messages follow the document's language; the Rust side always answers in Japanese.**
-`finding()` in suikou-core returns a Japanese message even for an English document, a
-behavior confirmed against the output of `suikou check` on `en_maintainability.md`.
-
-Some users of the textlint preset write only English documents, and a message they
-cannot read does not help them. The judgment logic and the regular expressions stay
-aligned with the Rust side, but the preset picks a Japanese or English message to match
-the language it detects. Both live in `src/lib/messages.js`. Message text plays no part
-in the count comparison, so this divergence does not touch the golden-test completion
-bar.
-
-**Tests call `node:test` directly instead of going through textlint-tester.**
-textlint-tester assumes Mocha's global `describe` and `it`. Where those globals are
-absent, it falls back to a stand-in that just calls the test function without waiting
-for it. That stand-in never awaits the Promise a test case returns, so running it under
-`node --test` let some assertions report success before the linting they depended on
-had even finished.
-
-Two paths were weighed: add Mocha as a dependency to keep textlint-tester, or write a
-thin layer directly on `@textlint/kernel`. The path that added no dependency won.
-`test/support/lint.js` wraps the kernel in a few lines, registers every rule under the
-`maint/` prefix, and awaits the result directly. That fits `node --test`'s async test
-functions without any adapter.
-
-**The overlap with `no-ai-colon-continuation` from
-`@textlint-ja/textlint-rule-preset-ai-writing` is left unsuppressed.** That rule also
-uses kuromojin to check whether the text before a colon ends in a predicate, which is
-close to the Japanese half of M1.
-
-The purpose differs: that rule flags a stylistic
-pattern typical of AI-written prose, and M1 flags a list structure that breaks when an
-item is added or removed. The two can still fire on the same line. No mechanism was
-added to let one suppress the other. A user who enables both presets has read both and
-is in a position to judge which finding fits their document; silencing one on their
-behalf would remove information rather than add it. The overlap is written down in the
-README instead.
-
-## D-24 The term extraction cuts words by structure, not part of speech alone
-
-Japanese groups a run of consecutive nouns into a single compound word.
-UniDic tags a bound suffix such as 素 or 性 with its own part of speech, separate from
-noun, so treating nouns alone split 形態素解析 into 形態 and 解析, and left 保守性 as just
-保守. Running the tool against its own documentation is what surfaced the break.
-
-Adding the suffix tag to the noun tag fixes that split, but it also lets a counter such
-as つ start a compound on its own. UniDic offers no finer-grained tag that would separate
-a counter from an ordinary derivational suffix, so building a list of counters was not an
-option. The rule leans on structure instead: a suffix only extends a run that already
-holds a noun. A suffix cut off by a numeral, for example the つ in 3つ, never starts a run
-by itself.
-
-UniDic marks a space only as a boundary between words and keeps no word for the space
-itself. Joining two Latin-script words without a space builds a word the source text
-does not have. Running the tool against its own documentation showed this: Linux
-kernel, which appears in several places in `design.md`, came out as Linuxkernel. The
-join now adds a space between two Latin-script words that sit next to each other, and
-adds no space between a Latin-script word and a Japanese word, as in 仕様 attached to
-API. That pair is normally written with no space inside a Japanese sentence, so the
-join adds no space there either.
-
-The list that filters out generic words reuses `KEISHIKI_MEISHI` from `metrics/ja.rs`
-rather than building a new one. A generic word that slips into the glossary only loses
-its exclusion from the metaphor check, a small cost. Missing a genuine term from the
-field costs more, so the balance favors keeping words in.
-
-Running the tool against its own documentation surfaced a further problem:
-single-character words filled the top of the word list. Out of 395 words, 54 words
-were a single character, and the top twenty words were 文 (50), 形 (49), 語 (48),
-指示 (43), 値 (36), then 地 (28) and 数 (27), then 版 (22), 行 (22), and 層 (20). 地
-is what is left after の split 地の文 into two words, and the rest of these words are
-ordinary Japanese words that appear often in any piece of writing and belong to no
-one field.
-
-Naming the words to drop was ruled out, since naming them is itself a guess. The fix
-uses structure instead: the number of characters in the assembled word. A word that
-comes out to one character is dropped. Dropping one-character words is common
-practice in Japanese term extraction, since a word of several characters carries
-most of the meaning, while a one-character word is the smallest possible word and
-tends to carry many meanings, rarely pointing to one field. A word of two characters
-built from one token, for example 文書, passes through this filter untouched. After
-the fix, the top words in the word list for this repository's own documentation were
-指示, 規則, 指標, 人間, 文書, 日本語, 指摘, 閾値, 辞書, and 実装, with no
-one-character word among them.
-
-English has neither a part-of-speech tagger nor a sentence splitter. The extraction
-leans on words written in capitals alone, a capitalized word that does not sit at the
-start of a sentence, and inline code that reads as a bare identifier. Table rows are
-excluded from this scan. A table cell carries no sentence, so the start-of-sentence
-signal never fires there, and the same label repeats down a column often enough to
-clear the occurrence floor. Running the tool against its own English documentation
-showed table values leaking into the glossary this way.
-
-A heading that opens with an id carries the same problem. This file's own heading,
-D-04, The tokenizer hides behind a trait, treats D-04 as the first word, so the word
-The that follows reads as though it sat mid-sentence. The fix keeps treating the
-position as sentence-initial for as long as capital-only words keep appearing at the
-start of the text.
-
-A heading with two id-like words side by side carries a further problem. This
-file's own heading, D-13, M2 and M6 count every occurrence, has no mark between D-13
-and M2, so the two words merge into one word, D-13 M2. The word M2 on its own loses
-that occurrence and can fall under the occurrence floor. The cost falls on the
-missing side, a real word left out, rather than on the invented side, a word the
-source never wrote, so this stays a known limit rather than a fix. Fixing it needs a
-rule that decides how far to merge two id-like words next to each other, and no such
-rule has turned up that would do this without breaking a pair such as AWS S3, where
-two short words next to each other name one product.
-
-The occurrence floor defaults to two. A word seen once gives no way to tell a term of
-the field apart from an incidental phrase, and checking a term for consistency needs
-the same word to appear more than once in the first place. This default comes from
-that pair of goals rather than from measurement.
-
-## D-25 MCP hand-writes JSON-RPC instead of adding a dependency, and no daemon
-
-T9 needed two judgment calls: how to implement the MCP server, and whether to build a
-daemon.
-
-**MCP is implemented with `serde_json` alone.** The choice stood between adding a
-dedicated crate such as `rmcp` and hand-writing the three methods this server answers:
-`initialize`, `tools/list`, and `tools/call`.
-
-The set of requests it handles stops at those three; it uses none of resources, prompts,
-or server-initiated notifications. A
-dedicated crate would pin a crate version for features the server never calls, out of
-step with this repository's habit of pinning dependencies with `=` and rerunning
-`verify_schema` on every update. `serde_json` is already a dependency of both crates,
-so the new dependency count is zero. The stdio transport also reduces to one JSON-RPC
-message per line, a shape simple enough that hand-writing the transport carried little
-risk. The implementation lives in `crates/suikou-cli/src/mcp.rs`; the implementation
-calls `check::analyze` and `brief::run` and nothing else, so the judgment logic is not
-written twice between the CLI and the MCP paths.
-
-**No daemon.** The daemon's original justification was capping the cost of loading
-the dictionary once. The cost measured in T2, 0.68-0.70 ms in release, did not
-support that justification, and TASKS.md called for measuring the cost of process
-startup itself before deciding either way. A release build (`--features
-lindera-unidic`) ran `suikou check` against a short document fifty times, measuring
-wall-clock cost per run; `suikou --version` served as a comparison, its cost also
-measured over fifty runs. The table below lists the measured cost, from WSL2.
-
-| command | average cost | max cost |
+Silently returning empty tokenization output is unacceptable. Empty tokenization reduces the kango ratio, renyo count, and formal noun count to zero, and because zero is below the thresholds, an inconsistent mix of triggered and untriggered rules can falsely report a clean document.
+
+Output from `suikou --version` distinguishes builds with and without the dictionary so users can identify their binary when investigating why Japanese text went unanalyzed.
+
+## D-18 Verifying release artifacts by running dictionary analysis
+
+Testing the release workflow locally under `act` exposed a packaging defect: the produced binary was 1.2 MB while `--version` reported an embedded dictionary, which was impossible given the 191 MB dictionary size.
+
+Dead-code elimination caused the omission. Because every subcommand still executed `todo!()`, no reachable path called `morphology::load`, allowing the linker to discard the embedded dictionary. Adding a reachable call site increased the binary to 191.5 MB and produced real morphological analysis.
+
+The smoke test was also inadequate. Because `--version` branches at compile time via `#[cfg]`, it confirms only that the feature flag was enabled, not that the dictionary actually exists in the linked artifact, allowing a dictionary-free binary to pass.
+
+A `selftest` subcommand loads the dictionary and analyzes a test sentence. Verifying actual artifact behavior rather than build settings follows the same principle as verifying feature order at startup.
+
+Giving `morphology::load` an active caller also allowed removing the dead-code suppression in `crates/suikou-cli/src/morphology.rs`. Users additionally gain a direct command to confirm that their binary matches its reported capabilities.
+
+## D-19 Preserving original line numbers across preprocessing
+
+Running `suikou check` against this repository's own documentation revealed that reported line numbers pointed four lines above the actual text, matching the exact four-line length of the stripped front matter.
+
+Preprocessing deleted front matter and fenced code blocks completely, shifting every subsequent line upward and breaking alignment with the original file.
+
+Preprocessing therefore preserves the exact line count by replacing each removed block with the same number of empty lines. Because blank lines are excluded from counting, non-empty line counts and the list ratio remain unchanged.
+
+Linter diagnostics must reference exact line numbers in the user's source file; accurate findings reported at shifted positions cannot be used effectively.
+
+## D-20 Building documentation as an English-default Hugo site
+
+Documentation files moved from the top level of `docs/` into `docs/content/{en,ja}/`, with English set as the default language.
+
+Rather than importing an external theme, minimal layouts are maintained directly in the repository. Keeping layouts internal minimizes dependencies and extends the project's version-pinning policy to documentation.
+
+Maintaining a single canonical source per page also prevents content duplication between the repository and the published site.
+
+## D-21 Controlling brief detail via a CLI flag rather than a profile field
+
+Although the design document outlines storing brief verbosity inside a profile, the implementation omits that option and controls detail exclusively through `--detail concise|balanced|detailed`.
+
+The Profile struct is dedicated to holding metric thresholds. Adding a brief-formatting field would assign the struct two unrelated responsibilities: calibrated threshold values and an output-format selector. Combining both kinds of data would make the scope modified by `suikou baseline` ambiguous, so Profile remains restricted to thresholds.
+
+The CLI flag also expanded to a third level beyond the initial sketch. TASKS.md originally proposed concise and detailed, and the implementation added balanced as an intermediate tier once structural rules proved expressible in single sentences while time-dependent words still required a complete list every time. Concise abbreviates that list-plus-sentences format further, whereas detailed adds the rationale behind each rule.
+
+Profile-based detail configuration remains an open question. Moving detail selection into profiles is deferred until a concrete demand for per-project defaults appears.
+
+## D-22 Computing baseline thresholds with the Tukey outlier fence
+
+Implementing `suikou baseline` required a method for selecting threshold values without AI reference data. Although `docs/content/en/design.md` sets each threshold between the upper bound of the human range and the lower bound of the AI range—such as 0.60 for `ja.mattr100`—baseline calibration inspects only a human corpus and has no visibility into the AI range.
+
+Calibration therefore derives a boundary strictly from the human distribution by identifying what that distribution treats as an outlier.
+
+The boundary uses the Tukey outlier fence: the interquartile range equals the difference between the third and first quartiles, and the fence is placed `FENCE_K` times that range beyond the nearer quartile. The coefficient 1.5 comes from Tukey's standard outlier definition and offers a stronger statistical justification than an arbitrary margin invented for this project. A looser coefficient of 3.0 defines Tukey's "far out" threshold, which this project avoids because the small sample counts typical of baseline runs would place that fence too far away to be meaningful.
+
+Quartiles are computed via the hinge method: split the sorted samples at the median into two halves and take each half's median as Q1 and Q3, excluding the middle element from both halves when the sample count is odd. Although linear-interpolation percentiles also exist, the hinge method is simple enough to verify manually in unit tests.
+
+Any metric with fewer than four samples remains uncalibrated. With three samples or fewer, one half contains only a single value, causing the interquartile range to reflect that lone element rather than distribution spread. Substituting zero or a placeholder would conceal missing evidence from profile readers, so uncalibrated metrics are omitted from the output and the reason is printed to standard error.
+
+The initial implementation contained a defect for below-direction metrics, which are ratios or per-thousand counts and are non-negative by definition. When samples cluster tightly, Q1 - 1.5*IQR can become negative. Calibrating on this project's own Japanese documentation (`docs/content/ja/*.md`, `README.ja.md`, `CLAUDE.md`, `TASKS.md`) produced fences of -4.96 for `ja.demonstrative_per_1k` and -4.98 for `ja.keishiki_meishi_per_1k`. Because a non-negative metric can never satisfy the below check (`value < threshold`) against a negative threshold, the rule never triggers. The output still parses as valid TOML, so `suikou check` reports zero findings—an outcome easily mistaken for a valid calibration.
+
+Clamping negative fences to zero does not fix the defect. Because ratios and densities cannot be negative, a threshold of zero still requires a value strictly less than zero and remains unreachable, replacing one unreachable threshold with another. Instead, calibration treats any below-direction fence at or below zero as a failure, matching the insufficient-sample behavior by omitting the metric from output and logging the reason to standard error.
+
+Above-direction metrics do not receive parallel treatment. Whereas all metrics share zero as a lower bound, their upper bounds differ: ratios have a maximum of 1, while per-thousand counts have no fixed upper limit. Adding per-metric upper bounds would introduce metric-specific logic into otherwise generic calibration code, so boundary rejection remains limited to the below direction.
+
+Baseline calibration preserves `guidance`, `direction`, and `severity` unchanged from the bundled oss profile. Regenerating that metadata on every run would leave baseline output outdated whenever oss.toml changes, so calibration modifies only `value`.
+
+Because licensing excludes the corpus downloaded by `corpus/fetch.sh` from the repository, reproducing `corpus/baselines.toml` and confirming the order of magnitude of the bundled profiles remain unverified. Documents under `tests/golden/input/` cannot substitute because no metric there meets the four-sample minimum. TASKS.md records this verification as open until `suikou baseline` is run against a full human corpus and compared with `corpus/baselines.toml`.
+
+End-to-end behavior has been confirmed for a below-direction threshold that survives calibration. Calibrating against the Japanese documents listed above retained `ja.prose_ratio` with a fence of 0.69, and running `suikou check --profile` with that profile triggered the rule on a document dominated by bullet lists while remaining silent on a prose-only document, both verified against actual command output.
+## D-23 Implementation trade-offs in the textlint preset
+
+Implementing `packages/textlint-rule-preset-tech-maintainability` (T7) involved multiple independent design choices. Each decision is documented separately below so that the reasoning for one does not mix with another.
+
+**Standard textlint configuration cannot display `maint/` as the rule prefix.** The task specification requested rule IDs matching the Rust implementation, such as `maint/list-lead-in`. Inspecting textlint's preset loader revealed that the printed rule prefix derives from the configuration key in `.textlintrc` after removing its leading `preset-` segment. Enabling the package in the standard way via `"preset-tech-maintainability": true` therefore outputs all findings with the `tech-maintainability/` prefix. Because a configuration key must begin with `preset-` for textlint to treat it as a preset, and that same `preset-` segment is unconditionally removed before forming the prefix, standard loading provides no way to produce `maint/`.
+
+Each individual rule name following the prefix, such as `list-lead-in`, matches the Rust side as required. Only the prefix adheres to textlint's loader convention; altering it would require renaming the package to something like `textlint-rule-preset-maint`, creating a mismatch with its directory name and causing greater confusion than the prefix difference itself. Keeping the package name aligned with its directory is preferable, and the README explicitly notes that findings print under `tech-maintainability/`. Golden-parity tests avoid this loader limitation altogether by invoking `@textlint/kernel` directly and manually registering every rule under `maint/`.
+
+**Rules match against the raw Markdown source instead of the textlint AST.** textlint parses Markdown into structural nodes like paragraphs and headings, merging a soft-wrapped paragraph across multiple lines into a single Paragraph node. By contrast, `markdown.rs` generates one block per line and keeps soft-wrapped continuation lines distinct. This difference appears on lines 14 and 15 of `en_maintainability.md`, where a single sentence spans two lines: evaluating joined node text would allow a regular expression to match across words that the Rust analyzer never combines.
+
+Matching against textlint's Paragraph node text was weighed against porting the line-oriented block builder to JavaScript and using textlint solely to supply the raw source text. Although the AST approach resembles a conventional textlint rule more closely, finding counts diverge whenever node granularity disagrees with line granularity. The implementation therefore uses the ported block builder: `src/lib/blocks.js` reproduces the block builder and regular expressions from `markdown.rs`, and every rule retrieves the raw file content via `context.getSource(node)` and runs it through this local builder before checking any rule. textlint handles file reading, configuration handling, and finding output without parsing document structure for the rules.
+
+As a trade-off, reported line and column coordinates are calculated on the preprocessed string rather than the original file. Coordinates can diverge from the raw source wherever escape sequences were decoded or inline markup was removed. To compensate, `src/lib/position.js` scans the target line from left to right for the matched text and estimates the corresponding character position in the raw source. This approximation ensures that findings are never discarded rather than guaranteeing exact column numbers; parity checks against `tests/golden/` compare finding counts only and do not evaluate position accuracy.
+
+**IPADIC merges UniDic's four taigen categories into a single part of speech.** For Japanese, M1 and M5 check whether the final token of a line or list item is a taigen, meaning a nominal word capable of ending a sentence independently. suikou-core relies on UniDic and classifies a token as taigen when its top-level part of speech is noun, suffix, pronoun, or adjectival noun stem. kuromojin, the standard morphological analyzer for textlint, uses IPADIC, which lacks that four-way division at the top level.
+
+Direct inspection of kuromojin 3.0.1 confirmed that words UniDic tags as suffix, pronoun, or adjectival noun stem all appear in IPADIC with noun as the top-level part of speech and pronoun, suffix, or adjectival-noun stem as the subcategory. Specifically, "これ" (this) returns noun/pronoun and "静か" (quiet) returns noun/adjectival-noun-stem. Under IPADIC, UniDic's four-way check therefore reduces to testing whether the top-level part of speech is noun, which forms the basis of `isTaigen` in `src/lib/morphology-ja.js`.
+
+Checking whether a verb or auxiliary ends in the ren'youkei required equivalent verification. UniDic appends subtypes such as "連用形-一般", whereas IPADIC reports the bare string "連用形" without a subtype, as verified on "使い" and "し". Consequently, the Rust check `cform.startsWith("連用形")` ports over unchanged.
+
+**Diagnostic messages match the document language, whereas the Rust analyzer outputs Japanese only.** In suikou-core, `finding()` returns Japanese text even when analyzing English files, as verified by running `suikou check` on `en_maintainability.md`.
+
+Users of the textlint preset who write exclusively in English cannot act on Japanese diagnostics. While the detection logic and regular expressions remain identical to the Rust implementation, the preset selects either a Japanese or English message from `src/lib/messages.js` according to the detected document language. Because golden-test parity evaluates finding counts without comparing message strings, this difference does not affect the parity requirement.
+
+**The test suite uses `node:test` directly instead of textlint-tester.** textlint-tester expects Mocha's global `describe` and `it` functions; when those globals are missing, its fallback invokes the test callback without awaiting its result. Because that fallback ignores the Promise returned by each test case, running under `node --test` allowed assertions to report success before the asynchronous lint run finished.
+
+Between adding Mocha as a dependency to retain textlint-tester and building a minimal wrapper over `@textlint/kernel`, the zero-dependency option was chosen. `test/support/lint.js` wraps the kernel concisely, registers all rules under the `maint/` prefix, and awaits results directly, integrating with `node --test`'s native async test functions without an adapter.
+
+**Overlap with `no-ai-colon-continuation` from `@textlint-ja/textlint-rule-preset-ai-writing` remains unsuppressed.** That rule likewise relies on kuromojin to detect whether text preceding a colon ends with a predicate, overlapping with the Japanese check in M1.
+
+The rules serve different purposes: that rule flags a stylistic pattern typical of AI-generated prose, whereas M1 detects list lead-ins that break structurally when items are added or removed. Both rules may still report on the same line, and no suppression mechanism links them. Users who enable both presets are aware of both and can decide which diagnostic applies to their document, whereas automatically hiding one would remove useful information. The README documents this overlap instead.
+
+## D-24 Term extraction segments words by structure rather than part of speech alone
+
+Japanese forms compound nouns from adjacent nouns. Because UniDic assigns bound suffixes such as 素 and 性 a separate part-of-speech tag distinct from noun, collecting nouns alone split 形態素解析 into 形態 and 解析 and truncated 保守性 to 保守. Running extraction against this repository's own documentation revealed these splits.
+
+Including the suffix tag alongside the noun tag resolves those splits, but it also permits counters such as つ to start a standalone compound. UniDic provides no finer tag separating counters from derivational suffixes, making a counter exclusion list impractical. Instead, the extractor enforces a structural constraint: a suffix may extend a sequence only when a noun already precedes it, so a suffix separated by a numeral—such as つ in 3つ—never initiates a term on its own.
+
+UniDic records whitespace only as a token boundary rather than emitting a token for the space itself. Concatenating adjacent Latin-script tokens without whitespace produces words absent from the source text; running extraction on `design.md` merged several occurrences of Linux kernel into Linuxkernel. The assembler therefore inserts a space between adjacent Latin-script tokens while omitting spaces between a Latin-script token and a Japanese token, such as 仕様 attached to API, matching standard Japanese orthography.
+
+To filter out generic words, the extractor reuses `KEISHIKI_MEISHI` from `metrics/ja.rs` rather than maintaining a separate stoplist. If a generic word enters the glossary, the only consequence is that it loses its exclusion from the metaphor check, which carries a minor cost. Omitting a legitimate domain term is more harmful, so the design favors retention.
+
+Testing extraction on this repository's documentation exposed another problem: single-character words occupied most of the top of the word list. Out of 395 extracted words, 54 consisted of one character, and the top twenty entries included 文 (50), 形 (49), 語 (48), 指示 (43), 値 (36), 地 (28), 数 (27), 版 (22), 行 (22), and 層 (20). Here, 地 is the remainder after の split 地の文 into two tokens, while the others are ordinary Japanese words that occur frequently across general writing rather than identifying any specific domain.
+
+Manually listing words to exclude was rejected because curating such a list relies on guesswork. Instead, the filter applies a structural rule based on assembled word length, discarding any candidate that is one character long. Removing single-character candidates is standard in Japanese term extraction because multi-character terms convey specific meaning, whereas single-character words are minimal units with broad senses that rarely identify a domain. A two-character word formed from a single token, such as 文書, passes unaffected. After applying this length filter, the top extracted terms for this repository's documentation became 指示, 規則, 指標, 人間, 文書, 日本語, 指摘, 閾値, 辞書, and 実装, with zero single-character entries.
+
+English extraction operates without a part-of-speech tagger or sentence splitter. It identifies candidates from all-uppercase words, capitalized words appearing mid-sentence, and inline code consisting of a bare identifier. Table rows are skipped during scanning because table cells do not form sentences, preventing sentence-initial detection from triggering and allowing repeated column labels to exceed the occurrence threshold; testing on this repository's English documentation showed table cell values entering the glossary in this way.
+
+Headings beginning with an identifier present a similar edge case. In this document's own heading, D-04, The tokenizer hides behind a trait, treating D-04 as the initial word made the following word The appear mid-sentence. The fix maintains sentence-initial status across consecutive all-uppercase words at the start of a text segment.
+
+Headings containing two adjacent identifier-like words introduce an additional edge case. In this document's heading D-13, M2 and M6 count every occurrence, the absence of punctuation between D-13 and M2 merges them into a single token, D-13 M2, costing M2 that occurrence and potentially reducing its count below the occurrence threshold. Because omitting a valid term is less harmful than fabricating a word absent from the source, this behavior remains a documented limitation. Fixing it would require a rule deciding when to merge adjacent identifier-like words, and no rule has been found that separates such heading prefixes without breaking multi-token product names like AWS S3.
+
+The default minimum occurrence threshold is two. A word appearing once cannot be distinguished from incidental phrasing, and terminology consistency checks require a word to occur more than once. This default follows from those two requirements rather than from empirical measurement.
+
+## D-25 Hand-written JSON-RPC for MCP and omission of a daemon
+
+T9 required decisions on MCP server implementation and daemon support.
+
+**The MCP server relies solely on `serde_json`.** The alternatives were adding a dedicated crate such as `rmcp` or implementing `initialize`, `tools/list`, and `tools/call` manually.
+
+The server handles only those three methods and does not use resources, prompts, or server-initiated notifications. Adding a dedicated crate would introduce a versioned dependency for unused features, conflicting with this repository's policy of pinning exact versions with `=` and rerunning `verify_schema` on every update. Because both crates already depend on `serde_json`, implementing the protocol directly adds zero dependencies. In addition, the stdio transport consists of one JSON-RPC message per line, making a hand-written transport straightforward and low-risk. The server resides in `crates/suikou-cli/src/mcp.rs` and delegates exclusively to `check::analyze` and `brief::run`, keeping CLI and MCP evaluation unified.
+
+**No daemon is implemented.** The original rationale for a daemon was paying the dictionary load cost only once. Measurements in T2 recorded 0.68-0.70 ms in release builds, contradicting that rationale, and TASKS.md required benchmarking process startup itself before finalizing the decision. In the benchmark, a release build (`--features
+lindera-unidic`) ran `suikou check` on a short document fifty times to record wall-clock duration per invocation,
+alongside fifty runs of `suikou --version` as a baseline. The table below reports the measurements collected on WSL2.
+
+| Command | Mean duration | Max duration |
 |---|---|---|
 | `suikou --version` | about 1.5-1.6 ms | about 1.9-2.4 ms |
-| `suikou check` (with the dictionary, short document) | about 3.7-3.9 ms | about 4.3-4.7 ms |
+| `suikou check` (dictionary loaded, short document) | about 3.7-3.9 ms | about 4.3-4.7 ms |
 
-`suikou --version` never loads the dictionary, so its cost stands for the cost of
-process startup on its own: reading the roughly 200 MB executable, linking the
-executable, and parsing its arguments. The added cost in `suikou check` runs a couple
-of milliseconds, the combined cost of loading the dictionary (0.7 ms) and measuring
-one short document. Both costs are negligible next to the seconds an LLM turn takes,
-the setting a hook that fires on every Write and Edit runs in. A daemon would add
-complexity of its own — for example, managing a socket or a named pipe, deciding how
-to detect file changes, and serializing concurrent callers — for a cost saving too
-small to justify that complexity. `suikou daemon` stays as a subcommand; running it
-prints the measured cost and this judgment instead of doing work. Keeping the
-subcommand, rather than removing the subcommand outright, lets a user who types it
-see directly why it does nothing.
+Because `suikou --version` never loads the dictionary, its runtime measures process startup alone: reading the roughly 200 MB binary, linking it, and parsing command-line arguments. The extra time in `suikou check` amounts to a couple of milliseconds, covering dictionary loading (0.7 ms) plus analysis of a short document. Both figures are negligible compared with the multi-second duration of an LLM turn, which is the context where hooks execute on Write and Edit actions. Running a daemon would introduce operational complexity—managing sockets or named pipes, detecting file modifications, and serializing concurrent requests—for latency savings too small to justify it.
 
-## D-26 Off-register native words are found by comparing frequencies against a reference corpus
+The `suikou daemon` subcommand remains available and prints these measurements together with this decision rather than performing work. Keeping the subcommand instead of deleting it ensures that anyone who invokes it directly sees why no daemon runs.
 
-A generative model translating English into Japanese sometimes swaps a Sino-Japanese
-word for a native one. 確認する becomes 確かめる, and 必要である becomes 要る.
-The result reads too soft for technical documentation, and it slows the reader down.
+## D-26 Detecting off-register native words by reference corpus comparison
 
-What counts as the right register was settled without building a table of word pairs.
-A table would mean enumerating every difference in phrasing across every field.
-The rule compares frequencies against a corpus of professional Japanese translation
-instead.
+When translating English into Japanese, generative models sometimes substitute a native Japanese word for a Sino-Japanese equivalent—rendering 確認する as 確かめる or 必要である as 要る. This phrasing feels overly casual for technical documentation and slows reading speed.
 
-Measurement backs that decision.
-Looking at Kubernetes alone, 使う appears 320 times in the Sonnet translation against 33
-in the professional one, which invites a rule saying 使う should become 使用.
-Widening the corpus to Kubernetes, MDN, and Vue shows 使う 461 times in professional
-translation. Candidates such as 次 for 以下, 仕組み for メカニズム, and 既定 for
-デフォルト fell the same way. MDN uses 既定, so the convention differs by field.
+Rather than building a fixed substitution table of word pairs—which would require enumerating stylistic differences across every technical domain—the rule establishes register expectations by comparing word frequencies against a corpus of professional Japanese translations.
 
-Two statistics decide a finding.
-The log-likelihood ratio from Dunning (1993) says whether the difference is significant,
-and the Log Ratio from Hardie (2014) says how large it is.
-Significance alone is not enough, because using an ordinary word slightly more often
-reaches significance on a corpus this size.
+Corpus counts support this design. Within Kubernetes alone, 使う occurs 320 times in the Sonnet translation versus 33 times in the professional translation, which would seem to justify rewriting 使う to 使用. Expanding the corpus to include Kubernetes, MDN, and Vue yields 461 occurrences of 使う in professional translations. Other candidate pairs—次 versus 以下, 仕組み versus メカニズム, and 既定 versus デフォルト—failed for the same reason; MDN uses 既定, demonstrating that lexical conventions vary by domain.
 
-The Log Ratio floor came from measurement.
-Twelve professional pages held out of the reference were compared against this
-repository's Japanese pages.
-A floor of 4 reports 9 words in the professional pages, a floor of 6 reports 1, and a
-floor of 7 reports none.
-The design treats a warning on human-written text as a false positive, so the floor sits
-where the professional pages come back clean, at the cost of missing some findings.
+Findings are evaluated using Dunning's (1993) log-likelihood ratio to test statistical significance and Hardie's (2014) Log Ratio to measure effect size. Combining these two statistics is necessary because on a corpus of this scale, a slight increase in an ordinary word's frequency can reach statistical significance on its own.
 
-Building the reference carries two conditions of its own.
-A tutorial must stay out: the Rust Book translation carries 確かめる 36 times, which would
-pull it into the reference. That agrees with the measured finding that the kind of
-document moves the metrics more than the register does.
-A word also has to appear in two fields or more, because a word confined to one field
-belongs to that field rather than to the reference.
+The minimum Log Ratio threshold was selected empirically by comparing twelve held-out professional pages against this repository's Japanese documentation. A threshold of 4 flagged 9 words across the professional pages, a threshold of 6 flagged 1 word, and a threshold of 7 flagged none. Because the design treats any warning on human-written professional text as a false positive, the threshold is set where professional pages produce zero warnings, accepting missed detections as a trade-off.
 
-`.suikou/register-allow.toml` carries the words a project accepts.
-The reference is built from web documentation, which is thin on the vocabulary of
-measurement and arithmetic, and the project covers that gap itself.
-That is the same shape as D-11, where the glossary is built from the documents at hand.
+Constructing the reference corpus enforces additional criteria. Tutorials are excluded because the Rust Book translation contains 確かめる 36 times, which would improperly admit it into the reference; this aligns with measured evidence that document genre affects metrics more strongly than register. Furthermore, a word must occur in at least two domains to qualify, because terms restricted to a single domain reflect domain-specific vocabulary rather than general technical usage.
 
-## D-27 The guidance attached to the kango ratio was wrong
+Project-specific allowances are configured in `.suikou/register-allow.toml`. Since the web-documentation reference corpus contains limited vocabulary for measurement and arithmetic, individual projects supply those missing terms locally—the same pattern used in D-11, where the glossary is derived from the project's own documents.
 
-D7 told the writer to open kango into native verbs. Measurement contradicts that advice.
+## D-27 Revising the guidance for the kango ratio
 
-Comparing the word origin of content words between professional translation and this
-repository gives the table below.
+D7 previously advised writers to replace kango with native Japanese verbs. Empirical measurements contradict that advice.
+
+The table below compares content-word origin proportions between professional translations and this repository.
 
 | | Native | Sino-Japanese | Loanword | Mixed |
 |---|---|---|---|---|
 | Professional translation | 0.384 | 0.329 | 0.280 | 0.007 |
 | This repository | 0.470 | 0.463 | 0.050 | 0.017 |
 
-Professionals do not hold the kango ratio down by reaching for native verbs.
-They hold it down by using the established loanword, and their native share is in fact
-lower than this repository's.
-The guidance now reads: reach for the established loanword, and stop stacking kango nouns.
+Professional translators do not reduce the kango ratio by substituting native verbs. Instead, they rely on established loanwords, and their share of native words is actually lower than in this repository. The revised guidance therefore directs writers to adopt established loanwords and avoid combining consecutive kango nouns.
 
-The wrong guidance did real damage.
-Following it through a rewrite turned 検証 into 確かめ, 制約 into 縛り, and 抽出 into
-取り出し, and the register collapsed.
-The rule in D-26 exists to catch that collapse.
+The previous advice caused tangible harm. Applying it during a rewrite converted 検証 into 確かめ, 制約 into 縛り, and 抽出 into 取り出し, degrading the document register. The rule introduced in D-26 exists specifically to detect that register degradation.
 
-Driving a metric to zero is not the goal.
-D7 carries the severity info, which marks it as advisory, and treating it as a gate was
-the original mistake.
-A document in this repository has to come back free of errors and warnings.
-Anything at info is read as advice and nothing more.
+Reducing a metric to zero is not an objective. D7 uses the info severity level to indicate advisory status, and enforcing it as a pass-fail check was the initial error. Documents in this repository must clear all errors and warnings, whereas info-level diagnostics serve strictly as advice.
 
-## D-28 The register rule did not carry over to English
+## D-28 Failure of the register rule to generalize to English
 
-Two experiments tried to bring the method from D-26 to English. Neither worked, so no
-English rule ships.
+Attempts to adapt the D-26 method to English failed, so no English register rule ships.
 
-The first compared a document against a reference corpus.
-A frequency table was built from 652 pages and 510,000 words of Kubernetes, MDN, and Vue
-in English, and the same statistics ran against it.
-Fourteen professional English pages held out of the reference still return 20 findings
-with the floor raised to 9.
-The top of both lists is field terminology: portworx, cinder, and ebs on the professional
-side, and prose, corpus, and metric on this repository's side.
-Narrowing to words that appear in all three fields leaves words such as operations, which
-belong to the topic of the page rather than to its register.
+The first experiment compared target documents against an English reference corpus. A frequency table built from 652 pages and 510,000 words of English Kubernetes, MDN, and Vue documentation was evaluated with the same statistical tests. Even with the threshold raised to 9, fourteen held-out professional English pages still produced 20 findings. Top-ranked words on both sides consisted of domain terminology: portworx, cinder, and ebs in the professional sample, and prose, corpus, and metric in this repository. Filtering to words occurring across all three domains still left topic-specific vocabulary such as operations rather than register indicators.
 
-The cause sits in the structure of the lexicon.
-In Japanese, the condition "the word origin is native" removes field terminology almost
-mechanically, because field terminology is Sino-Japanese or a loanword.
-English marks nothing of the kind. A document about a topic uses the vocabulary of that
-topic far more often than a general corpus does, so frequency alone cannot separate the
-vocabulary of the topic from the vocabulary of the register.
+This failure results from differences in lexical structure. In Japanese, filtering for native word origin removes domain terminology almost automatically because technical vocabulary is predominantly Sino-Japanese or borrowed as loanwords. English provides no equivalent etymological division: any text on a given subject uses its topic vocabulary much more frequently than a general corpus does, so frequency counts alone cannot distinguish topic vocabulary from register.
 
-The second experiment held the topic fixed.
-Professional Japanese translations were translated back into English by the model and
-compared against the original English, across 36 pages and 30,000 words on each side.
-Not one word reached significance. Against a critical value of 15.13, the largest was
-your at 13.2 and the next was will at 11.1, and the original uses both more often than
-the model does, so the difference does not even run the other way.
-The same design in Japanese put 使う at 320 against 33, with a log-likelihood ratio of 320.
+The second experiment controlled for topic by having the model translate professional Japanese translations back into English and comparing the output against the original English across 36 pages and 30,000 words per side. Zero words reached statistical significance: against a critical value of 15.13, the highest values were your at 13.2 and will at 11.1, and the original human text uses both more often than the model output does, opposite to the target pattern. Under the equivalent Japanese setup, 使う occurred 320 times versus 33, yielding a log-likelihood ratio of 320.
 
-This result has the same shape as D-08.
-An effect size must not be carried across tasks, and a method that holds in one language
-must not be carried across languages either.
+This negative outcome across two separate experiments parallels D-08. Just as effect sizes do not transfer across tasks, a detection method validated in one language does not automatically transfer to another language.
 
-Only word choice was tested here.
-MATTR, the prose ratio, and the simile markers measure something else, and they stand.
+These experiments tested lexical choice only. MATTR, the prose ratio, and simile markers evaluate separate properties and remain in place.
 
-`research/lexshift/` reproduces both experiments.
-`build_reference_en.py` builds the English table and `translate_back.sh` produces the
-back-translation.
-The failed side is kept so that nobody runs the same experiment twice.
+Both experiments are reproducible under `research/lexshift/`, where `build_reference_en.py` constructs the English frequency table and `translate_back.sh` generates the back-translations. Retaining the negative results prevents anyone from repeating these experiments.
 
-## D-29 A Sino-Japanese word loses to the loanword when the corpus says so
+## D-29 Preferring katakana loanwords over Sino-Japanese equivalents via corpus counts
 
-D-26 decided against a table of word pairs, because the convention reverses between
-fields. That decision is revised for pairs of a Sino-Japanese word and a katakana
-loanword. A counter-example no longer disqualifies a pair: the side that wins across the
-fields as a whole is the side to follow.
+D-26 rejected a fixed word-pair table because usage conventions vary across domains. That position is revised specifically for pairs consisting of a Sino-Japanese word and a katakana loanword: a single counter-example no longer disqualifies a pair, and the form favored across the combined domains takes precedence.
 
-Several mechanical routes to synonymy were tried and dropped.
-Using an English word as a pivot and linking whatever co-occurs in the aligned paragraph
-finds collocations rather than synonyms, producing pairs such as 永続 with ボリューム and
-番号 with ポート. Lift and the Dice coefficient behave the same way.
-Substitution is about alternation, not co-occurrence, and a paragraph is the wrong unit
-to see it.
+Several automated methods for discovering synonym pairs were evaluated and discarded. Pivoting through an English term to link co-occurring words within aligned paragraphs identifies collocations rather than synonyms, generating pairs such as 永続 with ボリューム and 番号 with ポート. Lift and the Dice coefficient produced the same failure mode. Lexical substitution involves alternation rather than co-occurrence, and the paragraph level is too coarse a unit to detect it.
 
-Listing the candidates and deciding among them were therefore separated. A person lists
-them and measurement decides, which is the shape D-26 already used. Of 97 candidates, 53
-were kept.
+Candidate proposal and empirical selection were therefore decoupled: a human lists candidate pairs and corpus measurements decide which ones pass, following the workflow established in D-26. Out of 97 candidates, 53 passed.
 
-Three conditions decide. The loanword has to outnumber the Sino-Japanese word at least
-two to one, the pair has to reach twenty occurrences, and the Sino-Japanese side has to
-stay at or below sixty.
+To be retained, the katakana loanword must occur at least two to one relative to the Sino-Japanese word, the combined pair must reach twenty occurrences, and the Sino-Japanese form must stay at or below sixty occurrences. Every pair in the table satisfies all three criteria.
 
-That third condition keeps words with more than one sense out.
-Measurement shows professionals using 対象, 対応, 状態, and 場合 heavily, and not always
-in the sense the loanword carries. This repository uses 対象 for the scope a metric
-covers, which is not an object at all.
-Restricting the table to words professionals barely use keeps each pair trustworthy.
+The upper limit of sixty excludes polysemous words. Corpus counts show professional translators using 対象, 対応, 状態, and 場合 heavily, often in senses distinct from the corresponding loanword. For example, this repository uses 対象 to refer to the scope a metric covers rather than an object. Limiting the table to Sino-Japanese words that appear infrequently in professional text preserves the reliability of each pair.
 
-A word preceded by a noun is skipped as part of a compound, since rewriting the 版 inside
-英語版 or 第3版 would be wrong.
+Any target word immediately preceded by a noun is skipped as part of a compound, preventing erroneous rewrites of 版 inside 英語版 or 第3版.
 
-`.suikou/register-allow.toml` exempts a word a project uses in another sense. This
-repository exempts 記録, 一覧, 比率, 経路, 分岐, and 実体; 比率 means a ratio such as the
-kango ratio, not a rate.
+Projects can exempt words used in a distinct sense via `.suikou/register-allow.toml`. This repository exempts 記録, 一覧, 比率, 経路, 分岐, and 実体; here, 比率 denotes a ratio such as the kango ratio rather than a rate.
+## D-30 Enforce document structure and plan outlines before drafting
 
+Sentence-level checks cannot repair a structurally flawed document. A missing section, a broken logical sequence, or a paragraph carrying three distinct claims cannot be identified by reading one sentence at a time.
 
-## D-30 Structure is a guardrail, and the outline comes before the prose
+Structural rules apply equally to English and Japanese. Required sections, section sequence, and paragraph scope belong to the organization of an argument rather than to the vocabulary of a specific language. Corpus statistics confirm this consistency: paragraphs containing seven or more sentences occur at 0.27 percent in professional English and 0.59 percent in professional Japanese. Unlike D-28, where a register check failed to transfer across languages, structural patterns hold in both.
 
-Rules at the level of the sentence cannot rescue a document whose structure is wrong.
-A missing section, an order that does not follow, a paragraph carrying three claims at
-once: none of these are visible while reading one sentence at a time.
+Every doctype and its mandatory sections derive from published external standards rather than ad-hoc invention. RFC 7322 specifies mandatory sections in a recommended sequence, while individual doctypes draw from the Rust RFC template, the Kubernetes Enhancement Proposal, Michael Nygard's Architecture Decision Record, and Diátaxis. The maximum paragraph length of six sentences comes from the Google developer documentation style guide, preserving the rule against arbitrary, ungrounded checks.
 
-The structural rules apply to both languages.
-The set of sections, their order, and the unit of a paragraph are properties of the
-argument a document makes, and they sit outside the vocabulary of any one language.
-Measurement bears this out. Paragraphs of seven sentences or more run at 0.27 percent
-in professional English and at 0.59 percent in professional Japanese.
-This is where the result parts from D-28, where the register rule failed to carry over.
+Only omitting a required section produces an error; out-of-order sections, overly long paragraphs, and empty sections produce warnings. Without a required section, a document fails to answer the primary question readers bring to it, whereas section sequence and paragraph length guide presentation rather than acting as absolute prohibitions.
 
-The doctypes and their required sections were taken from existing standards rather than
-invented. RFC 7322 sets out required sections in a recommended order. The sections of
-each doctype come from the Rust RFC template, the Kubernetes Enhancement Proposal,
-Michael Nygard's Architecture Decision Record, and Diátaxis. The paragraph ceiling
-follows the Google developer documentation style guide at six sentences.
-The constraint against rules invented from a hunch holds here as well.
+Heading matching inspects only the highest heading level in the document body. An initial level-one heading functions as the document title rather than a section and is excluded. Inspecting deeper heading levels allows a subheading inside one section to falsely match another section and distort the order check, an error previously encountered in this repository's English design document.
 
-Only a missing section is an error. Order, paragraph length, and an empty section are
-warnings. A document without a required section cannot answer the question its reader
-arrived with, whereas order and paragraph length are a path through the argument rather
-than a rule that must never be broken.
+Only the first section can be satisfied by an opening paragraph without an explicit heading. Both RFC 7322 abstracts (placed between the title and the table of contents) and README files follow this convention; inserting a mandatory `## What it is` heading degrades readability compared to plain opening text.
 
-Section matching looks at the top level of headings alone.
-A leading level-one heading is the title rather than a section, so it is dropped.
-Looking deeper lets a subheading inside one section match a different section and throws
-the order check off, which is exactly what happened to the English design document in
-this repository.
+### Outline approval precedes drafting
 
-Only the first section can be answered by the lead paragraph instead of a heading.
-The abstract in RFC 7322 sits between the title and the table of contents without a
-heading of its own, and a README takes the same shape. Forcing a `## What it is` there
-reads worse than the paragraph it replaces.
+Running `suikou plot` creates a plan template under `.suikou/plans/` containing each section heading, the question that section answers, and a blank line for its one-line claim. If a section's core claim cannot be stated in one line, the reasoning is unfinished, and the plan surfaces that gap before prose is drafted.
 
-### The outline is approved before the prose
+Plan files stay outside version control because they record intermediate planning rather than final deliverables. CI therefore cannot inspect them, and plan verification runs only locally and inside an agent loop. That limitation is intentional: structural defects should be resolved before drafting begins rather than blocked at a pre-release check.
 
-`suikou plot` writes a template into `.suikou/plans/`.
-It carries the section headings, the question each section answers, and a blank line for
-the claim that section makes. A section whose claim cannot be written in one line has not
-been thought through, and the plot surfaces that before the body exists.
+### Guidance alongside violation detection
 
-The plot is kept out of version control, because it is a document of the thinking rather
-than a deliverable. CI therefore cannot see it, and the comparison runs only on a local
-machine and inside an agent loop. That is not a weakness. A structural mistake is meant
-to be caught before the writing starts, not stopped at the gate before release.
+Previous rules worked solely by flagging violations for removal. Listing violations indicates what to omit, not what content to supply.
 
-### Guidance, not only detection
+To offer constructive direction, each template includes the question a section answers and the material expected inside it, presented before drafting through `suikou plot` and `suikou brief --doctype`. All guidance text lives in a single location, `structure::writing_rules`, so drafting instructions stay synchronized with lint diagnostics.
 
-Every rule up to here pushed in one direction: find a violation, then remove it.
-A list of violations settles what to avoid. It does not settle what to write.
+Default token output does not increase because the template is emitted only when `--doctype` is passed.
 
-So the template carries the question each section answers and what belongs in it, and
-`suikou plot` and `suikou brief --doctype` put that in front of the writer before the
-body exists. The text of the guidance lives in one place, `structure::writing_rules`, so
-that it cannot drift from the text of the findings.
+## D-31 Empirical testing removed two required sections from the how-to doctype
 
-Token output does not grow. The template appears only when `--doctype` is given.
+Each doctype's required sections originated from a published framework rather than invention. Based on Diátaxis, the how-to doctype initially required three sections: prerequisites, steps, and verification. Two of those three requirements failed immediately when tested against professional documentation.
 
-## D-31 Measurement took two required sections out of the how-to type
+Evaluating `howto` on 120 Kubernetes task pages flagged `Steps` as absent on all 120 pages and `Verify` as absent on 113 pages. Not a single page passed cleanly.
 
-The required sections of each doctype were taken from an existing framework rather than
-invented. Diátaxis describes a how-to guide, and prerequisites, steps, and a check became
-the three required sections. Two of the three fell the moment they met professional
-documentation.
+Heading frequency counts explain why. Among H2 headings across those pages, 111 use `{{%/* heading "prerequisites" */%}}` and 84 use `{{%/* heading "whatsnext" */%}}`. The remaining headings are task-specific titles such as `Create a namespace` or `Edit a Secret`, each naming the concrete operation performed.
 
-Running `howto` against 120 Kubernetes task pages reported `Steps` absent on all 120 and
-`Verify` absent on 113. Not one page came back clean.
+In a how-to guide, the procedural steps constitute the document body rather than a single labeled section. Diátaxis describes a how-to guide as a sequence of steps, not as a document containing a literal `Steps` heading. Mandating that generic title would erase task-specific actions from the outline, contradicting the principle that headings alone should convey the progression of the document.
 
-Counting the headings explains it. Of the H2 headings on those pages, 111 are
-`{{%/* heading "prerequisites" */%}}` and 84 are `{{%/* heading "whatsnext" */%}}`. The rest are
-particular to the page: `Create a namespace`, `Edit a Secret`, and so on, each naming the
-operation it covers.
+As a result, `steps` and `verify` were removed from the required list, while `prerequisites` remains mandatory.
 
-The steps of a how-to are its body, not a section of it. What Diátaxis says is that a
-how-to guide is a sequence of steps, not that a heading reading `Steps` has to sit above
-them. Forcing that heading would strip from the outline the one thing it carries, which
-is what each step does. That works against the guidance that the headings alone should
-carry the line of the argument.
+### Re-evaluation exposed two additional defects
 
-So `steps` and `verify` are no longer required. `prerequisites` stays required.
+During the initial run, all 120 pages passed the `prerequisites` requirement—not because every page contained prerequisites, but because the rule was too permissive to catch omissions.
 
-### Measuring again turned up two more defects
+Lead-paragraph substitution had been determined solely by position, so any document opening with a paragraph automatically satisfied its first mandatory section regardless of meaning. Running `howto` against 120 concept pages reported zero findings, showing that the doctype failed to differentiate document categories.
 
-The first run had all 120 pages satisfying `prerequisites`. They were not satisfying it;
-the rule was too loose to notice.
+Eligibility for lead-paragraph substitution is a property of the section rather than its ordinal position. Only sections whose purpose is introducing the subject carry `lead_ok`; prerequisites and context require explicit headings. After this change, 117 of the 120 concept pages report a missing required section, demonstrating valid discrimination.
 
-Which section the lead paragraph could stand in for was decided by position. Any document
-with an opening paragraph therefore satisfied its first required section, whatever that
-section was. Running `howto` against 120 concept pages reported nothing on any of them,
-which is a type doing no work at all.
+Synonym matching previously checked only the document's declared language. Because Japanese Kubernetes translations retain the `{{%/* heading "prerequisites" */%}}` shortcode verbatim, matching solely against Japanese synonyms flagged 110 of 111 pages as missing the section. Matching was updated to check synonyms from both languages, since a heading's language may differ from the surrounding prose.
 
-Whether a section can be answered by an opening paragraph is a property of the section,
-not of its position. Only a section that states the subject now carries `lead_ok`.
-Prerequisites and context are not answered by an opening paragraph. After the change, 117
-of the 120 concept pages report a missing section, and the type discriminates.
+### Violation rates after fixes
 
-Section synonyms were matched against the document's own language alone. The Japanese
-translation of Kubernetes keeps the `{{%/* heading "prerequisites" */%}}` shortcode as
-written, so matching Japanese synonyms alone reported a missing section on 110 of 111
-pages. Matching now runs against the synonyms of both languages, because the language of
-a document and the language of a heading need not agree.
-
-### Rates after the repairs
-
-| Corpus | Pages | Missing a required section |
+| Corpus | Pages | Missing required section |
 |---|---|---|
 | English task pages | 120 | 9 (7.5%) |
 | Japanese task pages | 111 | 6 (5.4%) |
-| English concept pages run as `howto` | 120 | 117 (97.5%) |
-| Japanese concept pages run as `howto` | 120 | 116 (96.7%) |
+| English concept pages checked as `howto` | 120 | 117 (97.5%) |
+| Japanese concept pages checked as `howto` | 120 | 116 (96.7%) |
 
-The two languages land in the same band. Against documents of another type the rule fires
-on nearly every page, and against documents of its own type it stays nearly silent. That
-gap is what shows the type doing its work. Reading the pages that fire, they genuinely
-carry no `Before you begin`, and several declare `task` while reading as explanation:
-`Dependency on Docker explained` is one. These are places where Kubernetes departs from
-its own template, not false positives here.
+Both languages fall within the same range. The check flags nearly every mismatched document while reporting almost no violations on matching task pages, confirming that the doctype separates the two categories. Manual review of the flagged task pages shows that they genuinely omit `Before you begin`, and several declare `task` despite being explanatory articles (such as `Dependency on Docker explained`). Those cases represent deviations from Kubernetes's own template rather than linter false positives.
 
-### Out of the detection, still in the guidance
+### Removed from validation, retained in guidance
 
-The question and the note on what belongs there stay in the doctype. `suikou plot` and
-`suikou brief --doctype howto` still ask how it is done and how the reader knows it
-worked.
+The guiding question and scope notes remain inside the doctype definition. Both `suikou plot` and `suikou brief --doctype howto` continue asking how to perform the procedure and how readers confirm that it succeeded.
 
-What can be detected and what is worth asking before writing are not the same set.
-Telling the reader how to confirm the result is a mark of a good procedure; the presence
-of a heading reading `Verify` is not a way to measure it. Separating those two is what
-this decision turns on.
+Automatable checks and pre-writing prompts are distinct sets. Explaining how to verify an outcome characterizes an effective procedure, yet detecting a heading named `Verify` does not reliably measure whether verification exists. Separating guidance from automated detection is the core principle of this decision.
 
-### Only the how-to type could be measured from outside
+### External validation limited to the how-to doctype
 
-The required sections of `design`, `decision`, and `overview` have been tried against the
-documents in this repository and nowhere else. Those documents were written to match the
-doctype, so the exercise confirms nothing.
+The required sections for `design`, `decision`, and `overview` have been tested solely against documents in this repository. Because those files were authored specifically to satisfy the doctype definitions, they provide no independent verification.
 
-Measuring against an outside corpus needs documents that declare a type. Kubernetes
-declares `content_type`, whose values are `task`, `concept`, `reference`, and `tutorial`,
-and only `task` lines up with a type defined here. Diátaxis explanation and tutorial
-would be the types for the other two, and a type will not be added until there is
-something to measure it against.
+External benchmarking requires corpora with explicit document-type labels. Kubernetes defines `content_type` with values `task`, `concept`, `reference`, and `tutorial`, and only `task` maps to an existing doctype in this project. Diátaxis explanation and tutorial correspond to the other two categories, and additional doctypes will not be introduced until suitable external corpora are available for testing.
 
-## D-32 The design type failed against the Rust RFCs it was taken from
+## D-32 The design doctype failed against its source Rust RFC corpus
 
-The required sections of `design` were said to come from the Rust RFC template. Testing
-that claim meant running the type against 200 RFCs from the top level of `text/` in
-`rust-lang/rfcs`, taken from the highest numbers down so that the template had settled.
-Running a type against its own source is the strictest test available.
+The required sections of `design` were drawn from the Rust RFC template. Validating that claim required running the doctype against 200 RFCs from the top level of `text/` in `rust-lang/rfcs`, sampled downward from the highest RFC numbers where the template had stabilized. Evaluating a doctype against its source corpus provides the strictest possible test.
 
-The first run reported `Design` absent on all 200, `Non-goals` on 199, and `Scope` on 198.
-Each of the three had a different cause.
+The initial run reported `Design` missing on all 200 RFCs, `Non-goals` on 199, and `Scope` on 198. Each of the three failures had a separate cause.
 
-### A mismatch of names
+### Section name mismatch
 
-The 200 for `Design` were not a wrong requirement but a wrong name.
+The 200 missing-section reports for `Design` resulted from naming differences rather than an invalid requirement.
 
-The Rust RFC template calls that section `Guide-level explanation` and
-`Reference-level explanation`, and the corpus carries 157 of the first and 148 of the
-second. `Explanation` went into the synonyms, since both names contain it.
-`Implementation` and `Proposal` went in beside it, as names design documents use widely.
+In the Rust RFC template, that material appears under `Guide-level explanation` and `Reference-level explanation`, occurring 157 and 148 times respectively across the corpus. Adding `Explanation` to the synonym list covers both headings, while `Implementation` and `Proposal` were added as widely used design-document section titles.
 
-### Requiring a section the template has no room for
+### Requiring sections absent from the template
 
-`Scope` and `Non-goals` are absent from the Rust RFC template. They belong to the
-Kubernetes Enhancement Proposal, so two templates had been merged into one requirement.
+Neither `Scope` nor `Non-goals` belongs to the Rust RFC template. Both originated in the Kubernetes Enhancement Proposal, meaning two templates had been combined into one requirement set.
 
-Both are now optional, and both keep their question and their note on what belongs there.
-`plot` and `brief` go on asking how far it goes and what it will not do, as in D-31.
+Both sections were changed to optional while retaining their guiding questions and scope descriptions. As in D-31, `plot` and `brief` still ask authors to state boundaries and exclusions.
 
-### Two defects in the parser
+### Two parser defects
 
-Heading indentation had no ceiling. Four spaces or more make a line code, and CommonMark
-does not read a heading there. A `#` inside an indented code block became a level-one
-heading, which made level one the top level of that document and left its real sections
-invisible. Indentation is now capped at three spaces.
+Heading indentation previously had no upper bound. Under CommonMark, four or more leading spaces denote an indented code block rather than a heading. A `#` inside an indented code block was misparsed as a level-one heading, making level one the top heading level of the document and hiding its actual sections. Heading indentation is capped at three spaces.
 
-Fenced code blocks were removed with a regular expression. A long fence holding a shorter
-one inside it closed at the inner fence, and the code past that point was read as prose,
-which turned `# [dependencies]` into a heading. A line scan replaces it: a fence closes
-only on a line of the same marker, at least as long, with nothing after it. That is what
-CommonMark specifies.
+Fenced code blocks were previously stripped with a regular expression. When an outer fence enclosed a shorter inner fence, the expression closed prematurely at the inner fence and treated subsequent code as prose, causing lines like `# [dependencies]` to register as headings. A line-by-line scanner replaced the regular expression: a fence closes only on a line using the same marker character, at least as long as the opening fence, with no trailing content, matching CommonMark.
 
-Both fixes are ported into the textlint preset, and the two implementations return
-identical M-rule counts on real RFCs.
+Both fixes were ported to the textlint preset, and both implementations report identical M-rule counts on real RFCs.
 
-### The rate after the repairs
+### Failure rate after fixes
 
-21 of the 200 report a missing section, or 10.5 percent. Eighteen of those are not
-feature proposals at all: roadmaps, project group charters, team changes, and policy
-RFCs, which sit in `text/` without following the feature template. The remaining three
-use a section name of their own, such as `Proposed additions` or `Solution`.
+After these corrections, 21 of the 200 RFCs (10.5 percent) report a missing section. Eighteen of those are not feature proposals—they are roadmaps, project group charters, team changes, and policy RFCs stored in `text/` that do not follow the feature template. The remaining three use bespoke headings such as `Proposed additions` or `Solution`.
 
-Adding synonyms stops here. Keep adding section names and the count approaches zero, but
-that is fitting the corpus rather than describing a template. A name earns its place by
-appearing in a published template.
+Synonym additions stop at this point. Continuing to add custom headings would drive the failure rate toward zero by overfitting the sample rather than reflecting a standard; a heading qualifies for the synonym list only by appearing in a published template.
 
-## D-33 The decision type held up, and section order became measurable
+## D-33 The decision doctype passed validation and enabled order measurement
 
-The required sections of `decision` were taken from Michael Nygard's Architecture
-Decision Record. Testing that meant running the type against 190 ADRs drawn from 28
-repositories. `research/structure/fetch_adrs.py` finds them from the first record
-`adr-tools` writes, and leaves out the indexes and the templates, which are not decision
-records.
+The mandatory sections for `decision` derive from Michael Nygard's Architecture Decision Record. Validation ran against 190 ADRs collected from 28 repositories via `research/structure/fetch_adrs.py`, which discovers records from the initial entry generated by `adr-tools` and excludes index files and templates that are not decision records.
 
 | Rule | Out of 190 |
 |---|---|
-| Missing a required section | 20 (10.5%) |
-| Sections out of order | 0 |
+| Missing required section | 20 (10.5%) |
+| Out-of-order sections | 0 |
 | Long paragraph | 6 (3.2%) |
 | Empty leaf section | 2 (1.1%) |
 
-Where `howto` and `design` failed, this type held. The difference is whether one template
-was taken whole or several were merged. `design` had merged the Rust RFC with the
-Kubernetes Enhancement Proposal, and `howto` had read a description in Diátaxis as a set
-of section names. `decision` takes the ADR as it stands.
+Unlike `howto` and `design`, this doctype held without modification. The difference lies in adopting a single template intact rather than combining multiple sources: `design` had blended the Rust RFC with the Kubernetes Enhancement Proposal, and `howto` had treated prose descriptions in Diátaxis as literal section headings, whereas `decision` follows the ADR structure directly.
 
-### Section order could finally be measured
+### First measurement of section ordering
 
-Judging an order needs two of the doctype's sections present. On Kubernetes task pages
-only 7 of 120 carried two, so the run said nothing. Among the ADRs, 189 of 190 carry two,
-and the rule fires on none of them.
+Checking section order requires at least two recognized doctype sections in the same document. Only 7 of 120 Kubernetes task pages contained two recognized sections, yielding no usable signal. In the ADR sample, 189 of 190 documents contain at least two recognized sections, and zero trigger an ordering warning.
 
-Context, then decision, then consequences matches what people write. That is the evidence
-for keeping the order as a recommendation.
+Real-world records consistently follow the order of context, decision, and consequences, providing empirical support for keeping section order as a recommended check.
 
-### What the remaining 20 are
+### Breakdown of the remaining 20 failures
 
-Eleven follow MADR, which uses `Context and Problem Statement` and `Decision Outcome` and
-puts the consequences a level below `Decision Outcome`. Section matching stops at the top
-level, so a consequence section nested under another heading is invisible to it.
+Eleven follow MADR, which names its top-level headings `Context and Problem Statement` and `Decision Outcome` and nests consequences beneath `Decision Outcome`. Because matching checks only top-level headings, nested consequence sections are not detected.
 
-That limit stays. Looking deeper lets a subheading inside one section match another and
-throws the order check off, which is what happened in D-31. Supporting MADR means a
-separate doctype rather than a deeper search.
+Top-level-only matching remains unchanged. Inspecting deeper heading levels allows a subheading inside one section to falsely match another section and break the ordering check, as observed in D-31. Supporting MADR requires defining a separate doctype rather than searching nested levels.
 
-Of the other nine, some carry nothing but `Status` and `Context`: a decision record
-stating neither the decision nor what follows from it, which is a real gap. Others write
-`Proposal` where the template says `Decision`.
+Among the remaining nine records, several contain only `Status` and `Context`—omitting both the decision and its consequences, which constitutes a real structural gap—while others write `Proposal` instead of `Decision`.
 
-Adding synonyms stops here, on the same line drawn in D-32.
+Following the same boundary established in D-32, no additional synonyms are added.
 
-## D-34 The natural-japanese rules were measured, and none was adopted
+## D-34 Evaluated natural-japanese rules yielded zero adoptions
 
-`coji/natural-japanese` (MIT) is a skill for writing readable Japanese at work. It
-carries 28 detectors, a catalogue of forbidden phrases, and a collection of
-translationese patterns. Whether any of it could come across was settled the way this
-repository settles such questions.
+`coji/natural-japanese` (MIT) is a writing skill for readable workplace Japanese comprising 28 detectors, a list of banned phrases, and a collection of translationese patterns. Evaluating whether any rule could transfer followed this repository's standard empirical process.
 
-A rule earns its place by a measurement where the human and the AI ranges do not overlap,
-or by a clause in a published style guide, cited. Candidates may be listed by hand; what
-decides is the measurement. D-26 set that procedure.
+Under D-26, a rule qualifies for inclusion only when human and AI measurement distributions do not overlap, or when it cites a specific clause in a published style guide. Candidates may be compiled manually, while empirical measurement decides adoption.
 
-### How it was measured
+### Measurement methodology
 
-`corpus/cache/k8s/` holds a human translation and an AI translation of the same document,
-side by side, so that subject matter cannot account for a difference. The 798-document
-reference corpus was read alongside. The scripts are in `research/translationese/`.
+`corpus/cache/k8s/` pairs human and AI Japanese translations of identical source documents so topic differences cannot confound the comparison. The 798-document reference corpus was analyzed alongside them using scripts in `research/translationese/`.
 
 ### Results
 
-| Candidate | Human | AI | Reference | Verdict |
+| Candidate | Human | AI | Reference | Outcome |
 |---|---|---|---|---|
-| 「することができる」 | 2.43 | 0.85 | — | Runs the other way |
-| Ten translationese patterns | near zero | near zero | — | Absent from technical prose |
-| A conjunction opening a paragraph | 1.6% | 1.2% | 1.6% | No separation |
-| Three identical sentence endings | 11.8% | 10.5% | 6.0% | No separation |
+| 「することができる」 | 2.43 | 0.85 | — | Reversed direction |
+| Ten translationese patterns | near zero | near zero | — | Absent in technical prose |
+| Conjunction starting a paragraph | 1.6% | 1.2% | 1.6% | No separation |
+| Three consecutive identical sentence endings | 11.8% | 10.5% | 6.0% | No separation |
 | Double negative | 0.16 | 0.11 | 0.16 | No separation |
-| Three 「の」 in a row | 3.67 | 3.03 | 2.84 | The humans use it more |
-| A 48-phrase catalogue | 1 at most | 5 at most | — | Below the G² threshold |
+| Three consecutive 「の」 | 3.67 | 3.03 | 2.84 | Higher in human text |
+| 48-phrase catalogue | 1 at most | 5 at most | — | Below the G² threshold |
 
-The figures are occurrences per 10,000 characters, apart from the two given as a share of
-paragraphs.
+Except for the two percentage metrics representing paragraph share, all figures denote occurrences per 10,000 characters.
 
-None was adopted. `corpus/baselines.toml` records each one under `[rejected]` with its
-reason.
+None of the candidates passed. Each rejected rule and its rationale are documented under `[rejected]` in `corpus/baselines.toml`.
 
-### Why nothing separated
+### Why no metric separated human and AI prose
 
-The phrase catalogue is built for essays and business writing. 「いかがでしたか」 and
-「見ていきましょう」 do not appear in technical documentation at all: of the 48 phrases,
-19 occur anywhere in this corpus. A different kind of document gives a model different
-habits, which is the same shape of result as D-28.
+The banned-phrase catalogue was designed for essays and business prose. Expressions such as 「いかがでしたか」 and 「見ていきましょう」 never occur in technical documentation; out of 48 listed phrases, only 19 appear anywhere in the evaluated corpus. Consistent with D-28, language models produce different stylistic patterns depending on document genre.
 
-The translationese patterns need care about what they are compared against. The human
-side of this corpus is a professional translation of English documentation, so
-translationese is what it is made of, and whether a text reads as translated cannot be
-settled here. What could be measured is whether the AI translation reads as more
-translated than the human one, and it does not.
+Evaluating translationese requires attention to the baseline corpus. Because the human reference set consists of professionally translated English documentation, translationese structures are inherent to it, making it impossible to test whether prose reads as translated in absolute terms. What can be tested is whether AI translations appear more heavily translated than human translations, and the measurements show they do not.
 
-### What did come across
+### Adopted literature evidence
 
-No rule came across, but the evidence matrix did.
-`corpus/reports/research/prose-rhythm-evidence-matrix.md` sets the literature beside its
-own measurements for sentence-length variance, burstiness, autocorrelation, TTR, and
-perplexity, and marks each as counter-evidential.
+While no detector was adopted, the accompanying evidence matrix was incorporated as a reference. `corpus/reports/research/prose-rhythm-evidence-matrix.md` pairs published research with empirical measurements for sentence-length variance, burstiness, autocorrelation, TTR, and perplexity, classifying each as counter-evidential.
 
-It arrives independently at the conclusion this repository reached. On the coefficient of
-variation of sentence length it measures a 32.4 percent false-positive rate on human text
-at the threshold in use. On autocorrelation it finds the effect running opposite to the
-hypothesis, and lists the detector for deletion.
+That independent study reaches the same conclusion as this repository. For the coefficient of variation of sentence length, it observes a 32.4 percent false-positive rate on human prose at the active threshold. For autocorrelation, it measures an effect opposite to the hypothesis and marks the detector for removal.
 
-Another author reaching the same conclusion from another corpus strengthens the position,
-so the reference stays on record beside the `[rejected]` list.
+Independent confirmation from another author on a separate corpus strengthens these conclusions, so the citation is kept on record alongside the `[rejected]` list.
 
-### Both tools run over the same document
+### Side-by-side comparison on a single document
 
-A list of rules does not say what a tool actually catches. A Japanese design document of
-the kind a model writes was put through both.
+Comparing rule lists alone does not indicate what each tool flags in practice, so both linters were executed on a model-generated Japanese design document.
 
 | | suikou | natural-japanese |
 |---|---|---|
 | Findings | 13 across 5 rules, plus 4 document-level directions | 6 across 5 categories |
-| Rules in common | none | none |
+| Overlapping rules | none | none |
 
-What each caught was disjoint. suikou reported a count of items stated in prose, numbered
-headings, items not parallel, words that depend on a moment in time, and a Sino-Japanese
-word where the loanword wins: every one of them a place that breaks on the next edit or
-goes stale. natural-japanese reported clichés, an inanimate subject, translationese, and
-rhythm: places where the prose reads unnaturally.
+Their outputs were completely disjoint. suikou reported an item count written in prose, numbered headings, non-parallel list items, time-dependent expressions, and a Sino-Japanese word where a loanword predominates—each representing an issue that breaks on subsequent edits or becomes outdated. natural-japanese flagged clichés, an inanimate grammatical subject, translationese, and prose rhythm—issues where wording sounds unnatural.
 
-Both landed on the same opening sentence for different reasons, one on a time-dependent
-word and the other on a cliché.
+Both tools flagged the same opening sentence for different reasons: one for a time-dependent word and the other for a cliché.
 
-On a professional page, the Japanese translation of a Kubernetes task, suikou reported
-two findings and natural-japanese one. Both stay quiet.
+On a professionally written Japanese translation of a Kubernetes task page, suikou reported two findings and natural-japanese reported one, demonstrating low noise from both tools.
 
-### Volume over a matched corpus
+### Finding volume across a matched corpus
 
-Twelve human translations and twelve AI translations of the same documents:
+Across twelve human translations and twelve AI translations of identical source documents, total findings were distributed as follows.
 
 | | Human | AI | Ratio |
 |---|---|---|---|
 | suikou | 43 | 62 | 1.44 |
 | natural-japanese | 87 | 82 | 0.94 |
 
-The breakdown says where the volume comes from. `translationese` reports 13 on the human
-side against 2 on the AI side, and `translationese_morph` 19 against 2. Both run toward
-the human translation, matching the measurement above: the human side is a professional
-translation of English, so translationese is what it is made of.
+Per-rule counts explain the volume distribution. `translationese` reported 13 findings on human text versus 2 on AI text, and `translationese_morph` reported 19 versus 2. Both skew toward human translations, aligning with the earlier result: because the human baseline consists of professional English-to-Japanese translations, translationese features occur frequently within it.
 
-### The one rule that ran the right way
+### The single candidate showing the expected direction
 
-`repeated_sentence_lead`, which fires when the first two morphemes of a sentence repeat
-six times in one document, was the only candidate to come out heavier on the AI side. It
-has no counterpart in suikou, so it was measured like the rest.
+Only `repeated_sentence_lead`—which triggers when the first two morphemes of a sentence repeat six times in one document—fired more heavily on AI text. Because suikou lacked an equivalent detector, it was benchmarked using the same methodology.
 
-| Set | Documents | Documents firing | Per 100 sentences |
+| Corpus | Documents | Documents triggering | Per 100 sentences |
 |---|---|---|---|
 | Human translation | 39 | 35% | 14.2 |
 | AI translation | 78 | 50% | 16.4 |
 | Reference corpus | 60 | 26% | 10.6 |
 
-The direction holds and the ranges overlap. The AI-to-human ratio is 1.15, and 26 percent
-of the reference corpus fires. A rule earns its place when the ranges do not overlap, and
-these do.
+Although the direction matches the hypothesis, the distributions overlap. The AI-to-human ratio is 1.15, and 26 percent of the reference corpus triggers the rule. Because adoption requires non-overlapping ranges, this candidate fails the criterion.
 
-The shape of the output does not fit either. The rule marks every sentence it matches,
-which produced 17 findings from a single 71-sentence document, against the constraint
-that a rule shows a limited number of positions.
+Its output format also conflicts with repository constraints. Because the detector flags every matching sentence, a single 71-sentence document generated 17 findings, violating the requirement that each rule report a bounded number of locations.
 
-Not adopted, but the figures stay on record as the one candidate that pointed the right
-way.
+The rule was not adopted, though its measurements remain recorded as the lone candidate showing the expected direction.
 
-## D-35 Dependence on a moment is decided by the anchor, not by the tense
+## D-35 Time-dependence is determined by explicit anchors rather than tense
 
-A model over-adapts to the context it sits in. Writing a document inside a session, it
-takes the moment of that session for the document's permanent present. The sentence
-`現在レイテンシが悪化しており` is true only on the day it was written.
+Language models over-adapt to their immediate session context. When drafting during a session, a model treats that session's timestamp as the document's permanent present, producing statements like `現在レイテンシが悪化しており` that hold true only on the day written.
 
-M6 is re-grounded on that mechanism rather than on documents going stale. It accounts
-for why this rule alone survives no short instruction and needs every forbidden word
-spelled out, which `brief` establishes by measurement.
+Re-grounding M6 on this context-anchoring mechanism rather than on general document staleness explains why this rule alone fails under a brief instruction and requires spelling out every prohibited term explicitly, as established empirically for `brief`.
 
-### Tense is not the predictor
+### Verb tense does not predict staleness
 
-One proposal was to strip temporal expression and keep documents timeless. It is not
-adopted.
+A proposal to prohibit temporal expressions altogether so documents remain timeless was rejected.
 
-| Sentence | Tense | Goes stale |
+| Sentence | Tense | Becomes outdated |
 |---|---|---|
 | `2026年3月に2.5倍になった` | Past | Never |
 | `現在は640ミリ秒である` | Non-past | By tomorrow |
 
-What separates them is whether an absolute anchor is present.
+Whether a statement becomes outdated depends on whether an absolute anchor is present.
 
-Targeting tense would break a doctype that holds. The context section of a decision
-record is written in the past, and that the type holds was measured across 190 published
-ADRs in D-33. The ordering of a procedure takes a tense form as well, and it does not
-depend on when it is read.
+Targeting verb tense would invalidate established doctypes. As verified across 190 published ADRs in D-33, a decision record's context section relies on past tense. Procedural ordering also uses tense forms without depending on when the text is read.
 
-### Making the exception checkable
+### Formalizing the exception with checkable anchors
 
-An exception left to judgement cannot be checked, so it becomes a question of anchors.
+Because subjective exceptions cannot be verified mechanically, exemptions are defined strictly through detectable anchors.
 
-Where the same sentence carries a calendar year, a version number, or a numbered
-document, the rule does not fire. `lindera 6.0.0 で現在の素性の順序を確認した` states a
-past fact and never goes stale.
+When the same sentence includes a calendar year, a version number, or a numbered document identifier, the rule does not trigger. For instance, `lindera 6.0.0 で現在の素性の順序を確認した` states a past fact that will not become outdated.
 
-The anchor is read per sentence; a year in a neighbouring sentence does not settle this
-one. Only a `v`-prefixed form or a three-part number counts as a version, so that a
-decimal is not mistaken for one. Reading `2.5 times` as an anchor erases every finding in
-its sentence, which is what happened while this was being written.
+Anchor detection operates strictly within each sentence; a year in an adjacent sentence does not exempt the target sentence. Only a `v`-prefixed string or a three-part version number qualifies as a version anchor, preventing ordinary decimal values from triggering the exemption. Treating `2.5 times` as an anchor would suppress every finding in its sentence, a bug observed while implementing this rule.
 
-### What a word list cannot reach
+### Expressions beyond static word lists
 
-A period counted from now carries a number, so no list of words covers it. `直近3ヶ月`,
-`過去2年`, and `先週` are matched as a pattern.
+Relative durations measured from the present contain numeric quantities, so no fixed word list can enumerate them. Expressions such as `直近3ヶ月`, `過去2年`, and `先週` are matched via patterns instead.
 
-The gap was confirmed on a real document. Run against a design document written by a
-model, M6 caught `現在`, `現時点`, `今後`, and `既存の`, and missed
-`直近3ヶ月でリクエスト数が約2.5倍に増加した`.
+Testing on a real document confirmed this gap. On a model-written design document, M6 caught `現在`, `現時点`, `今後`, and `既存の`, yet missed `直近3ヶ月でリクエスト数が約2.5倍に増加した`.
 
-The added words are the rest of the set Google's timeless-documentation guidance names
-with `recently`, `soon`, and `new`. They fall under a clause already cited rather than a
-fresh hypothesis.
+The added terms complete the set listed in Google's timeless-documentation guidance alongside `recently`, `soon`, and `new`, extending an already cited guideline rather than introducing an untested hypothesis.
 
-### Measurement
+### Measurement results
 
 | Corpus | Before | After |
 |---|---|---|
@@ -1231,27 +617,20 @@ fresh hypothesis.
 | 60 reference documents | 179 / 39 | 185 / 39 |
 | 39 AI translations | 85 / 26 | 92 / 27 |
 
-The increase is small, because reference documentation is already written without
-reference to a moment. The anchor passed over one finding across 200 documents:
-`既存のHyper-V分離サポートは、v1.10の試験的な機能であり`, a sentence stating what held
-at `v1.10`, which does not go stale.
+The increase is minor because reference documentation rarely relies on unanchored time references. Across 200 documents, the anchor exemption suppressed one finding: `既存のHyper-V分離サポートは、v1.10の試験的な機能であり`, which documents behavior tied to `v1.10` and therefore remains accurate.
 
-Every document in this repository passes both before and after.
+Every document in this repository passes both before and after this change.
 
-### What is left alone
+### Out-of-scope temporal expressions
 
-Past tense itself, descriptions of something continuing, and expressions of order are not
-targeted. A procedure needs its order and a decision record needs its history. Removing
-them takes information away from the reader and gives nothing back.
+Past tense itself, descriptions of ongoing conditions, and expressions of sequence are not targeted. Procedures require explicit ordering and decision records require historical context; removing them strips useful information from readers without providing any benefit.
+## D-36 Reducing report output by a tenth while increasing detail
 
-## D-36 The report shrinks by a tenth while saying more
+This tool operates under an output budget that prohibits increasing emitted token volume. Each rule's character cost was measured against the diagnostic value it provides.
 
-One of the constraints on this tool is that it must not grow the number of tokens it
-emits. That number was measured, rule by rule, against what each rule buys.
+### Rule detection rates and output cost
 
-### What each rule catches
-
-Per document, across 39 AI translations and the 39 human translations of the same pages:
+Per-document averages were measured across 39 AI translations and 39 human translations of identical source pages.
 
 | Rule | AI | Human | Ratio | Chars per finding |
 |---|---|---|---|---|
@@ -1263,40 +642,25 @@ Per document, across 39 AI translations and the 39 human translations of the sam
 | `maint/item-count` | 0.18 | 0.10 | 1.75 | 93 |
 | `maint/list-lead-in` | 0.00 | 0.46 | 0.00 | 92 |
 
-The register rules separate best. The M rules rest on a published style guide and fire on
-human writing too, which D-09 settled by design and this measurement does not contradict.
+Register rules distinguish AI translations from human ones most effectively. The M rules derive from an established style guide and trigger on human-authored text as well, which aligns with the design choice in D-09 rather than contradicting it.
 
-By volume `maint/time-dependent` is the largest. At a ratio of 1.05 it tells nothing about
-who wrote the document. It stays because it rests on a published clause and because
-acting on it improves the document.
+In terms of total findings, `maint/time-dependent` accounts for the largest share. Its 1.05 ratio offers no signal about authorship, yet the rule remains enabled because it reflects a published guideline and resolving its findings improves the document.
 
-### An excerpt that never showed the match
+### Excerpts that omitted the matched text
 
-The text beside a position was the first 60 characters of the line. Where the match sat
-further along, the excerpt did not contain it. Where a line held several matches, the same
-60 characters appeared once per match: three identical excerpts for three findings, with
-nothing to say which word to change.
+Previously, the snippet printed next to each location consisted of the line's leading 60 characters. Whenever a match occurred past that prefix, the snippet left it out entirely. Lines containing multiple findings repeated that same 60-character prefix for every entry, producing three identical snippets for three separate findings with no indication of which term required editing.
 
-The match now comes first, with a narrow window around it. The width differs by language,
-because fourteen Japanese characters carry about a clause while fourteen English
-characters carry two words. English takes twenty, the width at which the report totals the
-same as the fixed sixty did.
+Reports instead lead with the matched string inside a compact context window. Window length varies by language because fourteen Japanese characters span roughly a clause whereas fourteen English characters cover only two words. English excerpts use a width of twenty characters, keeping total report length comparable to the earlier fixed sixty-character prefix.
 
-### A numbered title is an identifier
+### Excluding numbered document titles
 
-M3 catches a hand-numbered heading, because sections renumber when one is added or
-removed. A title does not: an ADR is written `# 3. Title`, and that number is its name.
-155 of 190 published ADRs were firing on it. Dropping the leading level-one heading from
-the rule takes that to 11.
+M3 flags manually numbered headings because inserting or deleting sections forces renumbering. A document title behaves differently: an ADR titled `# 3. Title` uses that number as a permanent identifier. Across 190 published ADRs, 155 triggered the rule on their title. Exempting the leading level-one heading lowers that count to 11.
 
-### The tool contradicted its own advice
+### Resolving contradictory heading advice
 
-`register/prefer-katakana` pushes toward the loanword, while the section synonyms listed
-only Sino-Japanese forms. A decision record headed `## コンテキスト` was told its context
-section was missing: one rule rejecting what another had asked for. The synonyms now carry
-the loanword forms.
+`register/prefer-katakana` favors loanword terminology, yet the section-heading synonym table listed only Sino-Japanese variants. As a result, a decision record using `## コンテキスト` received a missing-context warning—one rule flagging a heading produced to satisfy another. The synonym table includes loanword forms as well to eliminate this conflict.
 
-### The result
+### Output size comparison
 
 | Corpus | Before | After |
 |---|---|---|
@@ -1305,174 +669,125 @@ the loanword forms.
 | 60 RFCs | 58,745 | 58,597 |
 | 39 AI translations | 46,979 | 42,272 |
 
-215,557 characters become 193,288, a tenth less. The saving comes from the numbered titles
-that no longer fire and from the narrower window. At the same time every position now
-names the text it matched, so the report says more while printing less.
+Combined character volume drops from 215,557 to 193,288, a reduction of a tenth. Both the narrower excerpt window and the exemption for numbered titles contribute to this decrease. Because every location entry includes the matched text directly, the shorter report provides more actionable detail.
 
-## D-37 Word choice and orthography are settled separately, and the glossary goes out
+## D-37 Separating word choice from orthography and exporting the glossary
 
-Choosing a word by ear leans toward a forced native equivalent. D-27 records that
-happening: `検証` became `確かめ` in pursuit of a lower kanji ratio.
-`register/rare-wago` finds such a word after it is written, but nothing governed the
-choice at the moment of writing.
+Choosing vocabulary intuitively often produces awkward native Japanese coinages. As documented in D-27, `検証` was replaced with `確かめ` solely to reduce the kanji ratio. While `register/rare-wago` detects such wording after drafting, writers lacked an explicit criterion for choosing words up front.
 
-Reading the formal-writing side of [yomiyasu](https://github.com/nanaism/yomiyasu)
-(MIT License, Copyright (c) 2026 nanaism) turned up a pair of questions for making that
-choice. Nothing is quoted from it; the shape of the judgement is what carried over, and
-the wording here is new.
+Reviewing the formal-writing guidance in [yomiyasu](https://github.com/nanaism/yomiyasu) (MIT License, Copyright (c) 2026 nanaism) yielded a structured way to make that decision through targeted questions. No phrasing is borrowed from that source; only the evaluation framework was adapted, using original wording.
 
-### Two questions
+### Decision questions for word choice
 
-Ask them in order.
+Apply these questions in order.
 
-1. Would someone writing in this field choose this word in a specification or a procedure?
-2. Does it map word for word back into English?
+1. Would a practitioner writing in this domain select this term in a specification or procedure?
+2. Does the expression translate back into English word for word?
 
-A yes to the second and a no to the first marks a phrase copied word by word from English.
+Answering no to the first question and yes to the second identifies a literal translation copied directly from English.
 
-What the first question turns on is that repetition proves nothing. Vocabulary from one
-AI-written document carries into the next, so finding the word again elsewhere in this
-repository is not evidence that it is established. The documents here were written by a
-model, so this applies to them.
+The first question underscores that recurrence alone proves nothing. Because phrasing from one AI-authored document propagates into subsequent ones, finding a term elsewhere in this repository does not demonstrate standard usage. Since a model authored the documents here, that caution applies directly to this repository.
 
-### Why the two are separated
+### Basis for separating terms and orthography
 
-The authority differs, so the glossary keeps them apart.
+Lexical choice and spelling rely on different authorities, so the glossary tracks them separately.
 
-| Kind | Settles | Authority |
+| Category | Determines | Authority |
 |---|---|---|
-| `term` | Which word | Corpus frequency and the PLaMo Translate rendering |
-| `orthography` | How it is written | The JTCA guideline, confirmed per word against the corpus |
+| `term` | Word selection | Corpus frequency and PLaMo Translate output |
+| `orthography` | Spelling form | JTCA guideline verified per word against the corpus |
 
-Measurement forced the separation. Asked to translate the same word in two sentences,
-PLaMo Translate produced both `コンピュータ` and `コンピューター`. It writes `サーバー`,
-`ユーザー`, and `クラスター` with the long-vowel mark, and `ブラウザ`, `パラメータ`, and
-`フォルダ` without it.
+Empirical testing demonstrated why a single mechanism cannot handle both. Translating the same English word across separate sentences, PLaMo Translate output both `コンピュータ` and `コンピューター`. It appended the long-vowel mark for `サーバー`, `ユーザー`, and `クラスター`, yet omitted it for `ブラウザ`, `パラメータ`, and `フォルダ`.
 
-A translation model can settle which word. It cannot settle how the word is written. That
-needs a published rule.
+A translation model can identify the right word, but it cannot enforce consistent spelling. Spelling conventions require a published rule.
 
-### The rule and the measurement disagree
+### Disagreement between the guideline and corpus usage
 
-The JTCA guideline on loanword orthography, third edition, writes the English endings
--er, -or, -ar, and -y with the long-vowel mark.
+The third edition of the JTCA loanword orthography guideline prescribes a trailing long-vowel mark for English endings -er, -or, -ar, and -y.
 
-Measured over 4.38 million characters, -er, -or, and -ar hold. The -y ending runs the
-other way: `プロパティ` 870 against `プロパティー` 3. `コンテナ` ends in -er, and this
-field has settled on the form without the mark, 1783 against 95.
+Measured across 4.38 million characters, usage confirms the guideline for -er, -or, and -ar. However, -y trends in the opposite direction: `プロパティ` appears 870 times compared with 3 for `プロパティー`. Similarly, although `コンテナ` ends in -er, technical usage favors omitting the mark by 1783 to 95.
 
-Each word is therefore settled by measurement rather than derived from the rule, and a
-word that disagrees carries `measured-against-jtca` so that the disagreement stays on
-record.
+Each entry is therefore decided through corpus measurement rather than inferred mechanically from the guideline. Any word that diverges from the guideline receives the `measured-against-jtca` marker so the exception remains documented.
 
-### The glossary is published in portable form
+### Exporting the glossary in portable formats
 
-`crates/suikou-core/data/glossary_ja.toml` holds the source.
-`glossary/suikou-ja.prh.yml` and `glossary/suikou-ja.csv` are generated from it.
+`crates/suikou-core/data/glossary_ja.toml` is the canonical source file, from which `glossary/suikou-ja.prh.yml` and `glossary/suikou-ja.csv` are generated.
 
-prh was chosen because it is the widely used tool for Japanese orthographic variation and
-its dictionary format runs in textlint unchanged. The generated dictionary was handed to
-textlint, which reported the variants and corrected them under `textlint --fix`.
+The prh format was selected because prh is widely adopted for checking Japanese orthographic variants and its rule files work directly in textlint without modification. Passing the generated dictionary to textlint detected the spelling variants and automatically normalized them with `textlint --fix`.
 
-### A one-character calque is left out of this rule
+### Omitting single-character calques from this rule
 
-`glossary/variant` covers orthography and calques of more than one character.
+`glossary/variant` checks orthographic variants and calques longer than one character.
 
-Searching for a single character by substring catches the `題` inside `問題`. Counted that
-way the reference corpus has 613 occurrences of `題`, nearly all of them `問題`, `課題`,
-and `話題` rather than the calque. That needs morphological analysis, and
-`prefer-katakana` already reads it that way.
+Substring matching on a single kanji produces widespread false matches, such as capturing `題` inside `問題`. Running a substring count on the reference corpus turned up 613 matches for `題`, almost all belonging to ordinary compounds such as `問題`, `課題`, and `話題` rather than the calque. Identifying single-character cases requires morphological analysis, which `prefer-katakana` already handles.
 
-### This repository was not consistent
+### Existing inconsistency in this repository
 
-Running the rule found `サーバ` in four of this repository's own documents, now written
-`サーバー` as the glossary says.
+Running the rule uncovered `サーバ` in four documents within this repository, which were updated to `サーバー` to match the glossary.
 
-The rule fires on 7 of 60 reference documents and 10 of 60 Kubernetes task pages. Those
-are not false positives: the reference corpus is itself inconsistent, 591 `サーバー`
-against 130 `サーバ`, and pointing at the minority is what the rule is for.
+The check also triggers on 7 of 60 reference documents and 10 of 60 Kubernetes task pages. These hits are valid findings rather than false positives: the reference corpus itself mixes 591 occurrences of `サーバー` with 130 of `サーバ`, and flagging minority variants is the rule's purpose.
 
-## D-38 Orthography is counted per word, with the long vowel where counting does not decide
+## D-38 Counting orthography per word and defaulting to the long vowel on ties
 
 ### Context
 
-How to settle variant spellings changed three times.
+The spelling-variant policy underwent three revisions.
 
-The first policy dropped the long vowel throughout: `サーバ`, `コンピュータ`. The second
-added it throughout, on the grounds that the JTCA katakana guideline, third edition (2015),
-specifies the long-vowel mark for `-er`, `-or`, `-ar` and `-y`.
+Initially, the long-vowel mark was omitted across all entries (`サーバ`, `コンピュータ`). A second policy added the mark everywhere based on the third edition (2015) of the JTCA katakana guideline, which specifies a trailing long-vowel mark for `-er`, `-or`, `-ar`, and `-y`.
 
-Neither matched what the reference corpus actually does.
+Neither blanket policy reflected actual usage in the reference corpus.
 
 ### Decision
 
-Count each word in the reference corpus and take the majority. Only where the count does
-not decide — the majority under twice the minority, or fewer than 50 occurrences in all —
-does the long-vowel form apply.
+Choose each word's spelling from its majority form in the reference corpus. Apply the long-vowel form only when counts are inconclusive—when the majority fails to reach twice the minority count or total occurrences are fewer than 50.
 
 ### Rationale
 
-Three policies were compared over 12 words and 8,540 occurrences.
+Each policy was evaluated across 12 words totaling 8,540 occurrences.
 
-| Policy | Disagrees with usage | Words wrong |
+| Policy | Usage disagreement | Incorrect words |
 |---|---|---|
 | Long vowel throughout | 45.9% | 5 |
 | No long vowel throughout | 54.1% | 7 |
 | Counted per word | 9.5% | 0 |
 
-Either blanket policy is wrong about half the time. `サーバー` is the majority form in the
-reference corpus and so is `コンピュータ`, so any single policy misses one of them.
+Either uniform rule conflicts with corpus usage roughly half the time. Because `サーバー` and `コンピュータ` are both majority forms in the reference corpus, any single blanket rule inevitably gets one wrong.
 
-The long vowel is the fallback because the JTCA rule points that way, and there is no
-ground for choosing against a published rule where the count is silent.
+The long-vowel mark serves as the fallback because the JTCA guideline recommends it, leaving no basis to override a published standard when corpus counts are inconclusive.
 
 ### Consequences
 
-Orthography is now kept apart from word choice, because the authority differs: word choice
-follows from how far the meaning is pinned down, orthography from usage and a published
-rule. `[[orthography]]` and `[[term]]` in `glossary_ja.toml` hold the two.
+Orthography and word choice remain separated because they rest on different authorities: word choice depends on how narrowly meaning is established, whereas orthography depends on usage data and published rules. `glossary_ja.toml` stores them under separate `[[orthography]]` and `[[term]]` sections.
 
-A translation model settles word choice but not orthography. PLaMo Translate produced both
-`コンピュータ` and `コンピューター` for one word in different sentences. On word choice it
-agreed with human translators on 90.6% of 200 aligned paragraphs, and all three
-disagreements were a different form of the same word, never a wrong word.
+Machine translation resolves word choice reliably but not spelling consistency. PLaMo Translate generated both `コンピュータ` and `コンピューター` for the same source word in different sentences. On word choice, it matched human translators across 90.6% of 200 aligned paragraphs, and all three disagreements involved an alternate form of the same word rather than an incorrect term.
 
-Words the corpus does not contain cannot be counted. The fallback exists so that a word
-outside the corpus does not leave the question open.
+Words absent from the corpus cannot be counted, so the fallback guarantees a definite spelling for out-of-corpus entries.
 
-## D-39 The README type requires only the lead, and the opening form becomes a rule
+## D-39 Requiring only a lead paragraph for READMEs and adding an opening-form rule
 
 ### Context
 
-Documents generated by a model carry the writer's own notes into the README: the state of
-the work, what turned out to be true on trying it, a declaration of what the document is
-for. The reader has no use for any of it.
+Model-generated READMEs frequently include internal author notes—work status, testing observations, or statements declaring the document's purpose—that offer no value to readers.
 
-Diátaxis holds that most documentation problems come from content trying to serve more
-than one need at once. A note to self and a README serve different needs.
+According to Diátaxis, most documentation defects arise when a single page attempts to serve multiple purposes simultaneously. Personal working notes and a README fulfill distinct needs.
 
-Whether the `overview` type fits a README had never been measured. TASKS.md listed it as
-open.
+Whether the `overview` document type fit READMEs had remained unmeasured and was tracked as an open item in TASKS.md.
 
 ### Decision
 
-A new `readme` type, requiring only the lead paragraph.
+Add a `readme` document type whose sole required element is the lead paragraph.
 
-`usage` in `overview` drops out of the required set, and its synonyms are extended.
+Remove `usage` from the required sections of `overview` and broaden its heading synonyms.
 
-A new rule, `structure/lead-opener`, which reports opening forms a document avoids.
+Add the `structure/lead-opener` rule to flag opening patterns that published documentation avoids.
 
 ### Rationale
 
-240 READMEs were collected from notable open source. Selection was by star count, split
-across 8 languages, capped at 3 per organisation, so that neither one ecosystem nor one
-organisation would be mistaken for the form itself. 199 organisations are represented.
+A corpus of 240 READMEs was assembled from prominent open-source projects, selected by star count across 8 languages and capped at 3 repositories per organization (spanning 199 organizations) so neither a single ecosystem nor a single organization would bias the sample.
 
-Applying `overview` reported a missing required section in 205 of them (85%). That is the
-same position as D-31, where `howto` lost its steps section, and D-32, where `design` lost
-its scope section.
+Evaluating those files with `overview` reported a missing required section in 205 cases (85%). This matches the findings in D-31, where `howto` dropped its required steps section, and D-32, where `design` dropped its required scope section.
 
-| Section | Identified by heading |
+| Section | Matched by heading |
 |---|---|
 | Install | 62% |
 | Contributing | 53% |
@@ -1480,129 +795,98 @@ its scope section.
 | Documentation | 41% |
 | Usage | 22% |
 
-The most common section is identified in 62% of them. Requiring it would reject two
-READMEs in five. A README does not carry its structure in its headings.
+Even the most frequent section appears in only 62% of files, so mandating it would fail two READMEs in five. README structure does not reside in heading names.
 
-It carries it in the lead.
+Instead, README structure is defined by the lead paragraph.
 
-| Measured | Value |
+| Metric | Result |
 |---|---|
-| Has a lead paragraph | 78% (187/240) |
-| Of those, within 300 characters | 83% (156/187) |
-| Median length of the lead | 121 characters |
-| Median position of the first heading | 13% into the document |
+| Contains a lead paragraph | 78% (187/240) |
+| Lead within 300 characters (among those with a lead) | 83% (156/187) |
+| Median lead length | 121 characters |
+| Median first-heading position | 13% into the document |
 
-With only the lead required, 11 of the 240 fire (5%). Three of those are Chinese READMEs,
-outside what this tool covers. One is RxJava, which puts the next release date in a heading
-ahead of saying what RxJava is.
+Requiring only a lead paragraph triggers on 11 of the 240 READMEs (5%). Three of those are written in Chinese, which lies outside this tool's supported scope. Another is RxJava, which places the next release date in a heading before defining what RxJava is.
 
-Question-form headings joined the synonyms; `## What's Rails?` is the case that prompted
-it. It can collide with `What's new`, but across the 240 the collision occurs once while
-the question form is picked up 21 times.
+Question-style headings were added to the synonym list after encountering `## What's Rails?`. Although this pattern can match `What's new`, that collision happens once across the 240 READMEs while matching legitimate question headings 21 times.
 
-The opening rule took only the forms that occurred zero times across 831 lead paragraphs.
+The opening-form rule includes only patterns with zero occurrences across 831 English lead paragraphs.
 
-| Form | README | Rust RFC | ADR | Reference (en) |
+| Pattern | README | Rust RFC | ADR | Reference (en) |
 |---|---|---|---|---|
-| Opens on generalities | 0/199 | 0/20 | 0/10 | 0/602 |
-| Opens on how it came about | 0/199 | 0/20 | 0/10 | 0/602 |
-| Declares what the document is for | 0/199 | 0/20 | 0/10 | 0/602 |
+| Starts with generalities | 0/199 | 0/20 | 0/10 | 0/602 |
+| Starts with project origin or history | 0/199 | 0/20 | 0/10 | 0/602 |
+| Declares the document's purpose | 0/199 | 0/20 | 0/10 | 0/602 |
 | Refers to itself | 1/199 | 0/20 | 0/10 | **37/602** |
 
-In Japanese the first three were also absent from 653 lead paragraphs in the reference
-corpus.
+In Japanese, the first three patterns were likewise absent across 653 lead paragraphs from the reference corpus.
 
-Self-reference (`This document describes`, `本文書は`) stays out of the rule. It occurs in
-6% of the English reference corpus, where API documentation makes it work. It is the most
-recognisably machine-written opening of the four, and the measurement says it holds.
+Self-referential openings (`This document describes`, `本文書は`) remain outside the rule. They appear in 6% of English reference documents, where API documentation uses them effectively. Although this is the most recognizably machine-written opening among the four patterns, corpus evidence confirms its acceptance in practice.
 
-Run against 2,080 real documents the rule fires zero times: 240 READMEs, 200 Rust RFCs,
-190 ADRs, 652 English and 798 Japanese reference documents.
+Tested against 2,080 published documents—240 READMEs, 200 Rust RFCs, 190 ADRs, 652 English reference documents, and 798 Japanese reference documents—the rule produces zero findings.
 
 ### Consequences
 
-Notes-to-self in a README are now caught by where the document starts, not by vocabulary.
-Words like `currently` and `TODO` are used by notable open source too: 45 of the 240
-contain `currently`. There was no ground for forbidding them.
+README working notes are addressed through opening structure rather than banned vocabulary. Established open-source projects also use terms such as `currently` and `TODO`—45 of the 240 READMEs include `currently`—leaving no basis for prohibiting them.
 
-That measurement, though, counted two different things as one. `currently` and `Roadmap` in
-notable open source address the reader: they give what is planned, help the decision to
-adopt, and ask for help. They are not the writer's notes. No wonder vocabulary could not
-separate them — what separates them is not the word but what the sentence conveys to the
-reader. D-40 takes that up.
+However, that initial count combined two distinct usages. In prominent open-source repositories, `currently` and `Roadmap` inform readers about upcoming plans, support adoption decisions, and invite contributions rather than serving as internal author notes. Vocabulary alone could not distinguish them because the difference lies in what a sentence gives the reader rather than the words chosen, a distinction addressed in D-40.
 
-What the lead holds, by contrast, has a clear norm. Make the subject the subject and say
-what it is. Do not open on background, intent, or history.
+Lead paragraphs, in contrast, follow a clear convention: make the subject the grammatical subject and state what it is, without opening on background, intent, or history.
 
-The rule does not find the notes themselves. Notes placed in the middle of a document are
-out of its reach. The lead is where reading starts, and settling that it begins with the
-subject pushes the notes backwards. Removing them from there is the job of the norm that
-asks each section to answer the question its heading poses.
+This rule does not detect working notes directly, so notes placed later in a document remain outside its scope. Requiring a subject-first lead moves such notes out of the opening; removing them from body sections falls to the convention that every section must answer the question implied by its heading.
 
-## D-40 What the sentence conveys to the reader is the test, not the words it uses
+## D-40 Judging sentences by reader value rather than vocabulary
 
 ### Context
 
-D-39 concluded that there was no ground for catching the writer's notes by vocabulary: 45
-of 240 notable READMEs contain `currently` and 48 carry a Status or Roadmap heading.
+D-39 determined that vocabulary alone could not catch internal author notes, because 45 of 240 prominent READMEs contain `currently` and 48 include a Status or Roadmap heading.
 
-That measurement counted two different things as one.
+That measurement conflated two distinct usages.
 
-`currently` and `Roadmap` in notable open source address the reader. They give what is
-planned, they help the decision to adopt, and they ask for help. They hand the reader
-something to do next.
+In prominent open-source repositories, `currently` and `Roadmap` address readers directly: they communicate plans, aid adoption decisions, invite contributions, and give readers a concrete next step.
 
-What an agent writes runs the other way: context for its own later use, which hands the
-reader nothing.
+Agent-authored notes serve the opposite function by recording context for the agent's own subsequent sessions without offering anything useful to readers.
 
-The words coincide while the job differs, so of course vocabulary could not separate them.
+Because identical words serve different purposes, filtering on vocabulary alone cannot separate them.
 
 ### Decision
 
-The test is what the sentence conveys to the reader.
+Evaluate sentences based on what they communicate to the reader.
 
-A new rule, `structure/work-note`, reports sentences about the work itself: what was tried,
-what was discovered, the state of the work, a former state.
+Add the `structure/work-note` rule to flag statements focused on the work process itself: what was attempted, what was discovered, work progress status, or a prior state.
 
-The rule is switched by doctype. In a design or a decision record, what was tried and why
-it failed is the message. `work_notes_ok` in `structure.toml` carries that.
+Control the rule by document type, because explaining past attempts and why they failed is central to design documents and decision records. `work_notes_ok` in `structure.toml` governs this setting.
 
 ### Rationale
 
-Across 240 notable READMEs, 307 sentences containing forward-looking words were sorted by
-where they sit.
+Across 240 prominent READMEs, 307 sentences with forward-looking wording were classified by location.
 
-| Placement | Count | Share |
+| Location | Count | Share |
 |---|---|---|
-| Under a heading that announces it | 125 | 41% |
-| Mixed into explanatory prose | 182 | 59% |
+| Under a dedicated heading | 125 | 41% |
+| Within explanatory prose | 182 | 59% |
 
-Of the 182 in prose, **none** was about the work. 17 handed the reader something to do and
-the rest described a feature or a plan.
+Among the 182 sentences placed within explanatory prose, **none** described internal work progress. Of those, 17 gave the reader an actionable step and the remainder described features or plans.
 
-What separates them is the subject, not the vocabulary.
+The subject of the sentence—not its vocabulary—separates these categories.
 
-| Form | README | Reference (en) | Reference (ja) | Rust RFC | ADR |
+| Pattern | README | Reference (en) | Reference (ja) | Rust RFC | ADR |
 |---|---|---|---|---|---|
-| What was tried | 0.4% | 0.2% | 0.1% | 4.5% | 3.2% |
+| What was attempted | 0.4% | 0.2% | 0.1% | 4.5% | 3.2% |
 | What was discovered | 0% | 0.3% | 0.1% | 7.5% | 1.6% |
-| The state of the work | 0% | 0% | 0.1% | 0% | 0.5% |
-| A former state | 0% | 0.3% | 0.3% | 5.0% | 0.5% |
+| Work progress status | 0% | 0% | 0.1% | 0% | 0.5% |
+| A prior state | 0% | 0.3% | 0.3% | 5.0% | 0.5% |
 
-In reader-facing documents these run from 0.1% to 0.4%. In Rust RFCs and ADRs they run from
-1.6% to 7.5%, because there the same form is the message. That is the ground for switching
-by doctype.
+Across reader-facing documentation, these patterns appear in 0.1% to 0.4% of files. In Rust RFCs and ADRs they range from 1.6% to 7.5%, because documenting the investigation itself is the purpose of those formats. That difference justifies toggling the rule by doctype.
 
-`we refactored` and its Japanese equivalent were dropped from the candidates.
+Candidate patterns for `we refactored` and its Japanese counterpart were excluded.
 
-In English, 8 of 11 occurrences handed the reader a destination: `moved to their own
-repositories`, `renamed Redis Open Source with the v8.0 release` — where to look, what to
-call it. The remaining three were an FAQ heading and an anecdote about naming.
+In English, 8 of 11 occurrences pointed readers toward a destination or updated name—for example, `moved to their own
+repositories`, `renamed Redis Open Source with the v8.0 release`—telling them where to look or what term to use. The remaining three consisted of an FAQ heading and a naming anecdote.
 
-In Japanese the form cannot be told apart from an ordinary verb: `フォーカスを移動した`
-(the focus moved) matches, and all 43 matches in the reference corpus were of that kind.
+In Japanese, the pattern cannot be separated from an ordinary verb phrase: `フォーカスを移動した` (meaning the focus moved) matches it, and all 43 matches in the reference corpus were of this type.
 
-| Corpus | Doctype applied | Fires |
+| Corpus | Applied doctype | Findings |
 |---|---|---|
 | 240 READMEs | `readme` | 0 |
 | 200 Rust RFCs | `design` | 0 |
@@ -1612,50 +896,32 @@ In Japanese the form cannot be told apart from an ordinary verb: `フォーカ�
 
 ### Consequences
 
-The same sentence is now content in one doctype and clutter in another:
-`We tried another approach and it did not work` is reported in a README and passes in a
-decision record.
+An identical sentence is treated as relevant content in one document type and extraneous commentary in another: `We tried another approach and it did not work` triggers a finding in a README yet passes in a decision record.
 
-This differs in kind from the vocabulary rules. `register/rare-wago` is settled by
-frequency and never looks at the context. `structure/work-note` changes its verdict on the
-same words according to the type of document they sit in.
+This behavior differs fundamentally from vocabulary checks. Whereas `register/rare-wago` relies purely on frequency without examining context, `structure/work-note` alters its verdict on identical wording according to the document type.
 
-A document that declares no type is not checked, because whether it addresses a reader
-cannot be known. Listing it under `[paths]` in `.suikou/structure.toml` turns the rule on.
+Documents with no declared type are skipped because whether they target external readers cannot be determined. Listing a file under `[paths]` in `.suikou/structure.toml` enables the rule for it.
 
-Plans and calls for help under a heading of their own are not reported. 41% of notable open
-source does exactly that, which lets the reader skip them. Nothing here asks a README to
-drop its plans; it asks that a heading announce them.
-
-## D-41 How strictly a norm applies is settled per doctype
+Plans and calls for contributions placed under dedicated headings are not flagged. Because 41% of prominent open-source READMEs organize them that way, readers can skip them easily. Rather than banning plans from READMEs, the rule expects a heading to announce them.
+## D-41 Per-doctype threshold calibration and rule adjustments
 
 ### Context
 
-One set of thresholds was applied to entry points and reference documents alike.
+Applying a single set of metric thresholds across both entry-point pages and reference documentation produced widespread false positives. Under the default configuration, `en.mattr100` flags 70% of 240 well-known open-source READMEs versus 15% of 652 reference documents, while `en.simile_marker_per_1k` flags 74% of those READMEs.
 
-With the default thresholds, `en.mattr100` fires on 70% of 240 notable open source READMEs
-against 15% of 652 reference documents, and `en.simile_marker_per_1k` fires on 74%.
-
-A metric firing on 70% of a genre is reporting a mismatched threshold rather than a
-property of the documents. The user raised the same point: an entry-point README and the
-documents under `docs/` are not equally formal.
+A 70% flag rate across an entire document genre indicates a miscalibrated threshold rather than pervasive writing defects. User feedback confirmed this distinction: an entry-point README is less formal than technical pages stored under `docs/`.
 
 ### Decision
 
-The profile carries per-doctype adjustment: replacing a threshold, dropping a metric, and
-silencing a local rule.
+Profiles support per-doctype adjustments capable of changing a threshold, disabling a metric, or suppressing a local rule.
 
-An adjustment requires a `reason`, and a test checks that every built-in one has it. The
-adjustment is where an agreement with the user is recorded, not something the tool settles
-on its own.
+Every adjustment must declare a `reason`, and a test enforces this requirement across all built-in entries. Each adjustment records an explicit agreement with the user instead of an automatic judgment by the tool.
 
-The order of application is the built-in profile, the built-in doctype adjustment, the
-project's override, then the project's doctype adjustment.
+Configuration layers merge in a fixed sequence: built-in profile, built-in doctype adjustment, project-level override, and project-level doctype adjustment.
 
 ### Rationale
 
-240 READMEs in English (199 organisations, 8 languages) and 150 in Japanese (144
-organisations) were measured.
+Empirical measurements covered 240 English READMEs (199 organizations across 8 languages) and 150 Japanese READMEs (144 organizations).
 
 | Metric | README | Reference | Ratio |
 |---|---|---|---|
@@ -1663,7 +929,7 @@ organisations) were measured.
 | `en.prose_ratio` | 32% | 11% | 2.9 |
 | `en.simile_marker_per_1k` | 74% | 45% | 1.6 |
 
-The share of running prose varies threefold by kind of document.
+Continuous prose proportion varies threefold depending on the document genre.
 
 | Corpus | Measured `prose_ratio` |
 |---|---|
@@ -1671,20 +937,19 @@ The share of running prose varies threefold by kind of document.
 | 652 reference (en) | 0.427 |
 | 200 Rust RFCs | 0.544 |
 
-A README is 17% prose and the rest lists and code; a reference document is 43% and a Rust
-RFC 54%. The default `en.prose_ratio` threshold of 0.65 puts every README below the line.
+Lists and code blocks dominate READMEs, leaving 17% prose compared with 43% in reference pages and 54% in Rust RFCs. The default `en.prose_ratio` threshold of 0.65 places every README below the acceptable bound.
 
-After adjustment the rates fall, and the reference corpus is untouched.
+Applying per-doctype adjustments lowers README flag rates while leaving the reference corpus unchanged.
 
-| Metric | README before | README after | Reference |
+| Metric | README (before) | README (after) | Reference |
 |---|---|---|---|
 | `en.mattr100` | 70% | 6% | 15% |
 | `en.prose_ratio` | 32% | 7% | 11% |
 | `en.simile_marker_per_1k` | 74% | 0% | 45% |
 
-Across 150 Japanese READMEs the adjusted rates fall between 0% and 2%.
+Across the 150 Japanese READMEs, adjusted flag rates fall between 0% and 2%.
 
-Formality does not differ in one direction.
+Differences in register do not shift all metrics in the same direction.
 
 | Metric | README (ja) | Reference (ja) |
 |---|---|---|
@@ -1692,66 +957,45 @@ Formality does not differ in one direction.
 | `ja.mattr100` | 0.752 | 0.674 |
 | `ja.renyo_te_ratio` | 10.16 | 6.00 |
 
-Japanese READMEs carry more Sino-Japanese than the reference corpus, because naming
-features and components piles up compounds. Loosening everything for an entry point would
-be wrong; the direction differs by metric.
+Japanese READMEs contain more Sino-Japanese compounds than reference documents because feature and component names concentrate compound vocabulary. Uniformly relaxing all limits for entry-point pages would therefore misalign with the data; each metric requires its own direction of adjustment.
 
 ### Consequences
 
-The same metric is now judged against different thresholds depending on the doctype. So
-that it stays possible to follow which document was judged by what, a doctype adjustment
-cannot add a metric; the across-the-board override does that.
+Evaluation thresholds for a given metric vary by doctype. To preserve traceability of which rules govern each document, doctype adjustments cannot add new metrics; adding metrics belongs exclusively to global profile overrides.
 
-No local rule is silenced by default for any doctype. The rules that fire most on READMEs,
-`maint/list-lead-in` at 340 occurrences and `maint/parallel-items` at 271, rest on published
-style guidance and hold in a README too. The mechanism is handed to the project and left
-unused in the built-ins.
+No local rule is suppressed by default for any built-in doctype. The most frequent local findings on READMEs—`maint/list-lead-in` with 340 hits and `maint/parallel-items` with 271 hits—reflect established style guidance that remains valid in READMEs. Projects can still use the suppression mechanism in their own configuration, even though built-in profiles leave it unused.
 
-A document declaring no type gets no adjustment. Listing it under `[paths]` in
-`.suikou/structure.toml`, or writing `doctype:` in its front matter, turns it on.
+Files with no declared doctype receive no adjustments. Enabling doctype adjustments requires either mapping the file under `[paths]` in `.suikou/structure.toml` or specifying `doctype:` in its front matter.
 
-## D-42 A log of records gets its own type, and verification reads warnings
+## D-42 Dedicated log doctype and warning-aware verification
 
 ### Context
 
-After `structure/work-note` went in, it fired 11 times on this repository: 7 in `TASKS.md`,
-3 in `decisions.md`, 1 in `metrics.md`.
+Adding `structure/work-note` produced 11 findings across this repository: 7 in `TASKS.md`, 3 in `decisions.md`, and 1 in `metrics.md`.
 
-Ten of those were the rule's fault. CLAUDE.md designates `TASKS.md` and `decisions.md` as
-where accounts of the work belong, so the rule was telling a decision record to move its
-account to the decision record.
+Ten of those findings were false positives. Because CLAUDE.md designates `TASKS.md` and `decisions.md` as the proper destinations for work records, the rule was paradoxically instructing a decision log to relocate its own entries to the decision log.
 
-Both declared the `reference` type, chosen only because it requires no section. The type
-system was treating a document's purpose and its required sections as one axis.
+Both files carried the `reference` doctype solely because it imposes no mandatory sections. As a result, the type system conflated document purpose with section requirements.
 
-A fault in the verification turned up at the same time. `suikou check --quiet` exits 1 for
-an error only; a warning exits 0. Checking every document by that exit code alone had
-missed 47 warnings, while the condition CLAUDE.md sets is no errors and no warnings.
+A separate verification bug appeared alongside this issue. Because `suikou check --quiet` exits 1 only for errors and exits 0 when warnings occur, checks gated solely on the exit code missed 47 warnings despite CLAUDE.md requiring zero errors and zero warnings.
 
 ### Decision
 
-A `log` type, for a document that collects records: a decision log, a task list, a change
-history. It carries `work_notes_ok` and requires no section.
+A dedicated `log` doctype is added for record-keeping documents such as decision logs, task lists, and change histories. It enables `work_notes_ok` and mandates no required sections.
 
-`TASKS.md` and `decisions.md` move to it.
+Both `TASKS.md` and `decisions.md` are reassigned to this doctype.
 
-Verification counts findings rather than reading the exit code.
+Verification counts reported findings directly instead of checking the command exit code.
 
 ### Rationale
 
-The `log` type adds no detection; it only loosens `reference`. It is unmeasured against an
-outside corpus, but loosening carries none of the risk that adding a rule does.
+The `log` doctype adds no new checks; it only relaxes `reference`. Even without measurement on an external corpus, relaxing a restriction does not introduce the false-positive risk of adding a new rule.
 
-After the move, work-note fires zero times across the three documents. The one in
-`metrics.md` remained and proved true on inspection: a sentence recounting that the
-substitution had once been decided by position sat in a document of definitions. It was
-rewritten as a definition, with the account left to a reference to D-31.
+Reassigning the log files cleared their warnings, whereas the single remaining finding in `metrics.md` proved valid on inspection: a reference document defining terms included a historical remark stating that substitution had previously been decided by position. Rewriting that passage as a definition and linking D-31 for the historical account reduced work-note findings to zero across the three documents.
 
-The remaining 47 warnings were this repository's own prose, pushed over the line by the
-sections written in this session. Each replacement was settled by counting the reference
-corpus.
+The other 47 warnings originated in this repository's prose after sections drafted during that session caused the files to exceed the warning thresholds. Every vocabulary replacement was selected by comparing frequencies in the reference corpus.
 
-| Word used | Reference corpus | Replacement | Reference corpus |
+| Original word | Reference corpus | Replacement | Reference corpus |
 |---|---|---|---|
 | `読み手` | 0 | `読者` | 13 |
 | `向き` | 54 | `方向` | 155 |
@@ -1759,36 +1003,29 @@ corpus.
 | `要る` | 0 | `必要` | 3,503 |
 | `入り口` | 1 | `起点` | 20 |
 
-That `読み手` appears nowhere in the reference corpus was not apparent until it was counted.
-Nothing about it felt wrong by ear.
+Intuition alone gave no indication that `読み手` was unusual; only corpus frequency counts showed that it has zero occurrences in the reference corpus.
 
 ### Consequences
 
-Findings across all documents went from 58 to 0.
+Total findings across the repository's documentation dropped from 58 to 0.
 
-The verification step changed. The exit code reads errors only, so it is not used.
+Because the exit code reflects errors alone, the verification command checks output lines instead.
 
 ```sh
 for f in <all Markdown>; do suikou check "$f" --format text; done | grep -c ':[0-9]*:[0-9]*:'
 ```
 
-A type needs to hold a document's purpose separately from whether it requires sections.
-`reference` and `log` both require none and differ in purpose. `work_notes_ok` is the first
-field to carry that difference; where the same need arises for another rule, another field
-answers it.
+Doctype definitions must separate document purpose from required section structure. Both `reference` and `log` require no specific sections yet fulfill different roles. The `work_notes_ok` flag is the first field to encode that distinction, and additional fields can handle comparable requirements for other rules.
 
-## D-43 A density metric gets a word-count gate, and what cannot be calibrated is dropped per doctype
+## D-43 Word-count gating for density metrics and dropping uncalibratable metrics per doctype
 
 ### Context
 
-After D-41 adjusted the README thresholds, the other types were measured. Applying the
-`decision` type to 190 ADRs, `en.mattr100` fired on 45%, `en.prose_ratio` on 45% and
-`en.simile_marker_per_1k` on 75% — the position READMEs had been in.
+Following the README recalibration in D-41, evaluating the remaining doctypes uncovered a similar problem on ADRs. Running the `decision` doctype across 190 ADRs triggered `en.mattr100` on 45%, `en.prose_ratio` on 45%, and `en.simile_marker_per_1k` on 75%.
 
-Looking into the simile metric showed it was not a doctype problem. Its firing rate varies
-monotonically with document length.
+Further analysis showed that the simile metric's high flag rate was not driven by doctype. Instead, its trigger rate declines monotonically as word count increases.
 
-| Words | Fires |
+| Word count | Flag rate |
 |---|---|
 | 0 to 400 | 86% |
 | 400 to 800 | 47% |
@@ -1796,32 +1033,23 @@ monotonically with document length.
 | 1,250 to 2,000 | 16% |
 | 3,000 to 5,000 | 5% |
 
-Measured over 1,042 documents from the reference corpus, Rust RFCs and ADRs.
+These measurements span 1,042 documents drawn from the reference corpus, Rust RFCs, and ADRs.
 
 ### Decision
 
-`en.simile_marker_per_1k` gets a word-count gate: below 1,250 words it is not compared
-against the threshold.
+A word-count gate is applied to `en.simile_marker_per_1k`: documents shorter than 1,250 words are exempt from threshold comparison.
 
-`en.prose_ratio` is dropped for `decision`. `en.mattr100` is recalibrated for `design` and
-`decision`.
+For `decision`, `en.prose_ratio` is disabled, while `en.mattr100` is recalibrated for both `design` and `decision`.
 
 ### Rationale
 
-The gate value follows from both theory and measurement. The threshold is 0.8 per 1,000
-words, so a single marker reaches it at 1000 ÷ 0.8 = 1,250 words. Below that a document
-either has no marker or clears the threshold with one: there is no resolution. The measured
-rates jump below the same line.
+Both analytical limits and corpus measurements support this cutoff. Given a threshold of 0.8 per 1,000 words, a single marker meets that threshold at 1000 ÷ 0.8 = 1,250 words. Below that length, any document has either zero markers or enough with one to pass, leaving no usable granularity; empirical flag rates increase sharply below the same cutoff.
 
-The gate sits at the comparison, not in the calculation. The density is well defined at any
-length, and keeping the calculation intact is what lets the golden test go on checking it
-against the reference implementation.
+The gate runs during threshold comparison rather than metric computation. Because density is well defined regardless of length, preserving the raw calculation keeps golden tests compatible with the reference implementation.
 
-`MIN_TE_FOR_RATIO` in `ja.renyo_te_ratio` gates a ratio that is undefined when its
-denominator is small; this one gates a value that is defined but has no resolution.
-Different reasons, so different placement.
+Placement differs from `MIN_TE_FOR_RATIO` in `ja.renyo_te_ratio` because the underlying issues differ: that gate prevents computing an undefined ratio over a tiny denominator, whereas this gate suppresses comparisons on a well-defined number that lacks resolution.
 
-With the gate in, every type improved and no type needed the metric dropped.
+Once gated, flag rates fell across every doctype, removing any need to disable the metric per doctype.
 
 | Doctype | Before | After |
 |---|---|---|
@@ -1830,25 +1058,13 @@ With the gate in, every type improved and no type needed the metric dropped.
 | `decision` | 75% | 4% |
 | `reference` | 45% | 1% |
 
-The 1% on the reference corpus agrees with the human range recorded in the metric's own
-documentation, 0.84 to 2.54. The default threshold of 0.8 rests on separating human from
-machine writing, which is a different method from a Tukey fence — so `suikou baseline`
-reporting that it cannot calibrate this metric on any corpus reflects the difference in
-method, not a broken metric.
+The 1% reference-corpus rate aligns with the metric's documented human range of 0.84 to 2.54. Because the default threshold of 0.8 separates human prose from machine output rather than using a Tukey fence, `suikou baseline` reporting that it cannot calibrate this metric on any corpus signals a methodological difference rather than a broken metric.
 
-The 14% left on READMEs is true. The 34 that fire have a median of 2,370 prose words
-against 1,241 for the 57 that do not, so it is not a shortage of prose: long,
-prose-heavy READMEs are simply not marking their comparisons. The per-doctype exclusion
-was therefore removed from `readme` as well.
+The remaining 14% rate on READMEs reflects true positives. The 34 flagged READMEs have a median of 2,370 prose words compared with 1,241 for the 57 unflagged ones, ruling out insufficient prose: long, prose-heavy READMEs simply omit markers on their comparisons. The per-doctype exclusion for `readme` was therefore removed.
 
-`en.prose_ratio` is dropped for `decision` because `suikou baseline corpus/cache/adrs`
-reports its calibrated bound at -0.18, outside the metric's range: the distribution is too
-wide to draw a line through. Rather than pick a number, the metric is not applied. Its
-default basis, a human range of 0.66 to 0.97, was measured on prose-heavy documentation and
-does not hold for a terse, templated record.
+For `decision`, `en.prose_ratio` is dropped because `suikou baseline corpus/cache/adrs` computes a calibrated bound of -0.18, outside the metric's valid range. Because the distribution is too wide to bound reliably, disabling the metric avoids inventing an arbitrary cutoff. Its default human range of 0.66 to 0.97 reflects prose-heavy documentation and does not fit terse, template-structured records.
 
-`en.mattr100` did calibrate: 0.76 for `design`, 0.88 for `decision`. A proposal and a
-decision record both shift vocabulary with their subject and repeat little.
+By contrast, `en.mattr100` calibrated to 0.76 for `design` and 0.88 for `decision`. Both proposals and decision records shift terminology with each topic and exhibit low lexical repetition.
 
 | Doctype | `mattr100` | `prose_ratio` | `simile` |
 |---|---|---|---|
@@ -1859,32 +1075,25 @@ decision record both shift vocabulary with their subject and repeat little.
 
 ### Consequences
 
-When a metric fires too often, the cause falls into one of three kinds.
+High flag rates trace back to distinct root causes, each paired with its own fix.
 
-| Cause | What to do |
+| Cause | Remedy |
 |---|---|
-| No resolution at this document length | Gate the metric, regardless of doctype |
-| The distribution differs by doctype | Change the threshold per doctype |
-| The distribution is too wide to bound | Do not apply it to that doctype |
+| Insufficient resolution at short document lengths | Gate the metric across all doctypes |
+| Distribution shifts across doctypes | Adjust the threshold per doctype |
+| Distribution too dispersed to bound | Disable the metric for that doctype |
 
-The doctype was suspected first, and simile turned out to be about length. Reaching for the
-per-doctype exclusion first leaves the same defect in every other type: when D-41 dropped
-simile for `readme`, the 75% on `decision` went unnoticed. The cause gets separated before
-the remedy is chosen.
+Initially blaming doctype for simile flags overlooked the real driver, which was document length. Applying a per-doctype exclusion prematurely leaves the underlying defect intact elsewhere: excluding simile markers for `readme` in D-41 left the 75% flag rate on `decision` hidden. Isolating the root cause must precede selecting a remedy.
 
-No Japanese corpus of ADRs or proposals exists, so the Japanese side is unadjusted:
-`ja.mattr100` and `ja.prose_ratio` stay at their defaults for these types.
+Because no Japanese corpus of ADRs or design proposals exists, Japanese thresholds remain unadjusted: `ja.mattr100` and `ja.prose_ratio` keep their defaults for these doctypes.
 
-## D-44 Documents collected from GitHub today do not make a human reference corpus
+## D-44 Undated GitHub documents do not form a human reference corpus
 
 ### Context
 
-The Japanese thresholds for `design` and `decision` were still at their defaults, for want
-of a Japanese corpus of ADRs and design documents.
+Japanese thresholds for `design` and `decision` remained at their defaults because no Japanese corpus of ADRs or design documents existed.
 
-One was collected through GitHub code search: 123 files from 95 organisations, filtered for
-at least 300 hiragana and katakana characters. Against the default thresholds the firing
-rates are extreme.
+GitHub code search supplied a candidate corpus of 123 files from 95 organizations, filtered to contain at least 300 hiragana and katakana characters. Default thresholds produced very high flag rates on these files.
 
 | Metric | 67 Japanese ADRs | 56 Japanese design docs |
 |---|---|---|
@@ -1893,133 +1102,104 @@ rates are extreme.
 | `ja.list_ratio` | 82% | 82% |
 | `ja.renyo_per_1k` | 43% | 39% |
 
-Calibrating would bring those down. Before calibrating, whether the corpus is human writing
-was checked.
+Although calibration would lower those rates, verifying whether the files were actually human-written came first.
 
 ### Decision
 
-Nothing is calibrated from this corpus. The Japanese side of `design` and `decision` stays
-at its defaults.
+No thresholds are calibrated from this corpus, leaving the Japanese settings for `design` and `decision` at their defaults.
 
-The collected corpus is kept. Filtering it by each file's own commit date may make it
-usable.
+The collected files are retained because filtering by each file's own commit timestamp may make the subset usable.
 
-Any future collection of a human reference corpus settles first how it will be established
-that the writing predates the spread of LLMs.
+Every subsequent effort to assemble a human reference corpus must first define a method for verifying that its documents predate widespread LLM use.
 
 ### Rationale
 
-The contamination was measured with this tool's own rules. `register/rare-wago` reports
-native-Japanese words repeated where professional technical writing does not use them — a
-rule introduced as a marker of machine writing.
+The tool's own diagnostics quantified the contamination. The `register/rare-wago` rule, designed as an indicator of machine-generated prose, flags native-Japanese terms repeated where professional technical writing avoids them.
 
-| Group | `register/rare-wago` | `maint/parallel-items` |
+| Corpus group | `register/rare-wago` | `maint/parallel-items` |
 |---|---|---|
 | Reference corpus, concept pages, human translation (67) | 4% | 35% |
 | Kubernetes task pages, human translation (40) | 20% | 52% |
 | Procedures collected from GitHub (160) | 35% | 61% |
 | ADRs collected from GitHub (67) | 31% | 71% |
 
-The groups collected from GitHub carry the machine markers more strongly than human
-translation does: 31% to 35% on `register/rare-wago`, eight times the reference corpus's 4%.
+GitHub-sourced groups trigger these machine-writing markers far more often than human translations, reaching 31% to 35% on `register/rare-wago`—eight times the 4% rate of the reference corpus.
 
-Two effects are mixed. Genre accounts for part of it, since concept pages run 4% and task
-pages 20%. Comparing task pages with task pages still leaves 20% against 35%, so holding
-genre constant does not remove the gap.
+Genre differences and contamination both contribute to these figures. Genre accounts for part of the spread, as concept pages register 4% while task pages reach 20%. Comparing task pages directly against GitHub procedures still leaves a gap of 20% versus 35%, showing that genre alone does not explain the difference.
 
-Of 25 sampled ADRs, 8 came from repositories created before 2023. A repository's creation
-date is not the date its ADR was written, so that alone does not filter the corpus.
+Among 25 sampled ADRs, 8 came from repositories created before 2023. Because a repository's creation date does not indicate when a specific ADR was written, filtering by repository creation date is insufficient.
 
-Calibrating from a contaminated group moves the thresholds toward machine style, which
-inverts what the thresholds are for.
+Calibrating against a contaminated corpus shifts thresholds toward machine-generated style, reversing the purpose of the thresholds.
 
 ### Consequences
 
-Whoever hands a corpus to `suikou baseline` has to establish what it is. `baseline` treats
-every document it is given as human writing and has no way to tell.
+Validating corpus provenance falls on whoever supplies input to `suikou baseline`. Because `baseline` assumes every input document is human-authored, it performs no authorship verification itself.
 
-The tool already carries the means to check: compare the firing rates of
-`register/rare-wago` and `maint/parallel-items` against the reference corpus. A group eight
-times above it is not a human reference corpus.
+Existing diagnostics provide a practical screen: comparing `register/rare-wago` and `maint/parallel-items` flag rates against the reference corpus exposes severe contamination. Any sample running eight times above the reference rate is unfit as a human baseline.
 
-The provenance of the corpora already held is recorded here.
+Provenance records for the stored corpora appear below.
 
-| Corpus | Where it came from | Human writing? |
+| Corpus | Source | Human authorship |
 |---|---|---|
-| `pro_ja`, 798 | Japanese translations of k8s, MDN, Vue, React, the Rust book | Human translation |
-| `pro_en`, 652 | The English originals of the same | Human |
-| `rfcs`, 200 | Rust RFCs | Human; the proposals span years before LLMs |
-| `adrs`, 190 | Published ADRs in English | Unverified |
-| `readmes`, 240 | READMEs chosen by star count | Unverified |
+| `pro_ja`, 798 | Japanese translations of k8s, MDN, Vue, React, and the Rust book | Human translation |
+| `pro_en`, 652 | English originals of the same documentation | Human |
+| `rfcs`, 200 | Rust RFCs | Human; proposals span years before LLMs |
+| `adrs`, 190 | Published English ADRs | Unverified |
+| `readmes`, 240 | READMEs selected by star count | Unverified |
 | `adrs_ja`, 123 | GitHub code search | **Contaminated** |
 | `howto_ja`, 200 | GitHub code search | **Partly contaminated** |
 
-The same measurement was applied to `adrs` and `readmes` on the English side. Since
-`register/rare-wago` is Japanese-only, the maint rules stood in for it.
+The same check was applied to the English `adrs` and `readmes` corpora. Because `register/rare-wago` is limited to Japanese, maint rules acted as the proxy indicator.
 
-| Group | `maint/parallel-items` | `maint/trailing-etc` |
+| Corpus group | `maint/parallel-items` | `maint/trailing-etc` |
 |---|---|---|
 | `pro_en`, 652 (reference) | 51% | 4% |
 | `rfcs`, 200 | 58% | 17% |
 | `adrs`, 190 | 28% | 5% |
 | `readmes`, 240 | 43% | 24% |
 
-Nothing approaches the eightfold gap seen on the Japanese side, and `adrs` runs below the
-reference at 28% against 51%. The calibrations in D-41 and D-43 rest on corpora that pass
-this check.
+No English group approaches the eightfold gap seen in Japanese, and `adrs` scores below the reference corpus at 28% compared with 51%. The calibrations adopted in D-41 and D-43 therefore rely on corpora that pass this screen.
 
-`readmes` runs 24% against 4% on `maint/trailing-etc`, six times over. Ending a list of
-features with `etc.` is a README convention that long predates LLMs, and selecting by star
-count brings in many old documents, so this reads as genre.
+On `maint/trailing-etc`, `readmes` reaches 24% versus 4% in the reference corpus, six times the reference rate. Ending feature lists with `etc.` is an established README convention that predates LLMs, and selecting repositories by star count includes many older files, attributing this elevation to genre.
 
-Only the maint rules are available in English, since D-28 settled that no English
-counterpart to `register/rare-wago` gets implemented. The means of measuring contamination
-is weaker there than in Japanese.
+Because D-28 rejected adding an English counterpart to `register/rare-wago`, English screening depends solely on maint rules, yielding weaker contamination detection than in Japanese.
 
-## D-45 M2 applies only where the count points forward
+## D-45 Restricting M2 to forward-referencing counts
 
 ### Context
 
-M2 reports a count of items stated in running prose, because adding or removing an item
-leaves the prose wrong.
+M2 flags item counts written in running prose because adding or deleting an item invalidates the stated number.
 
-The implementation ran on prose and never asked what the count referred to. TASKS.md
-recorded the consequence — that it also fires on ordinary explanation stating a count with
-no list after it — and pointed at `tests/golden/input/ja_prose.md`:
+The earlier implementation scanned prose without checking what each count referenced. TASKS.md documented the resulting false positives—flagging ordinary explanatory prose that states a count without a following list—and cited `tests/golden/input/ja_prose.md`:
 
 ```
 無効化の方法は大きく分けて二つある。時間で切る方法と、変更を検知して切る方法である。
 ```
 
-The count and the enumeration resolve in the same sentence. Adding a third method means
-rewriting that sentence, so there is nothing left to fall out of step.
+Here, the count and the listed items resolve in the same sentence. Adding a third method requires rewriting that sentence, so no separate text can go stale.
 
 ### Decision
 
-M2 applies only where the count points forward, signalled in one of three ways.
+M2 triggers only when a stated count points forward to content outside the sentence.
 
-The sentence contains 以下, 次の or 下記, which promises what follows.
+A sentence qualifies when it contains an explicit forward-pointing cue—以下, 次の, or 下記—that introduces upcoming items.
 
-A list, a heading or a table comes next — a structure editable separately from the
-sentence.
+A sentence also qualifies when a list, heading, or table follows immediately, forming a separate structure that can be edited independently of the prose.
 
-Prose carrying an enumerating word (第一に, 1つ目, まず) comes next.
+Finally, a sentence qualifies when subsequent prose introduces items using enumerating markers such as 第一に, 1つ目, or まず.
 
 ### Rationale
 
-The 168 firings across 798 reference documents were sorted.
+All 168 findings across 798 reference documents were classified by marker presence and following structure.
 
 | | List | Heading | Prose | Nothing |
 |---|---|---|---|---|
 | With 以下/次の | 38 | 4 | 14 | 6 |
 | Without | 17 | 2 | 81 | 6 |
 
-Of the 81 without a marker and followed by prose, only 3 carry an enumerating word. The
-other 78 resolve in the same sentence.
+Of the 81 cases without a forward-pointing marker that were followed by prose, only 3 contained an enumerating marker, while the other 78 resolved in the same sentence.
 
-The first count treated "no list follows" as the false-positive condition and produced a
-rate of 67%. That was wrong. Reading the cases shows the prose goes just as stale when a
-heading follows:
+An earlier tally defined false positives strictly as matches not followed by a list, which produced a 67% rate. Reviewing the concrete examples refuted that definition because prose goes stale in the exact same way when headings follow:
 
 ```
 次の3つの命名規則がよく使われます。
@@ -2027,47 +1207,34 @@ heading follows:
 ### DNSサブドメイン名
 ```
 
-Add a fourth convention and 次の3つ is wrong. Whether the counted things are list items or
-headings has nothing to do with how it breaks. What matters is whether the count points
-somewhere else.
+Adding a fourth convention makes 次の3つ inaccurate. Whether the counted elements are formatted as list items or headings does not change the failure mode; what matters is whether the count references content located elsewhere.
 
 ### Consequences
 
-Firings across the reference corpus fell from 112 documents to 67, and the golden example is
-no longer reported.
+Flagged documents in the reference corpus fell from 112 to 67, and the golden-test case is no longer flagged.
 
-Deciding how far a rule applies means deriving the condition from the rule's reason. M2's
-reason is that adding or removing an item leaves the prose wrong, which happens only when
-the count and the items can be edited separately. Whether a list follows was only part of
-that condition.
+Defining a rule's scope requires deriving the trigger condition from the failure mode the rule prevents. M2 exists to prevent stale prose counts when items are added or removed, a risk that arises only when the count and the counted items can be modified separately. Testing solely for a following list captured only a subset of that condition.
 
-The English side takes the same condition, with `following`, `below` and `these` as the
-forward-pointing words and `first`, `second` and `one is` as the enumerating ones. The
-English reference corpus was not sorted this way, so those lists are carried over from the
-Japanese rather than measured.
-
-## D-46 How much to write belongs to the doctype, but not to the rules
+The English rule applies the same structure, pairing `following`, `below`, and `these` as forward-pointing cues with `first`, `second`, and `one is` as enumerating markers. Because the English reference corpus was not classified in the same way, these lists were transferred from the Japanese analysis rather than measured independently.
+## D-46 Document types define target section scale without enforcing lint rules
 
 ### Context
 
-A doctype carried which sections to use and the question each one answers. It did not carry
-how much to write, leaving that to whoever was writing and leaving the sections uneven.
+Previously, document type definitions specified which sections to include and what question each section should answer, without indicating expected section length or composition. Writers had to decide section sizing on their own, producing uneven proportions across documents.
 
 ### Decision
 
-Each section may carry a `scale`, which `plot` and `brief` print.
+Each section definition may include an optional `scale` field, which `plot` and `brief` output as structural guidance.
 
-`check` never reports it. It is not a rule.
+This field is not a lint rule, so `check` ignores it completely.
 
-It is expressed as the ordering between sections and the composition of each, not as an
-absolute character count.
+Rather than prescribing absolute character counts, it describes relative length ordering between sections and the expected balance of prose and lists within each section.
 
 ### Rationale
 
-221 READMEs from notable open source were measured, the 19 Chinese ones among the 240
-collected being outside what this tool handles.
+Section sizes were measured across 221 READMEs from prominent open-source repositories. An initial sample of 240 files included 19 Chinese READMEs, which fall outside the languages this tool targets and were excluded.
 
-| Section | Count | Median characters | First to third quartile | Bullet lines | Prose lines |
+| Section | Count | Median characters | Interquartile range | Bullet lines | Prose lines |
 |---|---|---|---|---|---|
 | License | 96 | 212 | 109 to 452 | 0 | 2 |
 | Documentation | 91 | 349 | 171 to 854 | 0 | 1 |
@@ -2078,67 +1245,53 @@ collected being outside what this tool handles.
 | Configuration | 54 | 739 | 327 to 1568 | 0 | 7 |
 | Features | 78 | 1032 | 495 to 1815 | 6 | 2 |
 
-Five times the range from license to features, with a stable ordering and composition:
-features is the only bullet-led section, and configuration carries the most prose.
+Median lengths span roughly five times from License to Features, while both the relative ordering and the internal composition remain consistent: Features is the only section driven primarily by bullet lists, and Configuration contains the highest number of prose lines.
 
-**It is not a rule because the quartiles spread to 2.5 or 3 times the median.** Human
-documents do not separate, and a figure that does not separate cannot be a threshold. D-43
-and `[rejected]` in `corpus/baselines.toml` hold the candidates dropped for the same reason.
+**Section length cannot serve as a lint rule because quartiles span 2.5 to 3 times the median.** Human-authored documentation varies too widely to form separable distributions, ruling out a reliable threshold. Candidate metrics rejected on the same grounds appear in D-43 and under `[rejected]` in `corpus/baselines.toml`.
 
-A code block cannot be required either. Of 203 install sections, 100 carry one (49%). The
-rest point at a wiki, explain the build system in prose, or list the available downloads.
+Requiring a code block in installation instructions is also unsupportable. Out of 203 Install sections, only 100 include a code block (49%); the remainder link to external wikis, describe build workflows in prose, or list downloadable binaries.
 
-### The measurement was wrong three times
+### Measurement errors corrected after the first pass
 
-The first pass carried three faults.
+The initial measurement pass suffered from methodological errors that skewed section counts and medians.
 
-| Fault | Effect |
+| Error | Impact |
 |---|---|
-| Sections with an almost empty body were counted | Sections whose content sits in subsections entered the sample |
-| Headings were classified by substring | `What's New` landed in the about section |
-| Chinese READMEs were included | A language outside the tool's scope entered the sample |
+| Counting sections with nearly empty bodies | Parent sections whose real content resided in subsections entered the dataset |
+| Matching headings via substring search | `What's New` was misclassified under About |
+| Retaining Chinese READMEs | Documents in an unsupported language entered the dataset |
 
-After fixing them the about section fell from 49 to 32 instances and the median length of
-the features section moved from 731 to 1032.
-`research/structure/measure_granularity.py` holds the procedure.
+Correcting these issues reduced the About sample from 49 to 32 sections and shifted the median length of Features from 731 to 1032 characters. The measurement script is stored at `research/structure/measure_granularity.py`.
 
 ### Consequences
 
-Only `readme` carries a `scale`, the other types being unmeasured. A test holds the set of
-types carrying one to `readme` alone.
+Only `readme` defines `scale` values, because no other document types have been measured. A unit test restricts the set of types providing scale metadata strictly to `readme`.
 
-A test also holds each `scale` to being given in both languages, since one alone drops out
-of that language's output.
+Another test verifies that every `scale` entry supplies both English and Japanese text so neither language's output omits the guidance.
 
-No README variants were added. Whether libraries and applications separate was measured,
-and they do not: only 10% carry an API section and 14% show a package-manager install, and
-56% fall into no group at all. The section composition is continuous rather than clustered.
+Subtypes for library versus application READMEs were not introduced. Corpus analysis showed no distinct clusters: only 10% of READMEs include an API section, 14% show a package-manager installation command, and 56% match neither pattern, indicating a continuous spectrum of section compositions rather than discrete variants.
 
-## D-47 A type for staged proposals, and section presence stops depending on heading level
+## D-47 Add a document type for staged proposals and decouple section presence from heading level
 
 ### Context
 
-`design`, taken from the Rust RFC template, was the only design type.
+Previously, `design`—modeled on the Rust RFC template—served as the sole document type for technical proposals.
 
-The same word covers different demands. A Kubernetes Enhancement Proposal asks about
-operating the thing: the test plan, the graduation criteria, the rollback, version skew and
-monitoring. Anything rolled out in stages cannot ship without settling those.
+Proposals for incrementally rolled-out features impose distinct operational requirements. Kubernetes Enhancement Proposals (KEPs), for instance, must address test plans, graduation criteria, rollback paths, version skew, and monitoring before a staged release can proceed.
 
 ### Decision
 
-An `enhancement` type, taken from the KEP template.
+Introduce an `enhancement` document type modeled on the KEP template.
 
-Summary, Motivation, Goals and Proposal are required.
+Make Summary, Motivation, Goals, and Proposal required sections.
 
-Whether a section exists is judged regardless of heading level; order is judged on
-top-level headings only.
+Evaluate section presence independent of heading depth, while restricting section-order validation to top-level headings.
 
 ### Rationale
 
-265 published KEPs were measured, from 19 SIGs and capped at 25 per SIG, with the ones
-still carrying unedited template text excluded — 212 of 402 candidates fell to that filter.
+A corpus of 265 published KEPs was analyzed across 19 SIGs, capped at 25 documents per SIG. Files still containing unmodified template boilerplate were removed, eliminating 212 of the 402 initial candidates.
 
-| Section | Present |
+| Section | Presence rate |
 |---|---|
 | Summary | 98% |
 | Motivation | 95% |
@@ -2157,10 +1310,9 @@ still carrying unedited template text excluded — 212 of 402 candidates fell to
 | Drawbacks | 53% |
 | User Stories | 39% |
 
-The required set was chosen on the combined rate, since one missing section fires the rule
-and the individual rates do not settle it.
+Because omitting any single required section triggers a diagnostic, the required subset was selected using cumulative trigger rates rather than individual section frequencies.
 
-| Required set | Fires |
+| Required sections | Trigger rate |
 |---|---|
 | Summary | 2% |
 | + Motivation | 6% |
@@ -2168,35 +1320,29 @@ and the individual rates do not settle it.
 | + Non-Goals | 15% |
 | + Graduation Criteria + Test Plan | 29% |
 
-The 9% set was taken, which puts it in the same band as the other types.
+Selecting the 9% configuration aligns the false-positive rate with the other document types.
 
-The operational sections stay optional, keeping their question and their guidance so that
-`plot` and `brief` go on asking — the treatment D-31 and D-32 settled.
+Operational sections remain optional while retaining their guiding questions and descriptions so `plot` and `brief` continue prompting authors to consider them, following the approach established in D-31 and D-32.
 
-### Presence stops depending on heading level
+### Decoupling section presence from heading level
 
-Applied as it stood, the type fired on 262 of 265 (98%).
+When first evaluated against the corpus, the new document type triggered diagnostics on 262 of 265 KEPs (98%).
 
-Heading level was the cause. A KEP puts `Goals` under `## Motivation` as a `###`, and
-section matching looked only at the top level.
+The cause was heading depth: KEPs nest `Goals` beneath `## Motivation` as a `###` subheading, whereas section matching inspected only top-level headings.
 
-**A heading's level is a formatting choice, not a meaning.** Goals belonging to the
-motivation is a judgement about where they sit, not an absence.
+**Heading depth is a structural formatting choice rather than a semantic absence.** Placing goals inside the motivation section reflects how an author groups related ideas, not that goals are missing.
 
-D-33 had declined to relax this, on the grounds that "looking at lower levels makes a
-subheading inside one section match another and corrupts the order judgement".
+D-33 had rejected matching lower-level headings out of concern that a subheading inside one section might match a different section definition and distort order checks.
 
-Separating presence from order removes that ground. Presence ignores the level; order reads
-only top-level headings, since ordering a nested heading against a top-level one means
-nothing.
+Separating presence checks from order checks eliminates that conflict. Presence matching scans headings at every depth, while order validation examines top-level headings exclusively, since relative ordering between a nested subheading and a top-level heading is undefined.
 
-With them separated, `enhancement` fell from 98% to 8%.
+After this separation, the trigger rate on `enhancement` dropped from 98% to 8%.
 
 ### Consequences
 
-The other types were affected too, all downward.
+Trigger rates declined across all existing document types as well.
 
-| Doctype | Corpus | Fires |
+| Document type | Evaluation corpus | Trigger rate |
 |---|---|---|
 | `readme` | 240 READMEs | 4% |
 | `design` | 200 Rust RFCs | 8% |
@@ -2204,25 +1350,22 @@ The other types were affected too, all downward.
 | `enhancement` | 265 KEPs | 8% |
 | `howto` | 41 Kubernetes task pages | 0% |
 
-The 11 MADR documents D-33 had set aside now pass: they put consequences under `Decision
-Outcome`, which was a placement rather than an absence.
+The 11 MADR documents previously set aside in D-33 pass under the separated logic; they nest consequences under `Decision
+Outcome`, representing a hierarchy choice rather than an omission.
 
-D-33 also named splitting the type per template as the alternative to relaxing. Adding
-`enhancement` is that alternative, so both were done in the end.
+D-33 also noted that splitting document types by template was the alternative to relaxing heading-level matching. Introducing `enhancement` implements that alternative as well, resulting in both changes being adopted.
 
-The selection tree gained a branch, `design` and `enhancement` parting on whether the
-thing is rolled out in stages. A test holds every type reachable from the tree.
+The document-type decision tree gains a branch that distinguishes `design` from `enhancement` based on whether the feature rolls out in stages. A test enforces that every defined document type remains reachable in the decision tree.
 
-## D-48 README headings take the conventional names, and M2 counts only within a section
+## D-48 Align README headings with convention and restrict M2 counts to the enclosing section
 
 ### Context
 
-D-46 built the means to measure a README's granularity, which was then turned on this
-repository's own README.
+Applying the README granularity analysis from D-46 to this repository's own README exposed a naming mismatch.
 
-Five of its seven headings were all but absent from 221 notable open source READMEs.
+Five of the repository README's seven headings barely appeared across the 221 notable open-source READMEs.
 
-| Heading here | Present in the 221 |
+| Repository heading | Frequency across 221 READMEs |
 |---|---|
 | `Installing` | 1% |
 | `Using it` | 0% |
@@ -2232,168 +1375,130 @@ Five of its seven headings were all but absent from 221 notable open source READ
 | `Documentation` | 25% |
 | `License` | 41% |
 
-A reader cannot find a section under a name they do not know.
+Readers struggle to locate standard information when headings use unfamiliar labels.
 
-The `Status` section had a second problem. The same table stood in three places —
-`CLAUDE.md` and both READMEs — and the two in the READMEs had gone stale, 8 rows against
-13, missing `plot`, the glossary and the release workflow.
+The `Status` section suffered from a separate maintenance issue: the same status table was duplicated in three places—`CLAUDE.md` and both README files—and the README copies had drifted out of sync, showing 8 rows instead of 13 and omitting `plot`, the glossary, and the release workflow.
 
 ### Decision
 
-The headings take the conventional names: `Install`, `Usage`, `How it works`, `Status`.
+Rename the headings to match open-source conventions: `Install`, `Usage`, `How it works`, and `Status`.
 
-`Layout` moves to `development.md`, being contributor material.
+Move `Layout` into `development.md`, because repository directory structure is contributor documentation.
 
-The `Status` table leaves the READMEs, which now point at `CLAUDE.md`.
+Remove the duplicated `Status` table from both READMEs and replace it with a pointer to `CLAUDE.md`.
 
 ### Rationale
 
-The conventional names were chosen on their rate across the 221: `Install` 41%, `Usage`
-33%, `Documentation` 25%.
+The replacement names reflect the dominant conventions in the 221-README corpus: `Install` (41%), `Usage` (33%), and `Documentation` (25%).
 
-`Layout` lists repository paths and appears in 1 of the 221. It is not what a reader weighs
-when deciding whether to adopt something.
+A `Layout` section enumerating repository paths appeared in only 1 of the 221 READMEs; prospective users do not rely on internal file trees when evaluating adoption.
 
-`Status` became a sentence because three copies were not being kept in step. A copy goes
-stale; one place holds it.
+Reducing `Status` to a short reference eliminates synchronization drift across three copies by maintaining a single canonical source.
 
-`Usage` runs 1,052 characters against a measured third quartile of 920. The user decided to
-keep it, and D-46 had already settled that the scale is guidance rather than a rule.
+Although `Usage` measures 1,052 characters against a corpus third quartile of 920, the maintainer elected to leave it as written, consistent with D-46's principle that section scale is guidance rather than an enforceable rule.
 
-### An M2 false positive, fixed
+### Fixing an M2 false positive
 
-While doing this, the M2 condition added in D-45 fired wrongly on this repository's own
-README:
+Editing the Japanese README uncovered a false positive in the M2 rule condition introduced in D-45:
 
     部分ごとの状況は CLAUDE.md にある。
     ここに写しを置くと古くなる。実際に、取り除く前は5つの部分が遅れていた。
 
     ## ライセンス
 
-A heading followed, so the count was taken to point forward. `## ライセンス` is not what
-the count refers to; the section merely ended.
+Because a heading appeared immediately afterward, the rule interpreted the numeric count as referencing upcoming items. In reality, `## ライセンス` begins an unrelated sibling section; the previous section had simply ended.
 
-**A count can only point at what is inside its own section.** A following heading is
-counted only when it is deeper than the one the count sits under.
+**A numeric count can refer only to content nested within its own section.** A subsequent heading triggers the rule only when its heading level is deeper than the heading enclosing the count.
 
-The reference corpus gives 1 case each way, so frequency settles nothing. The ground is the
-range a count can reach. A rule that fires whenever a count lands in a section's last
-paragraph is defective however rarely that happens.
+In the reference corpus, this distinction produces 1 case in each direction, so corpus frequency alone is inconclusive. The justification rests on scope semantics: any rule that flags a retrospective count solely because it appears in a section's closing paragraph is flawed regardless of how seldom it fires.
 
-All three implementations carry it — Rust, the textlint preset and
-`research/mcheck.py` — and the golden counts are unchanged.
+The fix is implemented consistently across all three codebases—Rust, the textlint preset, and `research/mcheck.py`—without changing the golden test counts.
 
 ### Consequences
 
-Turning the doctype machinery on this repository's own documents is what revealed that the
-headings had drifted from convention. Building the means to measure does not fix the
-documents; applying it is separate work.
+Running the doctype evaluation tooling against this repository's own documentation was what surfaced the heading drift. Measurement infrastructure does not automatically improve existing prose; applying it to the project's own files requires deliberate follow-up work.
 
-The same table does not go in several places. One of `CLAUDE.md` and the README is the
-source, and the other points at it.
+Duplicating tables across multiple files is avoided: between `CLAUDE.md` and the README, one document serves as the single source of truth and the other links to it.
 
-## D-49 The documentation site stays on Hugo; Zensical cannot hold two languages
+## D-49 Keep Hugo for the documentation site because Zensical lacks native multilingual builds
 
 ### Context
 
-Moving the documentation site to Zensical was proposed. It is a Rust and Python site
-generator from the makers of Material for MkDocs.
+A proposal evaluated migrating the documentation site to Zensical, a Rust-and-Python static site generator built by the creators of Material for MkDocs.
 
-This site builds English and Japanese together, with `defaultContentLanguage` set to
-English and `[languages]` pointing at `content/en` and `content/ja`.
+The repository builds English and Japanese documentation in a single pipeline, configuring `defaultContentLanguage` for English and mapping `[languages]` to `content/en` and `content/ja`.
 
 ### Decision
 
-It stays on Hugo.
+Continue building the documentation site with Hugo.
 
 ### Rationale
 
-Zensical cannot hold two languages in one build, and says so:
+Zensical does not support multiple languages within a single build, as its documentation explicitly notes:
 
 > Zensical only supports setting a canonical language for the entire project.
 
-`docs_dir` takes a single path and the language is a project-wide setting. A language
-selector is hand-written links to separate sites.
+Because `docs_dir` accepts only a single directory path and the site language is configured globally, switching languages requires manual links pointing to separately built sites.
 
-No plugin route exists either. As of 0.1.1 the documentation states that Zensical does not
-run arbitrary MkDocs plugins and does not expose the MkDocs plugin API.
+Plugins do not close this gap either. As of version 0.1.1, Zensical's documentation specifies that it neither executes arbitrary MkDocs plugins nor exposes the MkDocs plugin API.
 
-`mkdocs-static-i18n` appears on none of the supported, unsupported or planned lists, and
-configuration for an unlisted plugin is silently ignored. A Module API is planned, but
-reaches the paid Spark tier first.
+The `mkdocs-static-i18n` plugin is absent from Zensical's supported, unsupported, and planned lists, and configuration blocks for unlisted plugins are silently ignored. Although a Module API is planned, it will target the paid Spark tier before broader release.
 
-The roadmap carries `Language organization` and `Language publishing`, neither of them in
-the `Now available`, `In development` or `Up next` table, and the roadmap states that it
-promises no dates and no order. The project's own update says it stays on 0.x while the
-module system takes shape.
+On the roadmap, `Language organization` and `Language publishing` do not appear under `Now available`, `In development`, or `Up next`, and the roadmap explicitly disclaims any committed timelines or priority order. Project updates also state that Zensical will remain on 0.x releases while its module architecture matures.
 
-### What was established by trying it
+### Findings from a prototype evaluation
 
-0.1.1 was installed and run to settle whether the move was possible. Two things the
-documentation does not state turned up, and are recorded for whoever revisits this.
+Version 0.1.1 was installed and tested locally to determine whether migration was viable. The trial uncovered two undocumented behaviors alongside other technical details, recorded here in case the migration is revisited.
 
-| Question | Result |
+| Evaluation area | Finding |
 |---|---|
-| Publishing under a subpath | Works; output is relative, so no base-path setting is needed |
-| The language-selector key | `[[project.extra.alternate]]`; the documentation does not name it |
-| `site_dir` | Must sit inside the project; anything outside is rejected |
-| Custom front matter | Preserved, so `doctype` is unaffected |
-| Build | 0.26s, 592K of output against Hugo's 796K |
+| Publishing under a subpath | Supported; generated links are relative, requiring no base-path option |
+| Language-selector configuration key | `[[project.extra.alternate]]`; omitted from official documentation |
+| `site_dir` | Must reside inside the project directory; external paths are rejected |
+| Custom front matter | Preserved intact, leaving `doctype` unaffected |
+| Build performance and size | 0.26s build time, producing 592K of output versus Hugo's 796K |
 
-Two projects — a configuration file each under `docs/en` and `docs/ja` — does work. Both
-were built, and `<html lang>` comes out correctly per language.
+Splitting the site into two separate projects—each with its own configuration under `docs/en` and `docs/ja`—works technically. Both builds succeed and emit the appropriate `<html lang>` attribute for each language.
 
-### Why it was declined
+### Reasons for declining the migration
 
-Two projects means maintaining `nav` in two configuration files. D-48 had just settled that
-the same table does not go in several places, and this runs against it.
+Maintaining two separate projects would require duplicating the `nav` structure across two configuration files, directly contradicting the single-source principle established in D-48.
 
-There is something to gain — the Material-grade appearance, search, and dropping 57 lines
-of hand-written layout — but weighed against multilingual support being unscheduled, the
-project stating it stays on 0.x, and no plugin route until the Module API, staying is the
-better position.
+Although Zensical offers Material-style visual polish, built-in search, and the removal of 57 lines of custom layouts, those gains do not outweigh unscheduled multilingual support, an indefinite 0.x release phase, and the absence of plugin extensibility prior to the Module API.
 
-This gets revisited when i18n reaches the roadmap's status table.
+This decision can be revisited once i18n enters the roadmap's active status table.
 
 ### Consequences
 
-`docs/hugo.toml`'s policy of taking no external theme stands, as do the four hand-written
-layouts totalling 57 lines.
+The no-external-theme policy in `docs/hugo.toml` remains in effect, along with the four custom layout templates totaling 57 lines.
 
-So does the absence of search. Zensical ships a `search.json`, but not at the price of
-assembling the two languages by hand.
+Client-side search remains absent as well: although Zensical generates a `search.json` index automatically, gaining search does not justify manually stitching together two single-language builds.
 
-## D-50 The rules separate in Japanese and do not separate in English
+## D-50 Existing rules separate AI-authored documentation in Japanese but not in English
 
 ### Context
 
-Filling the gap T21 named required documents an AI actually wrote, with authorship
-established from the commit log: repositories where 60% or more of recent commits carry
-`Co-Authored-By: Claude`.
+Addressing the gap identified in T21 required evaluating genuinely AI-authored documentation whose provenance could be confirmed from git history: repositories where 60% or more of recent commits include `Co-Authored-By: Claude`.
 
-140 English and 150 Japanese documents were collected separately.
+Separate corpora were gathered for each language, totaling 140 English documents and 150 Japanese documents.
 
 ### Decision
 
-No rule is added. The existing rules already separate in Japanese.
+Add no new lint rules, as the existing rules already separate AI-authored text from human writing in Japanese.
 
-The gap T21 named does not hold as a gap in English, and in Japanese the existing rules
-cover it.
+In English, the gap postulated in T21 does not materialize in empirical data, while in Japanese the existing rule set already addresses it.
 
 ### Rationale
 
-The four memo forms (`structure/work-note`) do not appear in AI-authored English
-documentation: 1% of 140 against 0% of human READMEs. Nor do the four candidate forms, and
-注意書き runs higher in the human documents.
+Across the 140 AI-authored English documents, the four work-note patterns (`structure/work-note`) appear at 1%, compared with 0% in human READMEs. The four candidate patterns show no separation either, and 注意書き occurs at a higher rate in human-authored documents.
 
-In Japanese the existing rules do separate. Three groups differing in how firmly their
-authorship is established were measured with the same rules.
+In Japanese, by contrast, existing rules differentiate cleanly across three corpora ordered by confidence in their authorship attribution.
 
-| Group | Authorship | Count |
+| Corpus | Authorship provenance | Documents |
 |---|---|---|
-| AI-authored READMEs | Settled from the commit log | 37 |
-| Japanese READMEs from GitHub | Unknown; D-44 found them contaminated | 150 |
-| Reference corpus | Professional translation | 150 |
+| AI-authored READMEs | Confirmed from commit history | 37 |
+| Japanese READMEs from GitHub | Unverified; D-44 detected AI contamination | 150 |
+| Reference corpus | Professional translations | 150 |
 
 | Rule | AI-authored | GitHub | Reference |
 |---|---|---|---|
@@ -2402,45 +1507,36 @@ authorship is established were measured with the same rules.
 | `register/prefer-katakana` | 43% | 34% | 30% |
 | `maint/numbered-heading` | 13% | 10% | 1% |
 
-**All four rules order the three groups the same way as the strength of their attribution.**
+**All four rules rank the three corpora in the exact order of their authorship certainty.**
 
-The group D-44 found contaminated sits between the other two, and the three were collected
-by separate procedures, so their agreement supports both findings.
+The GitHub corpus flagged as mixed in D-44 falls consistently between the confirmed AI-authored set and the human reference set. Because all three datasets were assembled independently, this monotonic alignment corroborates both findings.
 
-### Holding genre constant
+### Controlling for document genre
 
-Before genre was held constant the gaps looked much larger.
+Before controlling for document type, observed ratios appeared substantially larger.
 
-| Rule | Uncontrolled | Controlled |
+| Rule | Uncontrolled | Genre-controlled |
 |---|---|---|
 | `register/rare-wago`, against the reference corpus | 13.6x | 2.1x |
 | `maint/numbered-heading`, English, against human READMEs | 6.3x | 1.7x |
 
-On the English side the AI corpus carried more `docs/` while the human side was READMEs
-only. A genre difference came within one step of being reported as an authorship one.
-Comparisons are made between documents of the same kind.
+In English, the AI-authored sample contained a higher proportion of `docs/` pages, whereas the human baseline consisted solely of READMEs. Without genre matching, a document-type difference would nearly have been misattributed to AI authorship. Comparisons must therefore pair documents of the same genre.
 
-### Reading the corpus found its defects
+### Corpus defects found through manual review
 
-Reading before measuring turned up two defects in the English corpus.
+Inspecting files directly prior to running measurements uncovered sampling flaws in the English dataset.
 
-| Defect | Extent |
+| Defect | Scope |
 |---|---|
-| The language test only looked for kana | 23 Korean and 3 Chinese documents counted as English |
-| Agent instruction files | 42 of 200 (21%): orchestrator runbooks and `.memory/` records |
+| Language filter checked only for kana | 23 Korean and 3 Chinese files were misclassified as English |
+| Agent instruction files | 42 of 200 files (21%): orchestrator runbooks and `.memory/` records |
 
-An instruction file is notes addressed to an agent by design, which is not the genre in
-question. The Japanese collection carried both filters: all 150 are Japanese and the
-instruction files are excluded.
+Agent instruction files are intentionally written as notes directed at an automated agent rather than user-facing documentation, placing them outside the target genre. Both filters were applied to the Japanese collection so all 150 files are Japanese documentation with instruction files removed.
 
 ### Consequences
 
-D-28's decision not to implement English style rules is supported from a second direction:
-across 140 AI-authored English documents, no form separates.
+This result provides independent confirmation for D-28's decision against implementing English style rules: across 140 AI-authored English documents, none of the evaluated patterns separate AI prose from human prose.
 
-In Japanese the existing rules work, and nothing needs adding.
+In Japanese, the existing rules already distinguish the corpora effectively, so no additions are warranted.
 
-Two limits stand. These are documents committed to public repositories, so a human was in
-the loop; notes in a pre-review draft do not show here. And the share is measured over the
-most recent 100 commits rather than the whole history, with six kept repositories holding
-fewer than 20 commits, whose shares are weak evidence.
+These findings remain subject to methodological limitations. Every sampled document was committed to a public repository with human review in the loop, so unreviewed draft notes do not appear in the data. Additionally, authorship share is computed over the last 100 commits rather than a repository's full history, and six retained repositories contain fewer than 20 commits, making their commit-share estimates weak evidence.
