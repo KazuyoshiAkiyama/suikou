@@ -4,26 +4,22 @@ weight: 40
 doctype: "reference"
 ---
 
-This page covers building the project, pinning versions, handling the tokenizer, and
-running the golden tests. Each of these is a constraint that work in this repository has
-to respect.
+This development reference defines the constraints that govern work in this repository, covering builds, version pinning, tokenizer isolation, and golden tests.
 
-## Layout
+## Repository layout
 
-| Path | Content |
+| Path | Description |
 |---|---|
-| `crates/suikou-core` | The analysis core |
-| `crates/suikou-cli` | The CLI and the MCP server |
-| `packages/` | The textlint rules that carry a position |
-| `skills/suikou` | The skill for agents |
-| `research/` | The Python used for calibration and exploration |
-| `corpus/` | The measurements and the script that fetches the corpus |
+| `crates/suikou-core` | Core text analysis library |
+| `crates/suikou-cli` | Command-line interface and MCP server |
+| `packages/` | Position-reporting textlint rules |
+| `skills/suikou` | Agent skill definition |
+| `research/` | Python scripts for exploration and calibration |
+| `corpus/` | Corpus retrieval script and measurement data |
 
-## Building and testing
+## Build and test workflow
 
-The commands for checking the core are listed below. The first command is the one to
-reach for most of the time, and the second command is the one to reach for when the
-dictionary matters.
+Execute the workspace checks below during development. Use the tokenizer-free test suite for routine verification, and enable the dictionary feature whenever morphological analysis is involved.
 
 ```sh
 cargo test --all                           # No tokenizer. Fast. Start here
@@ -32,182 +28,119 @@ cargo fmt --all
 cargo clippy --all-targets -- -D warnings
 ```
 
-The default features leave lindera out, so the core logic can be checked without
-downloading a dictionary. Leaving lindera out keeps the loop for checking a change
-short. For example, a change to the rules can be checked in seconds.
+Default features exclude lindera so core logic tests can run without downloading a dictionary. That separation keeps feedback cycles short, allowing rule edits to finish verification within seconds.
 
-The release build names that feature explicitly.
+Release binaries enable the dictionary feature explicitly:
 
 ```sh
 cargo build --release -p suikou-cli --features lindera-unidic
 ```
 
-A build without the dictionary handles English only.
-Asking that build for Japanese makes that build fail on the spot rather than return an
-empty analysis. `suikou selftest` reports which build is in hand.
+Dictionary-free binaries support English exclusively. Requesting Japanese analysis from such a build raises an immediate error rather than returning an empty result. Run `suikou selftest` to inspect which build variant is active.
 
-## Pinning versions
+## Version pinning
 
-Pinning versions has a reason behind it, and that reason is set out here. The reason is
-that a version change can break a value without breaking a build.
+All dependencies are strictly pinned because an update can silently alter output values without breaking the build. Every dependency uses an exact `=` requirement, `Cargo.lock` is checked into version control, and each version is confirmed on crates.io before being declared.
 
-Every dependency is pinned with `=`, and `Cargo.lock` is committed.
-Every version is confirmed to exist on crates.io before that version is written down.
+The lindera crate requires the strictest oversight because both its API and the ordering of UniDic feature fields change across releases. When field indices shift, word origin and inflected form silently read invalid values. Because the kango ratio and renyo count depend on those two fields, misaligned indices corrupt the resulting findings.
 
-lindera gets the strictest treatment.
-The lindera API and the order of the UniDic features both change between versions.
-When that order shifts, the word origin and the inflected form break silently.
-The kango ratio and the renyo count both depend on those two fields, so running on broken
-values makes the findings themselves wrong.
+Every lindera upgrade must pass `LinderaMorphology::verify_schema`. This verification feeds a known sentence to the tokenizer and confirms that part of speech, word origin, and inflected form appear at their expected indices. On mismatch, the check prints the constant requiring adjustment and exits immediately instead of emitting wrong metrics quietly.
 
-After a lindera upgrade, `LinderaMorphology::verify_schema` has to pass.
-That check pushes a known sentence through the tokenizer and confirms that the part of
-speech, the word origin, and the inflected form come from the expected positions.
-On a mismatch that check reports which constant to fix and exits.
-Failing beats returning a wrong value quietly.
+## Tokenizer isolation
 
-## Handling the tokenizer
+Because tokenizer behavior varies across releases, all tokenizer access is isolated behind a dedicated interface. Version-specific code resides exclusively inside `LinderaMorphology` in `crates/suikou-core/src/tokenizer.rs`, while all other modules depend solely on the `Morphology` trait. Unit tests inject `FakeMorphology` so analysis logic runs with no dictionary installed.
 
-The tokenizer changes behavior between versions, so the tokenizer is kept behind a
-boundary.
+New metrics must not bypass this interface. Calling the tokenizer directly prevents tests from executing without a dictionary.
 
-Version-dependent code lives only in `LinderaMorphology`, inside
-`crates/suikou-core/src/tokenizer.rs`.
-Every other module reaches the tokenizer through the `Morphology` trait.
-Tests use `FakeMorphology`, so the logic can be checked with no dictionary present at
-all.
-
-A new metric must not cross that boundary.
-Crossing that boundary means the tests stop running without a dictionary.
-
-Measured in a release build, loading the embedded dictionary takes 0.7 milliseconds.
-Analyzing one sentence after that takes 9.6 microseconds.
+Release-build benchmarks put embedded dictionary initialization at 0.7 milliseconds, with subsequent analysis of one sentence taking 9.6 microseconds.
 
 ```sh
 cargo run --release --features lindera-unidic --example dict_load
 ```
 
-## Keeping the scope of each metric straight
+## Metric input scope
 
-Vocabulary metrics, meaning MATTR, the kanji ratio, the kango ratio, demonstratives, and
-formal nouns, run over `Document::body()`.
-Sentence-structure metrics, meaning sentence length, commas, renyo, and the te-form, run
-over `Document::prose()`.
+Vocabulary metrics (MATTR, kanji ratio, kango ratio, demonstratives, and formal nouns) take `Document::body()` as input, whereas sentence-structure metrics (sentence length, commas, renyo, and te-form) take `Document::prose()`.
 
-A vocabulary metric must never run over prose alone.
-Some models put almost everything into bullet lists, and for those models prose alone
-throws away more than eighty percent of the document.
+Restricting vocabulary metrics to prose is prohibited. Some models format almost all output as bullet lists, where a prose-only pass omits more than eighty percent of the document.
 
-## Keeping the preprocessing order
+## Preprocessing order
 
-`preprocess` in `markdown.rs` depends on the order of its steps.
-Moving the step that undoes backslash escapes later breaks sentence splitting.
-The AWS doc_source corpus is written in that escaped form, and leaving the escapes in
-place inflates the mean sentence length by a factor of three or more.
+Step ordering inside `preprocess` in `markdown.rs` is fixed because delaying backslash-escape removal disrupts sentence segmentation. Documents in the AWS doc_source corpus use backslash-escaped syntax, and retaining those escapes multiplies mean sentence length by three or more.
 
-`tests/golden/input/en_escaped.md` pins that behavior.
+Regression coverage for this constraint lives in `tests/golden/input/en_escaped.md`.
 
-Each removal leaves the same number of newlines behind, so a finding points at the line
-the user has open. A correct value at the wrong position is a finding nobody can use.
+Every stripping pass preserves newline counts so reported diagnostics match line numbers in the source file. Accurate measurements lose utility if reported against the wrong line.
 
-## Measuring how often a rule fires
+## Measuring rule firing rates
 
-Adding a rule or moving a threshold calls for a measurement against the reference corpus.
+Adding a rule or modifying a threshold requires measuring its firing frequency across the reference corpus.
 
 ```sh
 cargo run --release --example structure_rate -- corpus/cache/pro_en en
 cargo run --release --example structure_rate -- corpus/cache/pro_ja ja
 ```
 
-`suikou check` truncates the positions it prints per rule, so the count cannot be read
-off the CLI output. The example calls the rules directly. What comes out is recorded in
-`TASKS.md`.
+Standard CLI output from `suikou check` caps reported positions per rule and therefore hides true match totals. The example binary invokes rules directly, and its measurements are logged in `TASKS.md`.
 
-`corpus/fetch.sh` fetches the corpus, which licensing keeps out of the repository.
+Use `corpus/fetch.sh` to download the reference corpus, which licensing restrictions keep out of the repository.
 
-Measuring the required sections needs a corpus that declares a type.
+Checking required-section rules depends on a corpus whose documents declare explicit types.
 
 ```sh
 python research/structure/fetch_typed.py corpus/cache/typed 120
 ```
 
-That collects Kubernetes pages grouped by their own `content_type:`. Map those values
-onto the doctypes under `[front_matter]` in `.suikou/structure.toml`, then run `check`
-as usual. `research/structure/structure.toml` holds that configuration.
+This script fetches Kubernetes documentation sorted by `content_type:`. After mapping those metadata values to doctypes inside the `[front_matter]` table of `.suikou/structure.toml`, invoke `check` normally. That configuration is stored in `research/structure/structure.toml`.
 
-The size of the report is compared before and after a rule changes. Build the previous
-revision in a `git worktree`, run both over the same corpus, and total the characters.
+Assess report size before and after any rule edit by building the previous revision in a `git worktree`, executing both builds over the identical corpus, and summing total output characters.
 
-The `design` type is measured against the Rust RFCs.
+Validate the `design` type against Rust RFCs.
 
 ```sh
 python research/structure/fetch_rfcs.py corpus/cache/rfcs 200
 ```
 
-Running a type against its own source is the strictest test available.
+Testing a document type against its own source corpus serves as the most demanding verification available.
 
-The `decision` type is measured against published ADRs.
+Validate the `decision` type against published ADRs.
 
 ```sh
 python research/structure/fetch_adrs.py corpus/cache/adrs 200 12
 ```
 
-`research/structure/structure-adr.toml` holds that configuration.
+That configuration is stored in `research/structure/structure-adr.toml`.
 
 ## Golden tests
 
-The golden tests exist to keep the values in line with the reference implementation.
-The reference implementation is the Python under `research/`, and the golden tests pin
-what that implementation returns.
+Golden tests keep Rust analysis results aligned with the reference implementation. The Python codebase in `research/` serves as that reference, and golden fixtures preserve its expected outputs.
 
-`crates/suikou-core/tests/golden_rules.rs` compares the rule counts, and
-`golden_metrics.rs` compares the document metrics, against `tests/golden/expected/`.
-English runs without a dictionary, and Japanese needs `--features lindera-unidic` to run.
+Rule counts are verified by `crates/suikou-core/tests/golden_rules.rs` and document metrics by `golden_metrics.rs`, both checking against `tests/golden/expected/`. English test cases run without a dictionary, while Japanese test cases require `--features lindera-unidic`.
 
-lindera and fugashi are different tokenizers, so the comparison allows a margin.
-A ratio allows an absolute error of 0.02, a density per thousand characters allows 0.5,
-and the M rules demand an exact integer match.
-A word or sentence count allows a relative error of one percent, because the count
-depends on how the tokenizer is defined.
+Because lindera and fugashi are distinct tokenizers, numeric checks allow defined tolerances. Permitted margins are an absolute error of 0.02 for ratios, 0.5 for densities per thousand characters, and an exact integer match for the M rules. Word and sentence counts allow a relative error of one percent because those totals vary with tokenizer definitions.
 
-When a metric falls outside that margin, the question of which implementation is right
-gets settled case by case, and the reasoning goes on the decisions page.
-The Python side is not automatically right.
+Discrepancies exceeding those tolerances are resolved individually rather than deferring to Python by default, with each rationale documented on the decisions page.
 
-## Not adding rules on a hunch
+## Evidence requirements for new rules
 
-**This is the heaviest constraint in the repository.**
+**This is the strictest constraint in the repository.**
 
-A hunch about style turns out to be wrong most of the time once someone measures it.
-Many of the hypotheses raised while designing this project were rejected by measurement.
-Research on translationese found the same thing about its own hypotheses.
+Unverified instincts about prose style rarely survive empirical testing. Many hypotheses proposed during this project's design failed measurement, matching the pattern observed in translationese research.
 
-Adding a rule means showing one of the following.
+Proposing a new rule requires supporting evidence from one of the categories below.
 
-- A measurement over a human corpus and over AI output, with ranges that do not overlap.
-- A clause in a published style guide, cited.
+- Empirical measurements across a human corpus and AI output whose ranges do not overlap.
+- A cited clause from a published style guide.
 
-`corpus/baselines.toml` records the rejected metrics together with the reason under
-`[rejected]`.
-**Nothing recorded there may be reintroduced.**
-The coefficient of variation of sentence length, the loanword ratio, and participial
-clauses and nominalization in English all sit on that list.
-Each one is widely described as a marker of AI prose, and each one overlaps the human
-range once it is measured.
+Rejected metrics and their rejection reasons are logged under `[rejected]` in `corpus/baselines.toml`. **No metric listed there may be reintroduced.** That list includes the coefficient of variation of sentence length, the loanword ratio, and English participial clauses and nominalization. Despite frequent claims that these features signal AI-generated writing, corpus measurements show that every one of them overlaps the human writing range.
 
-## Holding down token use
+## Report size and token budget
 
-Holding down token use puts the constraints below on the report. Each constraint exists
-to keep the report small enough to read in one pass.
+Minimizing token usage imposes strict formatting limits so that every report remains small enough to read in one pass. Output generation enforces the constraints below.
 
-The report format carries constraints.
+- Each rule's explanation appears once per rule and is never repeated per line.
+- Each rule prints at most `Report::MAX_POSITIONS_PER_RULE` positions.
+- Metrics within their threshold are omitted entirely.
+- Document metrics are expressed as instructions rather than numbers.
 
-- The explanation for a rule is printed once per rule and never repeated per line.
-- At most `Report::MAX_POSITIONS_PER_RULE` positions are printed per rule.
-- A metric inside its threshold is not printed at all.
-- A document metric becomes an instruction rather than a number.
-
-These exist so that the linter and the model never have to pass a document back and forth
-layer by layer.
-Anyone changing the format should confirm that the change leaves that purpose intact, and
-that the report still fits in one pass.
+This design prevents iterative, layer-by-layer exchanges of a document between the linter and the model. Anyone modifying report formatting must verify that this workflow remains preserved and that the output still fits in one pass.

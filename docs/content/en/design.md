@@ -4,75 +4,51 @@ weight: 10
 doctype: "design"
 ---
 
-A layered linter and a harness that strip AI style out of technical documentation and
-leave the result easier to maintain. The languages covered are Japanese and English.
+This system is a layered linter and harness that removes AI-generated style patterns from Japanese and English technical documentation and improves maintainability.
 
-This page follows the rules it sets out. Every list opens with a complete sentence, the
-prose never states how many items a list holds, and no bare metaphor appears.
+This page follows the rules it defines. Every list follows a complete sentence, item counts are never declared ahead of a list, and no bare metaphors appear.
 
 ## Motivation
 
-Technical documentation written by generative AI carries habits that reach past the level
-of the single word. It leans on metaphor and on indirect phrasing, it repeats the same
-sentence endings, it joins sentences awkwardly, and it spells out so much detail that the
-document becomes hard to maintain. Existing tools cover a word list or a notation rule
-and nothing else, so none of them reach these habits. A spell checker, for example,
-never sees that a document leans on metaphor.
+Generative AI introduces habits into technical documentation that extend beyond individual word choices. Generated prose frequently relies on metaphor and indirect phrasing, repeats identical sentence endings, connects clauses awkwardly, and adds excessive detail that complicates maintenance.
+
+Existing tools check only word lists or notation rules and miss these broader patterns. A spell checker, for instance, cannot detect a document that relies heavily on metaphor.
 
 ## Scope
 
-The scope is technical documentation and technical writing.
-What counts as good prose depends on the setting, so no rule can be fixed until the
-setting is fixed.
+This tool targets technical documentation and technical writing. Because what qualifies as good prose depends on context, reliable rules require a clearly bounded domain.
 
-The languages covered are Japanese and English.
-The style rules carry a measurement per language; the structural rules apply to both.
+The supported languages are Japanese and English. Style rules rely on per-language empirical measurements, whereas structural rules apply to both languages.
 
 ## Non-goals
 
-Fiction, advertising, and social posts fall outside the scope, because the style rules
-change with the setting.
+Fiction, advertising copy, and social media posts are outside the scope because appropriate style rules vary by genre.
 
-The tool does not rewrite a document. It reports positions and it states a direction
-drawn from the whole document, and the writer decides what to change. Mechanical
-substitution has broken the meaning of a sentence more than once in this repository's own
-documents.
+Automatic rewriting is also outside the scope. The tool reports issue locations and document-level guidance while leaving edits to the author, because mechanical substitution corrupted sentence meaning multiple times in this repository's own documentation.
 
-The tool does not judge whether the content is factually correct. Style and structure can
-be measured against a corpus; the truth of a claim cannot.
+Factual verification is outside the scope as well. Style and structure can be measured against a corpus, whereas the truth of a technical claim cannot.
 
-## The heaviest constraint
+## Primary constraint
 
-The tool does not report one layer at a time and ask the model to fix each report in turn.
-To hold down token use, one run reports every layer, and one edit clears the report.
+The tool does not evaluate one layer at a time or ask a model to fix separate reports across multiple rounds. To limit token consumption, a single run outputs findings from every layer so that one editing pass can resolve the entire report.
 
-## The measurements behind the design
+## Empirical basis of the design
 
-Every rule rests on a measurement or on a written standard.
-Not one rule came from a hunch.
-That policy exists because a hunch about style turns out to be wrong most of the time
-once someone measures it.
-Research on translationese and research on AI prose found the same thing separately.
+Every rule derives from corpus measurements or a published standard rather than intuition. Intuitive assumptions about prose style fail most of the time once tested empirically, a conclusion reached independently in translationese research and studies of AI-generated text.
 
-### The human corpus
+### Human reference corpus
 
-For Japanese, the corpus holds both native writing and translation.
-The native writing comes from two books by kaityo256 and from the future-architect coding
-standards. The translations come from the Japanese Kubernetes site, the Japanese Vue
-site, and the ja_JP tree of the Linux kernel.
+The Japanese reference corpus combines original writing and translations. Native samples come from two books by kaityo256 and the future-architect coding standards, while translated samples come from the Japanese Kubernetes site, the Japanese Vue site, and the ja_JP directory of the Linux kernel.
 
-For English, the corpus holds the Linux kernel documentation, gcc, the Rust Book, Django,
-Google eng-practices, the AWS S3 user guide, and the AWS CloudFormation user guide.
+The English reference corpus comprises the Linux kernel documentation, gcc, the Rust Book, Django, Google eng-practices, the AWS S3 user guide, and the AWS CloudFormation user guide.
 
-### The AI corpus
+### AI sample corpus
 
-The AI corpus holds 232 pieces from four models, meaning Claude, Gemini, ChatGPT, and
-Grok. The conditions crossed two languages, three prompts covering explanation,
-procedure, and design rationale, three Japanese registers, and the presence or absence of
-an instruction to suppress formatting.
-Each condition started a fresh chat with memory and custom instructions turned off.
+The AI corpus contains 232 documents produced by four models: Claude, Gemini, ChatGPT, and Grok. Experimental conditions crossed two languages, three prompt types covering explanation, procedure, and design rationale, three Japanese registers, and the presence or absence of an instruction suppressing formatting.
 
-### The metrics that survived
+Every condition began in a fresh chat session with memory and custom instructions turned off.
+
+### Validated metrics
 
 | Metric | Human | AI | Language |
 |---|---|---|---|
@@ -88,58 +64,33 @@ Each condition started a fresh chat with memory and custom instructions turned o
 | List ratio | 0.159–0.172 | 0.322–0.433 | ja |
 | Simile markers per 1k | 0.84–2.54 | 0.00–0.60 | en |
 
-The ratio of renyo to te-form separates the groups more sharply than anything else.
-The te-form leans toward speech and folds clauses into one.
-The renyo form leans toward writing and lines clauses up side by side.
-AI leans toward the second.
-That is the same thing as the excess of participial clauses found in English, and the
-hierarchy of subordinate clauses described by Minami links the two languages.
+Among all evaluated features, the ratio of renyo to te-form separates human and AI writing most clearly. The te-form aligns more closely with spoken Japanese and integrates clauses into a unified statement, whereas the renyo form belongs to written style and coordinates clauses side by side; AI strongly favors the renyo form. This pattern corresponds to the excess of participial clauses noted in English, and Minami's subordinate-clause hierarchy links the two languages.
 
-Demonstratives and formal nouns need care, because AI uses **fewer** of them than a human
-does. A finding about something missing cannot point at a position.
+Demonstratives and formal nouns require careful handling because AI generates **fewer** of them than human authors do. A finding about absent elements cannot be attached to a specific source position.
 
-### The metrics that were rejected
+### Rejected metrics
 
-The coefficient of variation of sentence length could not be told apart from translated
-Japanese. The loanword ratio, the pattern of a sahen noun with `を` and `する`, and comma
-density all overlapped the human range.
+The coefficient of variation of sentence length could not be distinguished from translated Japanese. Loanword ratio, the construction pairing a sahen noun with `を` and `する`, and comma density all overlapped with the human range.
 
-Participial clauses and nominalization in English overlapped the human range as well.
-The effect size of 5.3 reported in earlier work did not carry over to this task.
-The cause appears to be the design of the experiment.
-The earlier work handed a human passage over and asked for a continuation, while this
-work asked for a document to be written.
-**An effect size from earlier work must not be carried across tasks.**
+In English, participial clauses and nominalization overlapped with the human range as well. The 5.3 effect size reported in prior work did not replicate under this setup, likely due to experimental design: earlier studies supplied human text and requested a continuation, whereas this evaluation requested complete documents written from scratch. **Effect sizes from earlier studies must not be transferred across different tasks.**
 
-### The formatting experiment
+### Formatting suppression experiment
 
-Under the instruction to write in prose alone, without lists, bold, or headings, the
-formatting disappeared completely.
-Bold, lists, headings, and the em dash all fell to zero.
+When models were instructed to write strictly in prose without lists, bold styling, or headings, formatting artifacts disappeared completely. Bold markup, lists, headings, and em dashes all dropped to zero.
 
-Vocabulary and sentence structure, on the other hand, did not move.
-Comparing the polite register from Claude against the same register with formatting
-suppressed, MATTR went from 0.642 to 0.650 and renyo went from 5.31 to 4.83.
-Both differences sit inside the margin of error.
+Vocabulary and sentence structure remained unchanged. Comparing Claude's polite Japanese register with and without formatting suppression, MATTR moved from 0.642 to 0.650 and renyo moved from 5.31 to 4.83, both within the margin of error.
 
-That result fixes how the layers divide the work.
-An instruction can remove the formatting layer and nothing else.
-The vocabulary layer and the sentence-structure layer can only be held down by a linter.
+This result determines how responsibilities divide across layers. Prompt instructions can eliminate the formatting layer alone, whereas vocabulary and sentence structure must be enforced by a linter.
 
-### Differences between models
+### Variation across models
 
-Formatting is dominated by the habits of the individual model.
-The em dash ran at 10.32 per thousand words for Claude and at zero for Gemini.
-Bold ran at 95.4 per thousand words for Gemini and at zero for Grok in Japanese.
+Formatting behavior is dominated by model-specific habits. Em dashes occurred at 10.32 per thousand words for Claude versus zero for Gemini, while bold styling occurred at 95.4 per thousand words for Gemini versus zero for Grok in Japanese.
 
-MATTR, the renyo ratio, formal nouns, and demonstratives all moved the same direction
-across all four models.
-**A rule that carries a threshold belongs only on a metric that behaves this way.**
+By contrast, MATTR, the renyo ratio, formal nouns, and demonstratives shifted in the same direction across all four models. **Only metrics showing this cross-model consistency belong in threshold-based rules.**
 
-### Differences between registers
+### Variation across registers
 
-Whether the plain and polite registers move the metrics was tested on the explanation
-prompt with Claude and with Grok.
+Plain and polite Japanese registers were compared on the explanation prompt with Claude and Grok to test whether register alters metric values.
 
 | Metric | Claude plain/polite | Grok plain/polite |
 |---|---|---|
@@ -148,16 +99,11 @@ prompt with Claude and with Grok.
 | Prose ratio | 0.618 / 0.371 | 0.915 / 0.922 |
 | Formal nouns | 7.68 / 3.03 | 4.37 / 7.24 |
 
-The direction does not agree across models.
-No systematic effect from the register itself appears, and the difference is absorbed by
-the difference between models.
-**Thresholds do not need to split by register.**
-Register detection is used only to decide whether a register-dependent rule applies.
+The direction of change disagrees between the models, showing no systematic register effect beyond inter-model variation. **Thresholds do not need separate values per register.** Register detection is used solely to determine whether register-dependent rules apply.
 
-### Differences between kinds of document
+### Variation across document types
 
-The kind of document requested matters a great deal. It matters far more than the
-register, and it rivals the gap between AI and human writing.
+The requested document type has a substantial effect on metric values, far exceeding the effect of register and approaching the size of the difference between AI and human writing.
 
 | Metric | Explanation | Procedure | Rationale | Human native |
 |---|---|---|---|---|
@@ -167,30 +113,19 @@ register, and it rivals the gap between AI and human writing.
 | Demonstratives per 1k | 3.25 | 0.22 | 1.27 | 6.47 |
 | Prose ratio | 0.526 | 0.345 | 0.507 | 0.847 |
 
-Measured against the worst case, renyo, demonstratives, MATTR, and the prose ratio stay
-clear of the human range for every kind of document.
+Even in the worst-case document type, renyo, demonstratives, MATTR, and prose ratio remain distinct from the human range.
 
-Formal nouns, on the other hand, reach 8.11 in procedures, which leaves almost no room
-against the threshold of 8.5.
-The kango ratio reaches 0.435 in explanations, which sits close to the 0.397 of native
-human writing.
-These two need either a threshold per kind of document or a lower severity.
+Formal nouns and kango ratio are more sensitive to document type. Formal nouns reach 8.11 in procedures, leaving almost no margin below the 8.5 threshold, while kango ratio reaches 0.435 in explanations, close to the 0.397 native human value. Both metrics require either per-type thresholds or a lower severity level.
 
-### Effects of generation order
+### Effect of generation order
 
-Generating eight pieces from one prompt could have introduced drift, so the values were
-centered within each condition and correlated against rank.
-Every structural metric came out near zero, so no drift in style occurred.
-The kango ratio alone correlated at +0.405, which is large.
-In this design the rank and the subject move together, so that correlation reads as an
-effect of subject rather than of order.
-Kango sensitivity to subject agrees with the analysis above.
+Because generating eight pieces from a single prompt could introduce drift, values were centered within each condition and correlated against generation rank. Every structural metric correlated near zero, confirming that style did not drift.
 
-### Whether maintainability instructions are followed
+Only kango ratio showed a notable correlation at +0.405. Because generation rank and subject matter co-varied in this design, that correlation reflects topic effects rather than ordering drift, consistent with the document-type sensitivity noted above.
 
-A condition carrying the rules in the prompt was added, and compliance was measured.
-Two levels were used, meaning a short instruction of two sentences and a detailed
-instruction that listed each rule.
+### Compliance with maintainability instructions
+
+Maintainability rules were added to prompts to measure model compliance. Testing compared a short instruction of two sentences against a detailed instruction enumerating each rule.
 
 | | Condition | M1 rate | M5 mixed | M6 per 1k | M7 per 1k |
 |---|---|---|---|---|---|
@@ -203,22 +138,13 @@ instruction that listed each rule.
 | EN Claude | short | 0.00 | 0.00 | 0.32 | 0.00 |
 | EN Claude | detailed | 0.00 | 0.00 | 0.00 | 0.00 |
 
-The structural rules, meaning the list lead-in, parallel items, and the trailing
-enumeration, were followed completely under the short instruction.
-The vocabulary rule, meaning words that depend on a moment in time, only halved under the
-short instruction and reached zero only under the detailed one.
+Structural rules—list lead-ins, parallel list items, and avoiding trailing enumerations—reached full compliance under the short instruction. In contrast, violations of the lexical rule against time-dependent words only halved under the short instruction and dropped to zero only under the detailed instruction.
 
-Stating the number of items, numbering headings, and hand-numbering list items barely
-occur even with no instruction at all.
-None of those three need a place in the layer that runs before generation.
+Declaring item counts, numbering headings, and hand-numbering list items rarely occurred even without prompt guidance. Those three rules do not belong in the pre-generation prompt layer.
 
-Claude never wrote a list lead-in with no instruction given.
-There are 24 list blocks, and the line above each one is always a heading or another list
-item. That is a different failure from a malformed lead-in, namely the absence of one,
-and it agrees with a prose ratio of 0.150.
+Without instructions, Claude omitted list lead-ins entirely. Across 24 list blocks, every preceding line was a heading or another list item; this represents an absent lead-in rather than a malformed one and matches its 0.150 prose ratio.
 
-The instruction carries a second effect. The maintainability instruction alone improved
-the document metrics.
+Maintainability instructions also improved document-level metrics as a secondary effect.
 
 | Metric | Claude, none | Short | Human native |
 |---|---|---|---|
@@ -226,96 +152,69 @@ the document metrics.
 | List ratio | 0.633 | 0.273 | 0.172 |
 | Formal nouns per 1k | 2.75 | 8.11 | 11.16 |
 
-Asking for a lead-in produced prose, and the prose ratio and the list ratio moved toward
-the human range as a result.
-Renyo and demonstratives, on the other hand, did not improve.
+Requiring list lead-ins induced connecting prose, moving both prose ratio and list ratio toward human baselines. Renyo and demonstratives, however, did not improve.
 
-The short instruction also shrinks the output.
-Grok in Japanese fell from 13629 characters to 8010, and Grok in English fell from 5053
-words to 2260. The detailed instruction does not cause that shrinkage.
+The short instruction also reduced output length. Grok output fell from 13629 characters to 8010 in Japanese and from 5053 words to 2260 in English, whereas the detailed instruction did not cause this reduction.
 
-## What the tool finds
+## Detection categories
 
-What the tool finds falls into two groups.
-Some findings are true or false at the level of a sentence or a line and carry a position.
-Others can only be computed across the whole document and carry none.
-Most of the second group report something missing, and something missing has nowhere to
-point.
+Tool findings divide into binary checks evaluated at the sentence or line level, which report exact positions, and document-wide metrics computed across the full text, which carry no positions. Most document-wide findings identify an absence of expected elements and therefore have no single line to point to.
 
-### The D group, metrics over the whole document
+### D group: document-wide metrics
 
-| ID | Target | Language | Threshold | Preventable | Severity | Steadiness |
+| ID | Target | Language | Threshold | Preventable | Severity | Stability |
 |---|---|---|---|---|---|---|
-| D1 | MATTR is high | ja, en | ja >0.60 / en >0.71 | Partly | warning | High |
-| D2 | Prose ratio is low | ja, en | ja <0.75 / en <0.65 | Yes | warning | High |
+| D1 | High MATTR | ja, en | ja >0.60 / en >0.71 | Partly | warning | High |
+| D2 | Low prose ratio | ja, en | ja <0.75 / en <0.65 | Yes | warning | High |
 | D3 | Renyo over te-form | ja | >3.0 | No | warning | High |
 | D4 | Renyo density | ja | >4.0 per 1k | No | warning | High |
-| D5 | Formal nouns are scarce | ja | <8.5 per 1k | Yes | info | Low |
-| D6 | Demonstratives are scarce | ja | <4.5 per 1k | No | warning | High |
-| D7 | Kango ratio is high | ja | >0.42 | No | info | Low |
-| D8 | List ratio is high | ja | >0.25 | Yes | warning | Medium |
-| D9 | Simile markers are scarce | en | <0.8 per 1k | No | warning | Medium |
+| D5 | Scarce formal nouns | ja | <8.5 per 1k | Yes | info | Low |
+| D6 | Scarce demonstratives | ja | <4.5 per 1k | No | warning | High |
+| D7 | High kango ratio | ja | >0.42 | No | info | Low |
+| D8 | High list ratio | ja | >0.25 | Yes | warning | Medium |
+| D9 | Scarce simile markers | en | <0.8 per 1k | No | warning | Medium |
 
-Each threshold sits between the top of the human range and the bottom of the AI range.
+Every threshold is placed between the upper bound of the human range and the lower bound of the AI range.
 
-Steadiness describes how well a metric holds up as the kind of document changes.
-D5 and D7 are sensitive to the kind of document and to the subject, and in the worst case
-they nearly touch the human range.
-Until human baselines exist for each kind of document, both stay at info.
-Once those baselines exist, both move up to warning.
+Stability reflects how reliably a metric remains separated across different document types. Because D5 and D7 vary with genre and subject and nearly intersect the human range in worst cases, both remain at info severity until per-type human baselines are established. Once those baselines exist, both promote to warning.
 
-### The M group, maintainability
+### M group: maintainability rules
 
 | ID | Target | Shape | Standard |
 |---|---|---|---|
-| M1 | The lead-in binds grammatically to the items | Binary | Google developer documentation style guide |
-| M2 | The prose states how many items there are | Binary | The same guide |
-| M3 | A heading carries a section number | Binary | The same guide |
-| M4 | A list item carries a hand-written number | Binary | The same guide |
-| M5 | List items do not share a shape | Binary | The same guide |
-| M6 | A word depends on a moment in time | Binary | Google timeless documentation |
-| M7 | An enumeration trails off | Binary | The same guide |
+| M1 | Lead-in binds grammatically to list items | Binary | Google developer documentation style guide |
+| M2 | Prose declares the count of list items | Binary | Google developer documentation style guide |
+| M3 | Heading includes a section number | Binary | Google developer documentation style guide |
+| M4 | List item includes a hand-written number | Binary | Google developer documentation style guide |
+| M5 | List items lack parallel structure | Binary | Google developer documentation style guide |
+| M6 | Word depends on a point in time | Binary | Google timeless documentation |
+| M7 | Trailing enumeration | Binary | Google timeless documentation |
 
-The M group rests on maintainability rather than on AI style.
-The problem predates generative AI, so it does not age as models change.
+M-group rules target document maintainability rather than AI-specific style. Because these issues predate generative AI, the rules do not become obsolete as models change.
 
-The M group is the one layer that must never be matched to the corpus average.
-The AWS S3 user guide is the only corpus that writes list lead-ins correctly.
-The Linux kernel carries 105 incomplete lead-ins against 16 complete ones.
-Matching the human average would empty this layer of meaning.
+This layer must never be calibrated to corpus averages. Among the reference corpora, only the AWS S3 user guide writes list lead-ins properly, whereas the Linux kernel contains 105 incomplete lead-ins against 16 complete ones. Matching the human average would render this layer ineffective.
 
-### The N group, standard but absent from AI in practice
+### N group: conventional rules rarely triggered by AI
 
-Noun-stopped sentences, the sahen pattern, three identical sentence endings in a row, and
-the metaphor word list belong here.
-All of them help when a human piece is being edited, so they stay, but at a lower
-severity.
+This group comprises nominal sentence endings, the sahen verb construction, three identical sentence endings in a row, and the metaphor word list. Although AI rarely triggers them in practice, they remain useful when editing human documentation and are retained at a lower severity.
 
-A metaphor word list ages the moment it is published.
-The words delve, intricate, and realm were called out early in 2024, and their frequency
-dropped right after.
-A word list must never be the only line of defense.
+A metaphor word list loses effectiveness immediately upon publication. After delve, intricate, and realm were widely noted in early 2024, their frequency dropped right away. A fixed word list must never serve as the sole detection mechanism.
 
-### The A group, findings that need a model
+### A group: model-assisted judgments
 
-Telling a live metaphor from a dead one, judging whether a metaphor carries an
-explanation, judging whether excessive detail hurts maintainability, and checking
-terminology all belong here.
+Checks requiring semantic evaluation belong here: distinguishing live metaphors from dead ones, verifying whether a metaphor includes an explanation, judging whether excessive detail impairs maintainability, and checking terminology.
 
-The linter lists the suspect passages and stops there. The judgment belongs to the
-harness.
+The linter flags candidate passages and stops there. All semantic judgment belongs to the harness.
 
 ## Architecture
 
-### How the work divides
+### Separation of responsibilities
 
-The work divides by who reads the output.
+Components divide according to who consumes the output.
 
-An editor and a human read textlint directly, and textlint covers the rules that carry a
-position. Position matters there, and an incremental run is fast.
+Human writers and editors invoke textlint directly for positional rules, where exact locations matter and incremental runs remain fast.
 
-An agent and a CI job read the front-end tool `suikou`, which covers the document
-metrics, the combined report, and the control of token use.
+Agents and CI jobs invoke the `suikou` front end, which computes document-wide metrics, builds the unified report, and manages token budgets.
 
 ```
 suikou
@@ -325,90 +224,70 @@ suikou
 └─ Output: Markdown / JSON / MCP
 ```
 
-The positional rules ship as textlint rules, so an editor such as NeoVim can use them
-alone. `suikou` calls that same textlint, so nothing is implemented twice.
+Implementing positional checks as textlint rules allows editors such as NeoVim to use them standalone. Because `suikou` calls that same textlint rule set, no logic is implemented twice.
 
-### The implementation language
+### Implementation languages
 
-Every metric that survived validation can be written in pure Rust, because
-lindera-unidic returns every UniDic feature, including the word origin and the inflected
-form. D3 reads the inflected form and D7 reads the word origin.
+Every validated metric can be implemented in pure Rust because lindera-unidic returns all UniDic features, including inflected form for D3 and word origin for D7.
 
-Python was needed for participial clauses, nominalization, modifier stacking, and
-dependency distance, and every one of those was rejected.
+Python was needed only for participial clauses, nominalization, modifier stacking, and dependency distance, every one of which was rejected.
 
-The work therefore splits into two tiers.
+Implementation therefore divides into a validated tier and an exploratory tier.
 
-**The validated tier** is pure Rust and covers the D group, the M group, and the N group.
-It compiles to one binary, so it stands up to repeated launches from hooks.
+**The validated tier** is pure Rust and implements the D, M, and N groups. Compiling to a single binary handles repeated invocations from hooks.
 
-**The exploratory tier** is Python and covers corpus calibration, the search for new
-metrics, and the recalculation of thresholds. It never enters the production path.
+**The exploratory tier** is Python and handles corpus calibration, candidate metric discovery, and threshold recalculation. It never enters the production path.
 
-A metric moves from the exploratory tier to the validated tier only after it proves out.
+A metric moves from the exploratory tier to the validated tier only after validation confirms its reliability.
 
-Nominalization and modifier stacking still hold value as model-dependent metrics.
-Should either one enter production, a resident sidecar handles it: Python stays running
-behind newline-delimited JSON on standard input and output, so the model loads once.
-That path is opt-in and stays off by default.
+Nominalization and modifier stacking retain value as model-dependent metrics. If either enters production, a resident Python sidecar communicating via newline-delimited JSON on standard input and output will load the model once; this path is opt-in and off by default.
 
 ### Performance
 
-The expected use runs the tool from Claude Code hooks on every Write and every Edit.
-Launch cost dominates that use, so the UniDic dictionary is read without copying, or a
-resident mode is offered.
+The intended workflow triggers the tool from Claude Code hooks on every Write and Edit operation. Because startup latency dominates that usage, zero-copy reading of the UniDic dictionary and a resident daemon mode were both considered.
 
-Measured in a release build, loading the embedded dictionary takes 0.7 milliseconds.
-That figure does not support building a resident mode for the sake of dictionary loading.
+In a release build, loading the embedded dictionary takes 0.7 milliseconds. That measurement does not justify building a resident mode solely for dictionary loading.
 
-## The CLI
+## CLI reference
 
 | Command | Role |
 |---|---|
-| `suikou brief [--profile P] [--lang L]` | Print the constraints to put in the prompt |
-| `suikou check <path>` | Print positional findings and document metrics together |
+| `suikou brief [--profile P] [--lang L]` | Print prompt constraints for generation |
+| `suikou check <path>` | Output positional findings and document metrics together |
 | `suikou baseline <glob>` | Calibrate thresholds from a corpus and write a profile |
-| `suikou terms <glob>` | Extract a glossary and an allowlist from a set of documents |
-| `suikou selftest` | Check that the installed binary is what it claims to be |
-| `suikou mcp` | Start as an MCP server |
-| `suikou plot <path> --doctype T` | Write the structure into `.suikou/plans/` before writing |
+| `suikou terms <glob>` | Extract a glossary and allowlist from a set of documents |
+| `suikou selftest` | Verify the identity and integrity of the installed binary |
+| `suikou mcp` | Run as an MCP server |
+| `suikou plot <path> --doctype T` | Write document structure into `.suikou/plans/` before drafting |
 
-The main options on `check` are listed below.
+The `check` command accepts the main options listed below.
 
-- `--format md|json|text` picks the output shape, and md is the default.
-- `--lang auto|ja|en` picks the language, and auto is the default.
-- `--profile oss|service|reference|tutorial|<path>` picks the set of thresholds.
-- `--budget <tokens>` caps the size of the report.
-- `--quiet` returns only the exit code.
+- `--format md|json|text` selects the output format, with md as the default.
+- `--lang auto|ja|en` sets the target language, with auto as the default.
+- `--profile oss|service|reference|tutorial|<path>` selects the threshold set.
+- `--budget <tokens>` caps the report size in tokens.
+- `--quiet` suppresses output and returns only the exit code.
 
-### What brief emits
+### Output of brief
 
-Only the formatting layer and the maintainability layer are emitted.
-Vocabulary and sentence-structure metrics such as MATTR and the renyo ratio are not.
+Only the formatting layer and the maintainability layer are emitted by brief. Vocabulary and sentence-structure metrics such as MATTR and the renyo ratio are excluded.
 
-The formatting experiment showed that a prompt removes formatting completely and leaves
-vocabulary and structure untouched.
-Putting a constraint that does not work into a prompt wastes tokens, and it risks
-over-correction as well.
+The formatting experiment showed that prompt instructions eliminate formatting artifacts completely while leaving vocabulary and syntax unchanged. Placing ineffective constraints in a prompt wastes tokens and risks over-correction.
 
-A maintainability instruction needs a different length for each kind of rule.
-The structural rules are stated briefly, and only the time-dependent words are listed out.
-A rule that never fires without an instruction stays out of brief.
+Maintainability instructions require different lengths depending on rule type. Structural rules are stated concisely, whereas time-dependent words must be listed explicitly. Rules that never trigger without prompting are excluded from brief.
 
 | Rule | Treatment in brief |
 |---|---|
-| M1, the list lead-in | One sentence |
+| M1, list lead-in | One sentence |
 | M5, parallel items | One sentence |
-| M7, the trailing enumeration | One sentence |
+| M7, trailing enumeration | One sentence |
 | M6, time-dependent words | List the forbidden words |
-| M2, the item count | Left out |
-| M3, numbered headings | Left out |
-| M4, hand-written numbers | Left out |
+| M2, item count | Omitted |
+| M3, numbered headings | Omitted |
+| M4, hand-written numbers | Omitted |
 
-A short instruction shrinks the output, so the profile carries the level of detail as a
-setting and the caller picks what suits the job.
-
-## The output shape
+Because a short instruction reduces output length, the profile exposes detail level as a setting so callers can select what fits the task.
+## Output format
 
 ### JSON
 
@@ -450,148 +329,111 @@ setting and the caller picks what suits the job.
 - L45 ...
 ```
 
-### Holding down token use
+### Controlling token consumption
 
-Holding down token use is the heaviest constraint, so the output follows the rules below.
+Minimizing token usage is the primary formatting constraint, so reports follow these output rules.
 
-- The explanation for a rule is printed once per rule and never repeated per line.
-- At most twenty positions are printed per rule, and the rest is reported as a count.
-- A metric inside its threshold is not printed at all.
-- With `--budget` set, the report is trimmed in order of severity.
+- Each rule explanation appears once per rule rather than repeating on every matching line.
+- At most twenty locations appear per rule; any remaining occurrences appear only as a count.
+- Metrics within their thresholds are omitted completely.
+- Specifying `--budget` truncates the report according to severity order.
 
-### Turning a metric into guidance
+### Mapping metrics to guidance
 
-A list of numbers does not tell a model what to do, so each metric turns into an
-instruction. For instance, a high kango ratio turns into an instruction to open kango
-into native verbs.
+Raw numerical values do not tell a model how to revise text, so every metric maps to an actionable editing instruction. For example, a high kango ratio produces an instruction to rewrite kango compounds using native Japanese verbs.
 
-| Metric | Instruction produced |
+| Metric | Resulting instruction |
 |---|---|
-| D1, MATTR is high | Call the same thing by the same name. Stop varying the wording |
-| D2, prose ratio is low | Fold the bullet lists back into prose |
-| D3 and D4, renyo is heavy | Split the clauses or switch to the te-form |
-| D5, formal nouns are scarce | Unpack nominalized kango into native phrasing |
-| D6, demonstratives are scarce | Link paragraphs with demonstratives instead of repeating nouns |
-| D7, kango ratio is high | Reach for the established loanword; stop stacking kango nouns |
-| D8, lists are heavy | Fold the lists back into prose |
-| D9, simile markers are scarce | Mark a comparison as a simile or as an example |
+| D1, high MATTR | Refer to each concept with one consistent term instead of varying wording |
+| D2, low prose ratio | Convert bullet lists back into continuous prose |
+| D3 and D4, frequent renyo | Split long clauses or replace them with the te-form |
+| D5, few formal nouns | Replace nominalized kango with native phrasing |
+| D6, few demonstratives | Connect paragraphs using demonstratives rather than repeating nouns |
+| D7, high kango ratio | Use established loanwords instead of chaining kango nouns |
+| D8, excessive lists | Convert bullet lists back into continuous prose |
+| D9, few simile markers | Mark comparisons explicitly as similes or examples |
 
-### Severity
+### Severity levels
 
-| Severity | Applies to | Reasoning |
+| Severity | Scope | Rationale |
 |---|---|---|
-| error | The maintainability layer, M1 to M7 | The breach is plain and not open to argument |
-| warning | A D metric past its threshold | The threshold has width and depends on context |
-| info | Model-dependent metrics, the word list, exploratory metrics | Advisory, and some of it ages |
+| error | Maintainability layer (M1 to M7) | Clear violation of an objective standard |
+| warning | D metric exceeding its threshold | Thresholds include margin and vary with context |
+| info | Model-dependent metrics, word lists, exploratory metrics | Advisory; some entries lose relevance over time |
 
-Maintainability outranks AI style, because the first is a matter of thresholds while the
-second is a breach of a written standard.
+Maintainability takes precedence over AI style because maintainability violations break an explicit written standard, whereas AI style findings depend on statistical thresholds.
 
-What causes a hook to reject an edit is configurable.
+Which severity levels cause a hook to reject an edit is configurable.
 
-## The rules
+## Rule design
 
-### Detecting the register
+### Register detection
 
-The plain and polite registers end sentences differently, so some rules have to switch.
+Plain and polite Japanese registers use different sentence endings, so certain rules must adapt to the active register.
 
-The switch happens per block rather than at the entry point.
-One document may legitimately carry polite prose and plain list items, so a single switch
-at the entry point would be too coarse.
+Register detection runs per text block rather than once for an entire file. A single document can legitimately combine polite body prose with plain list items, making document-wide switching too coarse.
 
-Thresholds do not split by register.
-Comparing the two registers showed no agreement in direction across models and no
-systematic effect.
-Register detection is used only to decide whether a register-dependent rule applies.
+Metric thresholds do not vary by register. Comparisons between both registers revealed neither directional agreement across models nor any systematic difference. Register detection exists solely to determine whether register-specific rules apply.
 
-Detection reads the final morpheme of the sentence.
-A setting of `style: auto | desumasu | dearu` overrides it.
+Detection examines the final morpheme of each sentence. Setting `style: auto | desumasu | dearu` overrides automatic detection.
 
-The register-dependent rules are listed below.
+The following rules depend on the detected register.
 
-- A noun-stopped sentence is forbidden in prose and allowed in a list item.
-- The word list for padded sentence endings differs between the two registers.
+- Noun-ending sentences are disallowed in prose and permitted inside list items.
+- The word list for redundant sentence endings differs between plain and polite registers.
 
-### The list lead-in, M1
+### List lead-ins (M1)
 
-In Japanese the correct shapes are a complete sentence ending in a full stop, and a noun
-followed by a colon.
-A lead-in ending in a renyo form, a particle, or a conjunctive particle binds
-grammatically to the items, so adding or removing an item breaks it.
+In Japanese, valid lead-ins take the form of either a complete sentence ending in a period or a noun followed by a colon. A lead-in ending in a renyo form, a particle, or a conjunctive particle attaches grammatically to the items beneath it, so inserting or removing an item breaks the sentence structure.
 
-In English the test asks whether the lead-in contains the following, as follows, these,
-below, or steps.
-A strict test would look for a finite verb, and even so this word test alone separates
-the AWS S3 user guide, at 30 against 145, from the Linux kernel, at 105 against 16.
+In English, the rule checks whether the lead-in contains expressions such as "the following", "as follows", "these", "below", or "steps". Although a strict syntactic rule would check for a finite verb, this lexical check alone separates the AWS S3 user guide (30 against 145) from the Linux kernel documentation (105 against 16).
 
-### The metaphor layer
+### Metaphor checks
 
-A term established in a field is not a metaphor.
-Cache, tree, and handshake are terms, and the rules leave them alone.
+Standard technical terminology established within a domain is not treated as metaphor. Terms such as cache, tree, and handshake are domain vocabulary and are ignored by the rules.
 
-The problem is an unfamiliar metaphor used with no explanation beside it. A sentence that
-says a queue behaves like a conveyor belt marks the comparison, and a sentence that calls
-the queue a conveyor belt does not.
-Among the 385 words collected by Sakasegawa, the patterns around entrance, foundation,
-core, and boundary belong here, and so do the patterns around carve, crush, step in, and
-dissolve. The 291 words from Kobak belong here, and so do tapestry and amidst from
-Reinhart.
+The rules target unfamiliar metaphors introduced without explanation. Writing that a queue behaves like a conveyor belt explicitly marks a comparison, whereas calling the queue a conveyor belt does not. Among the 385 words compiled by Sakasegawa, figurative uses involving entrance, foundation, core, and boundary fall into this category, along with patterns involving carve, crush, step in, and dissolve. The 291 words identified by Kobak, as well as tapestry and amidst from Reinhart, also belong here.
 
-A simile and a worked example are allowed on one condition.
-That condition comes from the TYPO3 guide, namely that a plain explanation sits beside
-the figure.
+Similes and worked examples are permitted under a single condition derived from the TYPO3 guide: a plain explanation must appear alongside the figure of speech.
 
-The allowlist does not ship with the tool. `suikou terms` builds it from the documents at
-hand. Terms differ between projects, and building the list locally answers the problem of
-a word list that ages.
+No static allowlist ships with the tool. Instead, `suikou terms` generates the allowlist from the target project's own documents. Because terminology varies across projects, building the list locally prevents a fixed word list from becoming outdated.
 
-## The harness
+## Authoring harness
 
-### Separating thinking from the deliverable
+### Separating draft notes from deliverables
 
-The guard against excessive detail takes the form of a workspace convention.
+A workspace convention keeps excessive detail out of finished documents.
 
 ```
 docs/guide.md              The deliverable, which the linter covers
 .suikou/notes/guide.md     The thinking, which the linter leaves alone
 ```
 
-The skill instructs the model as follows.
-Options considered, options rejected, values held without confidence, reasoning, and the
-source of a measurement all go into the notes.
-Only settled content goes into the deliverable.
+The skill directs the model to record considered options, rejected alternatives, uncertain values, supporting rationale, and measurement sources in the notes file. Only finalized content belongs in the deliverable.
 
-The effect runs in more than one direction.
-Giving the urge to show reasoning a legitimate destination pulls excessive detail out of
-the deliverable.
-Keeping the reasoning beside the document also lets a later reader trace why a passage
-reads the way it does.
+This separation works in multiple ways. Giving the model a dedicated location for explanatory reasoning reduces its tendency to insert extraneous detail into the deliverable. Preserving the rationale beside the finished file also lets subsequent readers trace why a passage was written in a particular way.
 
-Turning a question about writing into a question about placement is the core of this
-design.
+Converting a writing restriction into a file-placement rule is the central principle of this design.
 
-### The workflow
+### Execution workflow
 
-1. Put the output of `suikou brief` into the prompt. 2. Generate, producing a deliverable
-and a set of notes. 3.
+The authoring sequence proceeds as follows.
 
-Run `suikou check` once and read the combined report. 4. Apply every edit in one pass. 5.
-Confirm with `suikou check --quiet`.
+1. Include the output of `suikou brief` in the prompt.
+2. Generate both a deliverable document and an accompanying notes file.
+3. Run `suikou check` once and review the combined report.
+4. Apply all required edits in a single pass.
+5. Verify the result with `suikou check --quiet`.
 
-No layer gets linted and fixed on its own.
-The positional findings say where to edit, and the guidance built from the document
-metrics says how to edit.
+No rule layer is checked and repaired in isolation. Positional diagnostics identify where edits are required, while guidance derived from document metrics specifies how to revise the text.
 
-### The glossary
+### Project glossary
 
-`suikou terms` extracts field terminology from the documents at hand and writes
-`.suikou/terms.toml`.
+Running `suikou terms` extracts domain terminology from the local documents and writes the results to `.suikou/terms.toml`.
 
-A term in that file counts as established and leaves the metaphor check.
-Only the metaphorical vocabulary outside the file is reported.
-The same machinery checks terminology for consistency.
+Terms recorded in that file count as established vocabulary and are excluded from metaphor checks. Only figurative terms outside the glossary trigger reports. The same mechanism checks terminology consistency across documents.
 
-## Repository layout
+## Repository structure
 
 ```
 suikou/
@@ -604,121 +446,86 @@ suikou/
 └─ corpus/                 The measurements and the fetch script
 ```
 
-Everything sits in one repository so that the output shape of the CLI and the
-expectations of the skill cannot drift apart.
-They move in one commit, and golden file tests pin them.
+Storing all components in one repository prevents the CLI output schema and the skill's expectations from diverging. Both change together in a single commit, enforced by golden-file tests.
 
-The canonical copy of the skill lives here, and a dotfiles setup pulls it in.
-Keeping the real copy in dotfiles would let it drift away from the version of the CLI.
+This repository holds the canonical copy of the skill, which a dotfiles setup imports. Maintaining the authoritative copy inside dotfiles would allow it to fall out of sync with the CLI version.
 
-### How the packages divide
+### Package boundaries
 
-The npm side divides by purpose.
+The npm packages are divided by responsibility.
 
-- `textlint-rule-preset-tech-maintainability` holds M1 to M7 for both languages, and it
-  carries value apart from AI style, so it stands alone.
-- `textlint-rule-preset-ja-ai-structure` holds the Japanese sentence-level rules.
+- `textlint-rule-preset-tech-maintainability` contains M1 to M7 for both languages and stands alone because it provides value independent of AI style checking.
+- `textlint-rule-preset-ja-ai-structure` contains the Japanese sentence-level rules.
 
-## Relation to other open source
+## Relationship to existing open-source tools
 
-| Package | Treatment | Reason |
+| Package | Integration strategy | Rationale |
 |---|---|---|
-| textlint-rule-preset-ja-technical-writing | Use alongside | Covers notation and readability, and does not overlap |
-| @textlint-ja/textlint-rule-preset-ai-writing | Use parts | Reuse the overstatement, mechanical bold, and list format rules |
-| p1ass/textlint-rule-preset-ai-words-ja | Use alongside | A word list, treated as something that ages, never the only defense |
-| D1 to D9, M1 to M7 | Written here | Nothing equivalent exists |
+| textlint-rule-preset-ja-technical-writing | Use alongside | Covers notation and readability with no overlap |
+| @textlint-ja/textlint-rule-preset-ai-writing | Use selectively | Reuses rules for overstatement, mechanical bold formatting, and list formatting |
+| p1ass/textlint-rule-preset-ai-words-ja | Use alongside | Provides a word list that loses effectiveness over time and never serves as the sole check |
+| D1 to D9, M1 to M7 | Implemented here | No equivalent implementation exists |
 
-`no-ai-colon-continuation` from the ai-writing preset sits close to M1.
-The first forbids a predicate before the colon, and the second asks whether the lead-in
-binds to the items.
-The purposes differ, so the two coexist, but they can report the same line twice.
-The formatter merges duplicates on one line.
+The `no-ai-colon-continuation` rule from the ai-writing preset is close in scope to M1. Whereas the former forbids placing a predicate before a colon, the latter checks whether the lead-in attaches grammatically to the list items. Because their goals differ, both rules coexist, though they may flag the same line simultaneously. The formatter merges duplicate findings reported on the same line.
 
-The other presets were checked against these layers and do not overlap.
-`textlint-rule-preset-ja-technical-writing` caps sentence length at 100 characters, and AI
-prose averages 39.2 characters, so nothing trips.
-It caps commas at three, and AI prose averages 0.95 per sentence.
+Existing presets were tested against these layers and show no overlap. Although `textlint-rule-preset-ja-technical-writing` limits sentences to 100 characters, AI-generated prose averages 39.2 characters and does not trigger the rule. It also restricts sentences to three commas, whereas AI-generated prose averages 0.95 commas per sentence.
 
-## The plan
+## Implementation roadmap
 
-### The order of work
+### Implementation sequence
 
-The maintainability layer comes first.
-Its rules are binary, they carry no threshold, their standard is named, and they hold
-value apart from AI style.
-That layer alone produces something useful.
-A later experiment showed that an instruction covering this layer is followed almost
-completely, and that following it improves the document metrics as well, which makes it
-the best return on the effort.
+Work starts with the maintainability layer. Its rules are binary, require no thresholds, reference explicit standards, and remain useful outside AI style checking. Completing this layer alone produces a practical tool. A subsequent experiment demonstrated that instructions covering this layer achieve near-complete compliance and simultaneously improve document-level metrics, offering the highest return on implementation effort.
 
-The steady Japanese document metrics come next, meaning D1, D2, D3, D4, and D6.
-The ratio of renyo to te-form separates most sharply, and the inflected form from
-lindera-unidic is enough to compute it.
+Stable Japanese document metrics come next, covering D1, D2, D3, D4, and D6. Among these, the ratio of renyo to te-form separates texts most clearly and can be calculated directly from inflected forms provided by lindera-unidic.
 
-D5 and D7 come next at info severity.
-Their thresholds get revisited once human baselines exist per kind of document.
+D5 and D7 follow at info severity. Their thresholds will be reconsidered once human baselines exist for each document type.
 
-The English side and MCP come last. Resident mode is not built; D-25 records why.
+English support and the MCP server come last. Resident mode is omitted for the reasons recorded in D-25.
 
-`jametrics.py`, `enmetrics.py`, and `mcheck.py` in the exploratory tier are the reference
-implementation for every metric.
-Golden tests confirm that the Rust implementation returns the same values.
+Within the exploratory tier, `jametrics.py`, `enmetrics.py`, and `mcheck.py` act as reference implementations for all metrics. Golden tests verify that the Rust implementation outputs identical values.
 
-### Evaluation
+### Evaluation criteria
 
-The false positive rate gets measured against the human corpus.
-The Linux kernel, gcc, the Rust Book, Django, AWS, the Japanese Kubernetes site, and the
-Japanese Vue site are the targets, and the count reported as error is what gets counted.
+False-positive rates are evaluated against the human corpus. Target corpora include the Linux kernel, gcc, the Rust Book, Django, AWS, the Japanese Kubernetes site, and the Japanese Vue site, measuring the number of findings reported as error.
 
-The M group should fire heavily even on the human corpus.
-Incomplete list lead-ins dominate the Linux kernel.
-Those are not false positives. They are real room for improvement.
-Should the count prove too large to work with, the default severity may need adjusting.
+The M group is expected to fire frequently even on human-authored documentation. Incomplete list lead-ins are prevalent in the Linux kernel documentation. Such findings represent legitimate opportunities for improvement rather than false positives. If the report volume proves too high in practice, default severities may require adjustment.
 
-The D group should stay silent on the human corpus. Anything it reports there is a false
-positive.
+Conversely, the D group should remain silent on the human corpus. Any finding it reports on human-authored text counts as a false positive.
 
-### Thickening the human corpus
+### Expanding the human corpus
 
-The Japanese native corpus leans toward expository books.
-Given how much the kind of document moves the metrics, native Japanese procedures have to
-be collected.
-Whether D5 and D7 can move up to warning depends on that.
+The native Japanese corpus leans toward expository books. Because document type substantially alters metric values, native Japanese procedural documentation must be added to the corpus. Promoting D5 and D7 to warning severity depends on collecting those baselines.
 
-## Open questions
+## Remaining design questions
 
-These get settled after the code is written and evaluated.
+The following decisions are deferred until implementation and evaluation are complete.
 
-- Decide whether the skill calls `suikou brief` every time or embeds the output in SKILL.md.
-- Decide how the level of detail in brief is expressed as a profile setting.
-- Decide how finely thresholds split by kind of document.
-- Decide how to add the Japanese AWS and Google documentation to the corpus.
-- Thicken the Japanese native corpus.
+- Decide whether the skill executes `suikou brief` on each run or embeds its output inside SKILL.md.
+- Decide how the brief's level of detail is represented as a profile setting.
+- Decide how finely thresholds should be partitioned by document type.
+- Decide how to ingest the Japanese AWS and Google documentation into the corpus.
+- Expand the native Japanese corpus.
 
-The level of detail in brief needs a judgment call, because a short instruction shrinks
-the output. Splitting thresholds includes
-deciding how the kind of document is detected. The Japanese AWS and Google documentation
-is not on GitHub, so adding it needs another route. The Japanese corpus draws on two
-sources today, and both are expository books.
+Choosing the brief's detail level requires a trade-off because shorter instructions reduce output volume. Partitioning thresholds also requires deciding how to detect each document's type. Because the Japanese AWS and Google documentation is not hosted on GitHub, adding it requires an alternative acquisition method. The native Japanese corpus draws on two sources, both of which are expository books.
 
-### Questions already settled
+### Settled decisions
 
-Measurement settled the items below, so none of them needs revisiting.
+Empirical measurements settled the following points, so none of them require reconsideration.
 
 - Thresholds do not split by register.
-- Data collected from one batched prompt is usable.
-- Structural maintainability rules hold under a short instruction.
+- Data collected from a single batched prompt is usable.
+- Structural maintainability rules hold under concise instructions.
 - Document metrics do not belong inside textlint.
-- Resident mode is not built. Startup was measured in milliseconds.
+- Resident mode is not built because startup time was measured in milliseconds.
 - Rust is the implementation language.
 
-Vocabulary rules, unlike the structural ones, need a detailed instruction.
-The front-end tool owns the document metrics.
-Python is limited to calibration and search.
+Unlike structural rules, vocabulary rules require detailed instructions. The front-end CLI owns document metrics, while Python is restricted to calibration and exploratory search.
 
-## Key references
+## References
 
-### Quantitative work on AI prose
+### Quantitative studies of AI prose
+
+The design draws on the following quantitative studies of AI-generated text.
 
 - Kobak et al., *Science Advances* 2025.
 - Reinhart et al., *PNAS* 122(8) 2025.
@@ -728,41 +535,29 @@ Python is limited to calibration and search.
 - Freeburg, arXiv:2603.27006 2026.
 - Sakasegawa, 2026.
 
-Kobak and colleagues examined 15.1 million PubMed abstracts and found that 66 percent of the
-excess words of 2024 were verbs and 14 percent adjectives, which inverts the pattern of the
-COVID period, where 79 percent were nouns. Reinhart and colleagues compared texts across the
-66 features of Biber and showed that instruction tuning drives the divergence, leaving base
-models closer to human writing. Markey and colleagues described the ChatGPT register as
-dense and disconnected.
+Kobak et al. analyzed 15.1 million PubMed abstracts and found that 66 percent of excess words in 2024 were verbs and 14 percent were adjectives, reversing the COVID-period pattern in which 79 percent were nouns. Reinhart et al. compared texts across Biber's 66 features and demonstrated that instruction tuning drives the stylistic divergence, leaving base models closer to human writing. Markey et al. characterized the ChatGPT register as dense and disconnected.
 
-Geng and Trotta showed that a word drops in frequency right after it is called out. Zhang
-and colleagues showed that the preference for lists and bold is baked into the reward model.
-Freeburg showed that formatting can be suppressed and that the em dash survives in some
-models. Sakasegawa compared 70,000 Qiita articles before and after generative AI, which is
-the only quantitative study of its kind in Japanese.
+Geng and Trotta showed that a word's usage frequency drops immediately after it is publicly called out. Zhang et al. demonstrated that preferences for lists and bold text are embedded in the reward model. Freeburg showed that formatting habits can be suppressed while the em dash persists in some models. Sakasegawa compared 70,000 Qiita articles before and after generative AI, representing the only quantitative study of its kind in Japanese.
 
-### Written standards
+### Style guides and standards
+
+The maintainability rules draw on the following published style guides.
 
 - The Google developer documentation style guide.
 - The Microsoft Writing Style Guide.
 - The TYPO3 Community Language and Writing Guide.
 - The JTCA Japanese Style Guide, third edition.
 
-The Google guide contributes its sections on lists, headings, timeless documentation, and
-inclusive documentation. The Microsoft guide contributes its section on global
-communications. The TYPO3 guide is the source for allowing a figure of speech on
-condition.
+The Google guide informs the rules on lists, headings, timeless documentation, and inclusive documentation. The Microsoft guide informs the guidance on global communications. The TYPO3 guide provides the conditional rule permitting figures of speech.
 
-### Linguistics
+### Linguistic literature
 
-- The hierarchy of subordinate clauses described by Minami.
-- The four-way classification of kango bases described by Nomura.
+The Japanese linguistic analysis builds on the following works.
+
+- Minami's hierarchy of subordinate clauses.
+- Nomura's four-way classification of kango bases.
 - Ishiguro, *Bunsho wa Setsuzokushi de Kimaru*.
 - Honda, *Nihongo no Sakubun Gijutsu*.
 - Meldrum 2009.
 
-Takubo and Yoshimoto refined the hierarchy from Minami into four levels.
-In the classification from Nomura, class C is what makes the pattern with `を` and
-`する` possible. Ishiguro sets out four kinds and ten classes of conjunction.
-Honda sets out the principles of modifier order and of comma placement.
-In Meldrum, the pronoun is the only one of the four marks of translationese that held up.
+Takubo and Yoshimoto refined Minami's hierarchy into four levels. In Nomura's classification, class C enables the `を` and `する` construction. Ishiguro categorizes conjunctions into four kinds and ten classes. Honda defines principles for modifier ordering and comma placement. In Meldrum's study, pronouns were the only one of the four purported marks of translationese that held up.

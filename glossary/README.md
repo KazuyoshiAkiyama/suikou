@@ -1,18 +1,15 @@
 # suikou の用語集
 
-日本語の技術文書で、どの語を選び、その語をどう書くかを決めた一覧である。
-suikou の外でも使えるように、2つの汎用のフォーマットで置いてある。
+suikou の用語集は、日本語の技術文書における語彙の選定および表記の統一基準をまとめた一覧である。suikou 以外の環境でも利用できるよう、2種類の汎用フォーマットで配布している。
 
-| ファイル | 読む道具 |
+| ファイル | 対応ツール |
 |---|---|
 | `suikou-ja.prh.yml` | [textlint-rule-prh](https://github.com/prh/prh) |
-| `suikou-ja.csv` | 表計算、翻訳支援ツール |
+| `suikou-ja.csv` | 表計算ソフト、翻訳支援ツール |
 
-正本は `crates/suikou-core/data/glossary_ja.toml` にある。
-この2つは生成物であり、手で直さない。
-作り直す手順は `research/glossary/build_glossary.py` にある。
+マスターデータは `crates/suikou-core/data/glossary_ja.toml` に格納されている。これら2ファイルは自動生成された成果物であり、手動で編集しない。再生成の処理は `research/glossary/build_glossary.py` に実装されている。
 
-## textlint から使う
+## textlint での利用
 
 ```yaml
 # .textlintrc.yml
@@ -21,44 +18,35 @@ rules:
     rulePaths: [glossary/suikou-ja.prh.yml]
 ```
 
-`textlint --fix` で自動的に寄せられる。
+`textlint --fix` を実行すると、定義に従って自動的に置換される。
 
-## 何を根拠にしているか
+## 選定と表記の根拠
 
-2つのことを分けて持つ。根拠の出どころが違うためである。
+本用語集では、判断根拠の性質が異なるため、語彙選定と表記統一の2種別で管理している。
 
-| 種類 | 決めるもの | 根拠 |
+| 種別 | 対象 | 判断根拠 |
 |---|---|---|
-| `term` | どの語を選ぶか | 参照コーパスの頻度と PLaMo Translate の訳語 |
-| `orthography` | その語をどう書くか | JTCA の規約を出発点にして参照コーパスで確認 |
+| `term` | 語彙の選定 | 参照コーパスでの出現頻度および PLaMo Translate の訳語 |
+| `orthography` | 表記の統一 | JTCA の規約を基準とした参照コーパスでの検証結果 |
 
-表記については、JTCA「外来語（カタカナ）表記ガイドライン」第3版が
-英語の語尾 -er、-or、-ar、-y を長音符号「ー」で書くとしている。
-参照コーパス 438 万字で確認すると、-er、-or、-ar はそのとおりであった。
-一方で -y は逆で、長音を付けない書き方が優勢である（`プロパティ` 870 / `プロパティー` 3）。
-`コンテナ` は -er だが、この分野では長音を付けない書き方が定着している（1783 / 95）。
+表記に関して、JTCA「外来語（カタカナ）表記ガイドライン」第3版は、英語の語尾 -er、-or、-ar、-y に長音符号「ー」を付す方針を示している。これに対し、438 万字の参照コーパスで出現傾向を調査したところ、-er、-or、-ar は規約どおりの傾向であった。一方、-y については長音符号を省く表記の方が多数を占めた（`プロパティ` 870 / `プロパティー` 3）。また、語尾が -er に該当する `コンテナ` も、この分野では長音符号なしの表記が定着している（1783 / 95）。
 
-規約から導くのではなく、語ごとに実測で決めることにした。
-食い違う語には `measured-against-jtca` と書いてある。
+このような実態を踏まえ、規約から一律に導出するのではなく、語ごとの実測結果に基づいて表記を決定する方針を採っている。規約と異なる表記を採用した語には `measured-against-jtca` を付記している。
 
-## CSV の列
+## CSV の列構成
 
-| 列 | 中身 |
+| 列名 | 説明 |
 |---|---|
-| `kind` | `term` か `orthography` |
-| `concept` | 英語の術語（`term` のみ） |
-| `preferred` | 選ぶ書き方 |
-| `avoid` | 避ける書き方。空白で区切る |
-| `keep` | 文字どおりの意味で使う語。置き換えない |
-| `basis` | 根拠の種類 |
-| `evidence` | 実測した値 |
+| `kind` | 種別（`term` または `orthography`） |
+| `concept` | 対応する英語の専門用語（`term` のみ） |
+| `preferred` | 推奨される語または表記 |
+| `avoid` | 非推奨の語または表記（空白区切りで列挙） |
+| `keep` | 文字どおりの意味で用いる場合に置換の対象外とする語 |
+| `basis` | 根拠の分類 |
+| `evidence` | 根拠となる実測値 |
 
-## 出どころと謝辞
+## 出典と謝辞
 
-語の選択の考え方は [yomiyasu](https://github.com/nanaism/yomiyasu)（MIT License、
-Copyright (c) 2026 nanaism）の、硬い文章向けの規範から採った。
-文言は引用せず、判断の立て方だけを参考にして書き直している。
+語彙選定の方針は、[yomiyasu](https://github.com/nanaism/yomiyasu)（MIT License、Copyright (c) 2026 nanaism）における硬い文体向けの規範を参考にしている。同プロジェクトの表現は引用せず、判断基準の考え方のみを取り入れて独自に作成している。
 
-訳語の確認には [PLaMo Translate](https://github.com/pfnet/plamo-translate-cli) を使った。
-モデルは PLaMo Community License で配られている。
-この用語集はモデルの出力を証拠として読んだ結果であり、出力そのものを載せていない。
+訳語の検証には [PLaMo Translate](https://github.com/pfnet/plamo-translate-cli) を利用した。同モデルは PLaMo Community License のもとで配布されている。本用語集はモデルの出力を検証の根拠として参照した結果をまとめたものであり、出力内容自体は収録していない。

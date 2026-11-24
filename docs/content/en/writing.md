@@ -4,62 +4,52 @@ weight: 7
 doctype: "reference"
 ---
 
-The norms and procedures for writing a document with suikou: how a word is chosen, how a README is laid out, and what instruction the model is handed.
+This reference defines the standards and procedures for authoring documentation with suikou, covering word selection, README structure, and prompts provided to language models.
 
-How the tool is built, and the invariants that must not move, are in [Development]({{< relref "development.md" >}}). Fitting the thresholds to your own documents is in [Tuning]({{< relref "tuning.md" >}}).
+Architecture details and fixed invariants appear in [Development]({{< relref "development.md" >}}). Threshold calibration for custom repositories appears in [Tuning]({{< relref "tuning.md" >}}).
 
-## Choosing a word
+## Selecting terminology
 
-A word is not chosen by ear. The common way of saying it is looked up first.
+Terminology decisions rely on established usage rather than personal intuition. Authors verify standard expressions before finalizing wording.
 
-### The order the checks run in
+### Fixed evaluation order
 
-Applying the rules in whatever order they come to mind gives an unstable answer, so the
-order is fixed.
+Evaluating vocabulary rules in an arbitrary sequence produces inconsistent results, so checks follow a fixed order.
 
-**Constraints** come first: each one settles whether a candidate holds at all, and the
-field narrows. **Preferences** come second and rank what is left. Orthography and the
-record come last.
+**Constraints** apply first to filter out invalid candidates. **Preferences** apply next to rank the remaining options, followed by spelling conventions and glossary recording.
 
-| Step | What is checked | Kind | Method |
+| Step | Check | Category | Verification method |
 |---|---|---|---|
-| 1 | Is it a defined name? | Constraint | Read `.suikou/defined.toml`; if it is there, that settles it and the rest is skipped |
-| 2 | List the candidates | — | Whatever comes to mind; ear is allowed here |
-| 3 | Is it written in this field? | Constraint | Frequency in the reference corpus; drop a candidate with none |
-| 4 | Does the noun take the verb? | Constraint | Read the pair on its own |
-| 5 | Is the meaning narrow? | Preference | How the translation spreads; take the one that converges |
-| 6 | Does it lean on bodily imagery? | Preference | Among equally narrow words, take the one with the fainter image |
-| 7 | Settle the orthography | — | Count per word in the reference corpus; the long vowel where counting does not decide |
-| 8 | Record it | — | Write it into `glossary_ja.toml` with the figure that settled it |
+| 1 | Defined term status | Constraint | Inspect `.suikou/defined.toml`; if an entry exists, adopt it and skip remaining steps |
+| 2 | Candidate enumeration | — | Collect plausible options; intuition is permitted at this stage |
+| 3 | Domain attestation | Constraint | Count occurrences in the reference corpus; discard candidates with no matches |
+| 4 | Noun-verb compatibility | Constraint | Review the isolated collocation directly |
+| 5 | Semantic specificity | Preference | Measure translation dispersion and favor the candidate that converges |
+| 6 | Bodily imagery | Preference | Between equally specific candidates, favor the one with weaker physical imagery |
+| 7 | Orthography | — | Count spelling variants in the reference corpus; default to the long vowel when counts do not decide |
+| 8 | Glossary entry | — | Record the chosen term and supporting measurement in `glossary_ja.toml` |
 
-Constraints run first because ranking a candidate and then discarding it is wasted work.
-A candidate that fails step 4 goes back to step 2, and swapping the verb makes step 5
-start over.
+Running constraints before preferences avoids spending effort ranking candidates that fail basic validity checks. A candidate rejected at step 4 returns the process to step 2, and replacing a verb requires repeating step 5.
 
-### Step 3: frequency in the reference corpus
+### Step 3: reference corpus frequency
 
 ```sh
 grep -c "根因" corpus/cache/pro_ja/*.md
 ```
 
-The reference corpus is professional translation, so it shows the word chosen in writing.
-None of a word there means the field does not write it.
+Because the reference corpus consists of professional translations, its counts reflect vocabulary actually selected in published technical prose. Absence from the corpus indicates that the field does not use the term.
 
-It does not reach a mismatch of genre. The reference is API documentation and never sets
-a norm or a limit, which is why no replacement for を置く could be grounded; T19 records
-that.
+Corpus lookup cannot compensate for a genre mismatch. The reference corpus contains API documentation and lacks normative or limit-setting statements, which prevented establishing a corpus-backed substitute for を置く (recorded in T19).
 
-### Step 4: read the pair on its own
+### Step 4: isolated collocation review
 
 ```sh
 cargo run --release --features lindera-unidic --example collocation -- <human side> <AI side>
 ```
 
-That counts noun-particle-verb triples through the morphological analyzer and lists the
-pairs present on the AI side and absent on the human side. Nothing settles the right
-pairing automatically, so a person reads what comes out.
+This command extracts noun-particle-verb triples via the morphological analyzer and outputs pairs that appear in the AI text but not in the human reference. Because no automated check determines valid collocations reliably, a human reviewer evaluates the reported pairs.
 
-### Step 5: how the translation spreads
+### Step 5: translation dispersion
 
 ```sh
 plamo-translate server &
@@ -67,17 +57,16 @@ python research/glossary/narrow.py --ja2en 置く 配置する 設定する
 python research/glossary/narrow.py --en2ja place configure deploy
 ```
 
-The two directions measure different things.
+Each translation direction measures a distinct property.
 
-| Direction | What it measures | When it is used |
+| Direction | Property measured | Use case |
 |---|---|---|
-| `--ja2en` | How many English words one Japanese word splits into | To learn how broad a Japanese word is |
-| `--en2ja` | How many Japanese words one English word splits into | To decide which one to standardise on |
+| `--ja2en` | Number of English translations produced from one Japanese term | Gauging the semantic breadth of a Japanese term |
+| `--en2ja` | Number of Japanese translations produced from one English term | Selecting a single standard Japanese equivalent |
 
-The word goes into a minimal frame. A corpus sentence brings its own subject matter along
-and nothing can be measured through it.
+Each candidate is inserted into a minimal sentence frame rather than a full corpus sentence, because real corpus context introduces domain-specific subject matter that prevents controlled measurement.
 
-| Word | Converges | Translation |
+| Word | Convergence | Translation |
 |---|---|---|
 | 配置する | 100% | place×6 |
 | 作成する | 100% | create×6 |
@@ -85,21 +74,15 @@ and nothing can be measured through it.
 | 置く | 67% | place×4 set×1 establish×1 |
 | 設定する | 67% | set×4 configure×2 |
 
-置く and 設定する are equally broad, so moving from one to the other removes no ambiguity;
-配置する is the one to take. Before this tool existed the suggestion had been to move a
-broad word to another broad word.
+Because 置く and 設定する show identical breadth, substituting one for the other does not reduce ambiguity; 配置する provides the narrower choice. Prior to this tool, earlier recommendations had proposed replacing one broad verb with another equally broad verb.
 
-Where the word's own translation collides with a frame noun there is nothing to measure.
-`configure` translates to 設定, which the frame 設定を already holds. The tool then reports
-that it cannot measure rather than printing a figure.
+Measurement is impossible when a candidate's translation collides with a noun already present in the frame. Because `configure` translates to 設定 and the frame 設定を already contains that noun, the tool reports an unmeasurable case instead of outputting a score.
 
-### Step 6: take the fainter image
+### Step 6: fainter physical imagery
 
-Where two candidates come out equally narrow, take the one whose bodily image is fainter.
-**Words of this kind mark a text as AI-written.** Technical prose explains a mechanism; it
-does not move objects around.
+When two candidates are equally specific, choose the term with weaker bodily imagery. **Expressions evoking physical movement are a strong marker of AI-generated text.** Technical documentation describes mechanisms rather than physical manipulation of objects.
 
-| Avoid | Take |
+| Avoid | Prefer |
 |---|---|
 | 外す | 除外する |
 | 落とす | 除去する |
@@ -107,59 +90,43 @@ does not move objects around.
 | 寄せる | 統一する |
 | 突き合わせる | 照合する |
 
-This repository used the words on the left 8 to 32 times more than the reference corpus:
-`外す` runs 0.06 per 10,000 characters there and 1.90 here.
+This repository contained the left-column verbs at 8 to 32 times their frequency in the reference corpus; for example, `外す` appeared at 0.06 per 10,000 characters in the reference corpus versus 1.90 here.
 
-`register/rare-wago` cannot reach them, because the reference does use them a little and
-its floor is 128 times the reference rate. Frequency does not get there; a preference
-does, and `glossary/variant` carries it. A word absent from the table is avoided for the
-same reason: ask whether it suggests a movement of the hand or the body.
+The `register/rare-wago` rule cannot flag these verbs because they still occur occasionally in the reference corpus and the rule's minimum threshold is 128 times the reference rate. Detection therefore requires a preference rule, enforced by `glossary/variant`, rather than a frequency check. The same criterion applies to verbs not listed in the table: check whether the word evokes a hand or body movement.
 
-### The mistake in the other direction
+### Avoiding over-correction
 
-No word is swapped merely to lower the kanji ratio. `確認`, `使用`, `停止` and `動作` are
-ordinary in technical Japanese and stay; D-27 records what happened when they did not.
+Terms are never replaced solely to reduce the kanji ratio. Standard technical Japanese words such as `確認`, `使用`, `停止`, and `動作` belong in technical prose and remain untouched; D-27 documents the regression caused when they were replaced.
 
-Formal words carrying no content, such as `多角的`, are a separate matter and do get
-revisited. Where particles were dropped to pack Sino-Japanese words together, the words
-stay and the particles and verbs come back.
+Content-free formal expressions such as `多角的` are a separate case and warrant revision. When particles have been omitted to concatenate Sino-Japanese words consecutively, keep those words intact and restore the missing particles and verbs.
 
-### Step 8: record it in the glossary
+### Step 8: glossary recording
 
-What the lookup settles goes into `crates/suikou-core/data/glossary_ja.toml` alongside the
-figure that settled it. `research/glossary/build_glossary.py` regenerates the portable
-forms under `glossary/`.
+Finalized word choices are recorded in `crates/suikou-core/data/glossary_ja.toml` together with the supporting measurement. Running `research/glossary/build_glossary.py` regenerates the portable glossary outputs under `glossary/`.
 
-Orthography is kept apart from word choice, because the authority differs.
+Orthographic rules are maintained separately from terminology choices because each relies on a different authority.
 
-### Repetition is not evidence
+### Why repetition is not evidence
 
-What step 3 asks is whether someone writing in this field would choose the word in a
-specification or a procedure, not whether it is understood in speech.
+Step 3 evaluates whether a technical writer in the field would select a term in a specification or procedure, not merely whether the term is intelligible in conversation.
 
-Finding the word again in the same document, or elsewhere in this repository, is not
-evidence. Vocabulary from one AI-written document carries into the next, so repetition
-says nothing about what is established. These documents were written by a model, so this
-applies to them.
+Repeated occurrences within the same document or across this repository do not validate a term. Because AI-generated documents reproduce vocabulary across subsequent drafts, internal repetition fails to demonstrate established domain usage, and that limitation applies to this repository's model-authored documentation.
 
-Nothing settles the right pairing for what step 4 reports. Ranking candidates from 32,822
-verbs by corpus statistics reaches 80% accuracy only within the top 600 or so (Nakano and
-Tomiura, 2011), so a person decides. T19 records it.
+Automated statistics cannot resolve the collocation candidates flagged in step 4. Corpus-based ranking across 32,822 verbs reaches 80% accuracy only within roughly the top 600 candidates (Nakano and Tomiura, 2011), so human judgment remains necessary (recorded in T19).
 
-## Writing a README
+## Authoring a README
 
-### The lead holds the subject
+### Defining the subject in the lead
 
-Measuring 240 READMEs from notable open source showed the structure sitting in the lead
-paragraph rather than in the headings.
+An analysis of 240 READMEs from prominent open-source projects showed that document structure is defined primarily by the opening lead paragraph rather than by section headings.
 
-| Measured | Value |
+| Metric | Measurement |
 |---|---|
-| Has a lead paragraph | 78% |
-| Of those, within 300 characters | 83% |
-| Median length of the lead | 121 characters |
+| Presence of a lead paragraph | 78% |
+| Lead paragraphs within 300 characters | 83% |
+| Median lead length | 121 characters |
 
-Make the name the subject and say what it is, within 300 characters.
+State what the project is within 300 characters, placing the project name as the grammatical subject.
 
 ```markdown
 # suikou
@@ -167,32 +134,28 @@ Make the name the subject and say what it is, within 300 characters.
 suikou is a linter for technical documentation. It handles Japanese and English.
 ```
 
-Do not open on background, intent or history. Those three openings occurred zero times
-across 831 lead paragraphs drawn from READMEs, Rust RFCs, ADRs and the reference corpus.
-`structure/lead-opener` reports them.
+Do not open with background, intent, or history. Across 831 lead paragraphs sampled from READMEs, Rust RFCs, ADRs, and the reference corpus, these openings appeared zero times; `structure/lead-opener` flags them.
 
-### No heading is required
+### Optional section headings
 
-The most commonly identified section, install, is found in 62% of them. The `readme` type
-requires the lead and nothing else.
+Even the most frequent section, installation, appears in only 62% of the surveyed READMEs. Accordingly, the `readme` doctype mandates only the lead paragraph and requires no specific headings.
 
-The questions remain, though. `suikou plot README.md --doctype readme` lays them out.
+A README still answers standard reader questions, which `suikou plot README.md --doctype readme` outlines.
 
 | Section | Question |
 |---|---|
-| What it is | What is it, in one sentence? |
-| Install | How is it installed? |
-| Usage | What is the shortest way to use it? |
-| Documentation | Where is the detail? |
-| Contributing | How does someone contribute? |
-| License | Under what terms? |
+| What it is | What is the project in one sentence? |
+| Install | How do users install it? |
+| Usage | What is the minimal way to run it? |
+| Documentation | Where is detailed documentation located? |
+| Contributing | How can contributors participate? |
+| License | Under what license terms is it distributed? |
 
-### Formality is settled per doctype
+### Per-doctype formality thresholds
 
-One set of thresholds cannot serve a README and a reference document. A README is 17%
-running prose, a reference document 43%, a Rust RFC 54%.
+A single threshold configuration does not fit both READMEs and reference pages. Measured running prose accounts for 17% of a README, 43% of a reference document, and 54% of a Rust RFC.
 
-The adjustment goes in `.suikou/profile.toml`.
+Per-doctype overrides are configured in `.suikou/profile.toml`.
 
 ```toml
 [doctype.readme]
@@ -203,56 +166,46 @@ rules = ["structure/long-paragraph"]
 value = 0.65
 ```
 
-`reason` is close to mandatory: a test checks that every built-in adjustment carries one. A
-loosening is recorded as something agreed with the user, never decided here.
+Including a `reason` field is effectively mandatory, as an automated test verifies that every built-in override specifies one. Any threshold relaxation must reflect an explicit agreement with the user rather than an independent adjustment.
 
-Formality does not differ in one direction. Japanese READMEs carry more Sino-Japanese than
-the reference corpus, 0.62 against 0.52. Loosening everything would be wrong; the direction
-is read per metric. D-41 has the detail.
+Formality shifts do not move uniformly in a single direction. Japanese READMEs exhibit a higher Sino-Japanese proportion than the reference corpus (0.62 versus 0.52), so relaxing every metric uniformly would be incorrect; each metric must be evaluated individually (see D-41).
 
-### The writer's notes stay out
+### Excluding author notes
 
-The state of the work, what turned out to be true on trying it, what has not been fixed
-yet: none of it belongs in a README, because the reader has no use for it.
+Work-in-progress status, empirical observations from testing, and unresolved defects do not belong in a README because readers do not need internal tracking notes.
 
-Diátaxis holds that most documentation problems come from content trying to serve more than
-one need at once. A note to self and a README serve different needs.
+According to Diátaxis, most documentation failures arise when a single document attempts to satisfy multiple distinct needs simultaneously. Personal working notes and a README serve separate purposes.
 
-Each kind has its place.
+Each category of information belongs in its designated location.
 
-| Content | Where it goes |
+| Content | Destination |
 |---|---|
-| A judgement that could have gone either way | `docs/content/*/decisions.md` |
-| A figure you are unsure of, an option set aside | `TASKS.md` |
-| The fuller explanation | `docs/content/` |
+| Design trade-offs that could have been decided either way | `docs/content/*/decisions.md` |
+| Unverified figures or deferred options | `TASKS.md` |
+| Detailed explanations | `docs/content/` |
 
-Vocabulary cannot catch it. `currently` and `TODO` are used by notable open source too, 45
-of the 240 containing `currently`, so there is no ground for forbidding them. Where the
-document starts is the only part that can be checked. D-39 records it.
+Lexical rules cannot reliably exclude author notes. Terms such as `currently` and `TODO` also appear in prominent open-source READMEs — 45 of the 240 surveyed projects contain `currently` — leaving no empirical basis for banning them. Only the opening structure can be validated reliably, as documented in D-39.
 
-## Using PLaMo Translate
+## Working with PLaMo Translate
 
-PLaMo Translate is a translation model that runs locally. It is optional, and it is used
-when a document is written from scratch and when a word choice needs confirming.
+PLaMo Translate is an optional local translation model used when drafting documentation from scratch or verifying vocabulary choices.
 
-### Which size this machine takes
+### Model selection for this machine
 
-| Condition | Model | Why |
+| Hardware constraint | Model | Rationale |
 |---|---|---|
-| 8 GB of VRAM or less, or no GPU | `plamo-3-translate-2b` at Q4_K_M, 1.81 GB | The Linux default; loads quickly and suffices at the sentence level |
-| 12 GB of VRAM or more | `plamo-2-translate` 10B at Q4, about 6.2 GB | Reaches the paragraph level |
+| 8 GB of VRAM or less, or no GPU | `plamo-3-translate-2b` at Q4_K_M, 1.81 GB | Default on Linux; starts rapidly and is adequate for sentence-level checks |
+| 12 GB of VRAM or more | `plamo-2-translate` 10B at Q4, about 6.2 GB | Capable of paragraph-level translation |
 
-This machine has 8 GB, so it takes the 2B.
+Because this machine has 8 GB of VRAM, it uses the 2B model.
 
-### What each size is used for
+### Scope of each model size
 
-The 2B is held to words and sentences, never to rewriting a paragraph or a whole document.
-The 10B reaches paragraphs but loads slowly enough to want the resident server.
+The 2B model is restricted to individual words and sentences and is never used to rewrite paragraphs or entire documents. The 10B model handles paragraph-level text, though its startup latency warrants running the resident server.
 
-Neither size has its output pasted into a document. One probe rendered `lint` as `糸くず`,
-the fluff on fabric. What is read is which word it chose, and no more.
+Raw translation output from either model is never copied directly into documentation. In one test, the model translated `lint` as `糸くず` (fabric fuzz); consult the model solely to observe its word choice.
 
-### Running it
+### Execution setup
 
 ```sh
 export PLAMO_TRANSLATE_CLI_LLAMA_SERVER=<path to llama-server>
@@ -260,65 +213,52 @@ plamo-translate server &
 plamo-translate --from English --to Japanese --input "..."
 ```
 
-A call costs 5.1 seconds without the resident server and 1.3 seconds with it, so a batch
-of words starts the server first.
+An individual invocation takes 5.1 seconds without the resident server versus 1.3 seconds with it, so start the server first when querying multiple words in a batch.
 
-`llama-server` has to be at b11960 or above. The published builds require glibc 2.38, so this
-machine builds it from source.
+`llama-server` requires build b11960 or higher. Because prebuilt binaries depend on glibc 2.38, this machine compiles it from source.
 
-## Writing documentation here
+## Repository documentation workflow
 
-The documentation in this repository follows the rules the tool enforces.
+Documentation in this repository adheres to the same rules that suikou checks.
 
-### Settle the structure before writing
+### Finalizing structure before drafting
 
-A document starts with its outline rather than its prose.
+Authoring begins with an outline rather than full prose.
 
 ```sh
 suikou plot docs/content/en/example.md --doctype design
 ```
 
-That writes a file under `.suikou/plans/` holding the section headings and the question
-each section answers. Fill in the claim each section makes, one line each, and get that
-approved before the body is written. A claim you cannot state in one line marks a section
-you have not thought through.
+This command creates a plan file under `.suikou/plans/` listing each section heading alongside the question that section must answer. Enter each section's claim in one line and obtain approval before writing the prose; any claim that cannot be stated in one line indicates an under-developed section.
 
-The plot stays out of version control, because it is a document of the thinking rather
-than a deliverable. If the structure moves while the body is written, move the plot with
-it; `structure/plot-mismatch` reports the difference.
+Plan files remain excluded from version control because they capture intermediate planning rather than final deliverables. When the document structure changes during drafting, update the plan file accordingly, since `structure/plot-mismatch` flags discrepancies between the document and its plan.
 
-The instruction handed to a model carries the doctype too.
+Prompts generated for language models also incorporate the target doctype.
 
 ```sh
 suikou brief --doctype design --lang en
 ```
 
-The question behind each section and the rules for writing come out ahead of the
-prohibitions.
+The generated brief outputs each section's guiding question and affirmative writing guidelines before listing prohibitions.
 
-### Declare the doctype
+### Declaring the doctype
 
-Pages under `docs/content/` declare `doctype:` in the front matter.
-A document that cannot carry front matter is declared under `[paths]` in
-`.suikou/structure.toml`. Declaring a doctype adds the checks for required sections and
-their recommended order.
+Markdown pages under `docs/content/` specify `doctype:` in their front matter. Files that cannot contain front matter declare their doctype under `[paths]` in `.suikou/structure.toml`. Specifying a doctype enables verification of mandatory sections and their recommended ordering.
 
-### The rules followed here
+### Authoring rules applied in this repository
 
-- Open every list with a complete sentence that does not bind grammatically to the items.
-- Keep the number of items out of the prose.
-- Leave section numbers off headings.
-- Avoid a word that depends on a moment in time; anchor it to a year or a version if you must.
-- Avoid a bare metaphor, reaching for a simile or a worked example instead.
-- Do not repeat a native word that professional technical Japanese avoids.
-- Make one claim per paragraph, splitting the paragraph once it passes six sentences.
-- Write each section as an answer to the question its heading raises.
-- Quote a Hugo shortcode in its escaped form; Hugo runs it even inside a code span.
+Documentation in this repository follows these writing conventions.
 
-Run `suikou check` over a page before committing that page.
-The bar is a page free of errors and warnings. Anything at info is advice.
+- Precede every bullet list with a complete sentence that does not connect grammatically to the list items.
+- Omit item counts from surrounding prose.
+- Omit sequential numbers from section headings.
+- Avoid time-dependent expressions unless qualified by a specific year or version.
+- Avoid bare metaphors; use an explicit simile or a concrete example instead.
+- Do not repeat rare native Japanese words avoided in professional technical writing.
+- Limit each paragraph to a single claim, and split any paragraph exceeding six sentences.
+- Write each section to answer the question implied by its heading.
+- Escape Hugo shortcodes when quoting them, because Hugo evaluates shortcodes even inside code spans.
 
-Driving a metric to zero is not the goal.
-The kango ratio sits at info, and an attempt to zero it turned 検証 into 確かめ and wrecked
-the register of every Japanese page. D-27 records what happened.
-To lower the kango ratio, reach for the established loanword rather than a native verb.
+Run `suikou check` on each page prior to committing it. A page passes when it has no errors or warnings; info-level diagnostics serve as advice.
+
+Reducing every metric to zero is not an objective. The kango ratio is reported at info level; an earlier attempt to reduce it to zero turned 検証 into 確かめ and degraded the register across all Japanese pages (recorded in D-27). To reduce the kango ratio, substitute an established loanword rather than a native verb.
