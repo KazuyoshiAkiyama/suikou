@@ -1085,3 +1085,18 @@ M2 の適用範囲は D-45 で決定済みであり、数値が前方参照し�
 `食い違う` は参照コーパス798件に0件であり、CLAUDE.md の段階3では候補から落ちる語である。ただしこのリポジトリの日本語文書で12箇所に及ぶため、置換を見送った。置換先の候補は `一致しない`（参照コーパスに22件）と `矛盾する`（13件）である。`.suikou/register-allow.toml` には0件である事実を記録してある。
 
 `structure/work-note` が規則自身の説明文に発火する自己言及も残っている。`docs/content/ja/metrics.md` で検出パターンの語句を言い換えて回避したが、同じ語句を別の文書が書くと再発する。規則を緩めると本物の備忘を見逃す方向に効くため、規則は変更していない。
+
+## 検証の方法を誤った記録
+
+合格の判定に `suikou check --format text | grep -cE 'warning|error'` を用いた時期がある。この検索は常に0件を返す。`--format text` は指摘の行に severity を印字せず、局所の指摘は `file:line:col: メッセージ [rule]`、文書指標は `file: metric 指示文` の形式で出力されるためである。判定には `--format json` の `severity` 欄を用いる。`skills/ja-style/SKILL.md` にこの点を記載した。
+
+この誤りで検出が漏れていた指摘のうち、以下は 2026-11-24 時点で未解消である。いずれも neon の書き直し以前から存在する。
+
+| 対象 | 指摘 |
+|---|---|
+| `TASKS.md` | `ja.demonstrative_per_1k` が 4.02（閾値 4.5）、`register/rare-wago` 4件、`register/prefer-katakana` 6件 |
+| 英語の8文書 | `en.mattr100` が全件で閾値を超過 |
+| `docs/content/en/decisions.md`、`docs/content/en/writing.md` | `en.simile_marker_per_1k` が閾値を下回る |
+| `docs/content/en/tuning.md` | `structure/missing-section` |
+
+英語側の閾値は D-51 で非目標としたため、この一覧は対応を保留した記録である。英語の閾値をこのリポジトリの文書に合わせるかどうかは未検討である。
