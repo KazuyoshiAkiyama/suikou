@@ -1540,3 +1540,63 @@ This result provides independent confirmation for D-28's decision against implem
 In Japanese, the existing rules already distinguish the corpora effectively, so no additions are warranted.
 
 These findings remain subject to methodological limitations. Every sampled document was committed to a public repository with human review in the loop, so unreviewed draft notes do not appear in the data. Additionally, authorship share is computed over the last 100 commits rather than a repository's full history, and six retained repositories contain fewer than 20 commits, making their commit-share estimates weak evidence.
+
+## D-51 Adopt the neon prose style as this repository's baseline
+
+### Context
+
+Commit 7d07fc5, dated 2026-11-24, rewrote 26 files in this repository. Gemini (neon) performed the rewrite as a wholesale style conversion: opening paragraphs became definitional sentences, headings became nominal phrases, paragraphs stopped being hard-wrapped, and native Japanese vocabulary shifted toward loanwords and Sino-Japanese compounds. Median sentence length rose from 31 to 42 characters and median body line length from 33 to 91.
+
+The pre-rewrite prose satisfied the existing thresholds. The rewritten prose exceeded several Japanese thresholds while the English side improved, dropping from 25 positional findings to 1.
+
+The table below places the rewritten prose against the measured human and AI ranges in `corpus/baselines.toml`.
+
+| Metric | Human native | AI, 4 models | Before | neon |
+|---|---|---|---|---|
+| renyo_te_ratio | 1.79–2.00 | 3.62–15.94 | 1.42 | 9.00 |
+| renyo_per_1k | 2.29–2.71 | 4.81–6.75 | 2.48 | 4.60 |
+| kango_ratio | 0.326–0.397 | 0.455–0.519 | 0.456 | 0.550 |
+| mattr100 | 0.569–0.581 | 0.629–0.665 | 0.585 | 0.611 |
+| demonstrative_per_1k | 5.69–6.47 | 1.38–3.39 | 8.14 | 5.72 |
+| keishiki_meishi_per_1k | 11.10–11.16 | 4.99–6.95 | 10.71 | 8.84 |
+
+`renyo_te_ratio` lands in the middle of the AI range and `kango_ratio` exceeds it. `demonstrative_per_1k` moved into the human native range.
+
+### Decision
+
+Adopt the neon style as the baseline for this repository's documentation. Confine threshold relaxation to the project-level override in `.suikou/profile.toml` and leave the built-in `oss` profile unchanged, so no relaxed threshold reaches a user's document.
+
+Two rule-precision fixes do reach users, deliberately. `register/rare-wago` now exempts tokens whose surface is entirely katakana, and `structure/missing-section` now accepts `事前準備` as the prerequisites section. Both only reduce false positives.
+
+Derive the thresholds from the measured maximum across this repository's nine Japanese documents plus roughly 3% of headroom, rather than from `suikou baseline` directly. The Tukey upper fence that `baseline` applies (Q3 + 1.5×IQR) finds outliers within a corpus; it does not set a style baseline, and over nine samples it lands far above the maximum. For `ja.renyo_te_ratio` the calibrated 23.21 is 1.8 times the measured maximum of 12.75 and exceeds even the top of the measured AI range at 15.94, so adopting it would stop that metric detecting AI prose entirely.
+
+Leave `ja.list_ratio` and `ja.prose_ratio` at their defaults. Measured at 0.167 against a default of 0.25 and 0.870 against 0.75, neither produced a single finding. Relaxing a metric that never fired would be relaxation without evidence.
+
+Do not relax `ja.demonstrative_per_1k`. `baseline` refuses to calibrate it, reporting that the derived bound falls outside the value range and could never fire. The default of 4.5 stands, and demonstratives were added to the three documents that fell below it.
+
+Do not change the English rules. The rewrite improved the English side without any rule change.
+
+### Rationale
+
+Recalibrating the built-in thresholds from the neon measurements is rejected. Doing so would set `renyo_te_ratio` to 23.21, placing the entire measured AI range of 3.62–15.94 below the threshold, and `kango_ratio` behaves the same way. Those two metrics would stop detecting AI prose, which changes what the tool claims.
+
+The adopted thresholds and the detection power each one costs are below.
+
+| Metric | Default | Measured max | Adopted | AI, 4 models | Detection |
+|---|---|---|---|---|---|
+| ja.renyo_te_ratio | 3.0 | 12.75 | 13.2 | 3.62–15.94 | upper part of the range survives |
+| ja.renyo_per_1k | 4.0 | 7.16 | 7.4 | 4.81–6.75 | lost |
+| ja.mattr100 | 0.60 | 0.6235 | 0.64 | 0.629–0.665 | mostly lost |
+| ja.kango_ratio | 0.52 | 0.5871 | 0.59 | 0.455–0.519 | lost |
+
+For `ja.renyo_per_1k`, `ja.mattr100`, and `ja.kango_ratio` the loss is unavoidable: the measured maximum already sits inside or above the AI range, so any threshold admitting this style sits there too. `CLAUDE.md` carries a 連用中止 density of 7.16, higher than any of the four models measured. That loss is accepted knowingly. `ja.renyo_te_ratio` is the exception, because its measured maximum falls inside the AI range, so adopting 13.2 preserves detection above that point.
+
+Hand-setting per-doctype values under `[doctype.*]` is also rejected. The log, design, howto, overview, and readme doctypes each have exactly one sample in this repository, so values derived from them would overfit. D-41 introduced per-doctype adjustment on the strength of 240 READMEs and 652 reference documents, not one file. The threshold at which the tool refuses its own calibration must not be circumvented by hand.
+
+Three false positives were corrected alongside the adoption. `register/prefer-katakana` fired 27 times on `検査→テスト`, but `検査` here denotes the lint inspection while `テスト` denotes `cargo test`, so the substitution would introduce an error. `register/rare-wago` flagged `糸`, the lexeme of `イト`, after the dictionary split `トレイト` into `トレ` and `イト`; the existing guard excluded only single-character katakana, letting two characters through. Widening the guard also exempts native Japanese words spelled in katakana, but measurement found that trade to be near-free: across 13 formal nouns and common native words, standalone occurrences numbered 1 in 798 professional Japanese translations and 0 in 150 AI-authored Japanese documents. The single hit is `ヒト` in a physiology context, where it names the species by scientific convention. Formal vocabulary (`否`, `留まる`, `内訳`) and writing-domain vocabulary (`表記ゆれ`, `書き出し`) were also false positives, because the reference corpus consists of Japanese translations of Kubernetes, MDN, and Vue — web documentation that is thin in both registers.
+
+Not every flagged word became an allow entry. Each was counted against the 798-document reference corpus, and words absent from it were replaced instead: `改める` (0) became `変更する` (255), `上がる` became `増加する` (45), and `取りこぼし` (0) became `見落とし` (4). `改める` and `上がる` belong to the body-motion class that step 6 of CLAUDE.md's vocabulary procedure names. Minority spellings were normalized too: `保守` (2) to `メンテナンス` (17) and `書式` (4) to `フォーマット` (11), and both left the allow list. `食い違う` is absent from the corpus but appears in 12 places, so its replacement was deferred and recorded in `TASKS.md`.
+
+`structure/missing-section` collided with nominal-phrase headings. neon renamed the prerequisites section to `事前準備`, which was absent from the synonym list, so `事前準備` was added. The header of `structure.toml` already records the same principle for `register/prefer-katakana`: a document written the way the tool advises must not be rejected by another of its rules.
+
+Per-paragraph measurement is deferred to separate work. Measured at a paragraph threshold of 0.64, `ja.kango_ratio` separates the corpora 4.3-fold, flagging 3.6% of pre-rewrite paragraphs against 15.5% of neon's. `ja.renyo_te_ratio` cannot work per paragraph: the `MIN_TE_FOR_RATIO` gate yields a value for only 38 of 562 paragraphs. `ja.renyo_per_1k` is measurable but cannot localize, because the excess spreads across half the paragraphs. `TASKS.md` carries the detail.

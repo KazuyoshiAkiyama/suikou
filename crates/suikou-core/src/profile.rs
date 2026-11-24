@@ -60,6 +60,13 @@ pub struct DoctypeAdjust {
 /// この上書きは、その判断をプロジェクトに渡すために置く。
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ProfileOverride {
+    /// なぜこのプロジェクトで閾値を変えたのか。実測した値か、利用者との調整の結果を書く。
+    ///
+    /// プロジェクト単位の緩和は、組み込みのプロファイルを置き換えるものではない。
+    /// その範囲を取り違えると、ツールの既定が変わったものとして読まれる。
+    /// 空でも読める。必須にすると既存の `.suikou/profile.toml` が読めなくなるためである。
+    #[serde(default)]
+    pub reason: String,
     /// 出さない指標の名前。閾値を消して黙らせる。
     #[serde(default)]
     pub disable: Vec<String>,
@@ -201,6 +208,41 @@ mod override_tests {
 
     fn parse(src: &str) -> ProfileOverride {
         toml::from_str(src).unwrap()
+    }
+
+    // 緩和の経緯を残せる。CLAUDE.md は閾値を緩めた判断を記録することを求めている。
+    #[test]
+    fn a_project_override_carries_its_reason() {
+        let ov = parse(
+            "reason = \"neon の文体を採用した。経緯は D-51 にある\"\n\
+             [thresholds.\"ja.renyo_per_1k\"]\nvalue = 9.36\n",
+        );
+        assert_eq!(ov.reason, "neon の文体を採用した。経緯は D-51 にある");
+    }
+
+    // 空のまま緩和できることは承知の上で許す。
+    // 必須にすると、既存の `.suikou/profile.toml` が読めなくなる。
+    // 経緯を残す要求は、ツールではなく CLAUDE.md が担う。
+    #[test]
+    fn an_override_without_a_reason_still_loads() {
+        let ov = parse("[thresholds.\"ja.renyo_per_1k\"]\nvalue = 9.36\n");
+        assert!(ov.reason.is_empty());
+    }
+
+    // value と direction の両方を書いて指標名を誤記した場合は、
+    // 既存の閾値が緩まないまま、新しい閾値が足される。
+    // value だけを書いた誤記は `apply` がエラーにする。
+    // そちらは `a_new_metric_without_a_direction_is_an_error` が固定している。
+    #[test]
+    fn an_unknown_metric_name_is_added_rather_than_ignored() {
+        let mut p = oss();
+        let before = p.thresholds["ja.renyo_per_1k"].value;
+        p.apply(&parse(
+            "[thresholds.\"ja.renyo_per1k\"]\nvalue = 9.36\ndirection = \"above\"\n",
+        ))
+        .unwrap();
+        assert_eq!(p.thresholds["ja.renyo_per_1k"].value, before);
+        assert!(p.thresholds.contains_key("ja.renyo_per1k"));
     }
 
     // 書いた欄だけが変わる。残りは組み込みのままとする。
