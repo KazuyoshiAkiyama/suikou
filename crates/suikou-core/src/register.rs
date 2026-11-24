@@ -227,12 +227,11 @@ fn is_target(pos1: &str, pos2: &str, goshu: &str, surface: &str) -> bool {
     if goshu != "和" || !CONTENT.contains(&pos1) || pos2 == "数詞" {
         return false;
     }
-    // 1文字のカタカナは、複合語が割れた断片であることが多い。
-    let mut chars = surface.chars();
-    !matches!(
-        (chars.next(), chars.next()),
-        (Some('ァ'..='ヶ' | 'ー'), None)
-    )
+    // 表層がすべてカタカナの語は、未知の外来語が割れた断片である。
+    // 辞書は「トレイト」を「トレ」と「イト」に割り、「イト」の語種を「和」、
+    // 語彙素を「糸」として返す。1文字だけを除くと、この2文字が通る。
+    // 空の表層はここで false になる。対象にする語が無いためである。
+    !surface.chars().all(|c| matches!(c, 'ァ'..='ヶ' | 'ー'))
 }
 
 /// 語彙の指標と同じ範囲を見る。地の文と箇条書きの本文を対象とする。
@@ -374,6 +373,19 @@ mod tests {
         // 分野の用語は漢語やカタカナ語が多い。和語に絞ることで誤って拾わずに済む。
         let d = doc_of("形態素解析をする。\n\n形態素解析をする。\n\n形態素解析をする。\n");
         assert!(check(&d, &morph(), &reference(), &HashSet::new()).is_none());
+    }
+
+    #[test]
+    fn a_katakana_surface_is_not_reported_as_wago() {
+        // lindera は「トレイト」を「トレ」「イト」に割り、「イト」の語種を「和」、
+        // 語彙素を「糸」として返す。未知のカタカナ語に対する解析の破綻である。
+        // 動詞は参照に 3000 件ある「する」を使う。参照に無い動詞を置くと、
+        // カタカナのガードとは無関係にその動詞が指摘され、切り分けられない。
+        let m = FakeMorphology::from_spec(
+            "イト|名詞|普通名詞||和 を|助詞|格助詞||和 する|動詞|非自立可能|終止形-一般|和",
+        );
+        let d = Document::parse("イトをする。\n\nイトをする。\n\nイトをする。\n");
+        assert!(check(&d, &m, &reference(), &HashSet::new()).is_none());
     }
 
     #[test]
