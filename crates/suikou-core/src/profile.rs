@@ -229,7 +229,10 @@ mod override_tests {
         assert!(ov.reason.is_empty());
     }
 
-    // 指標名を誤記しても、既存の閾値は緩まない。誤記が増えるだけである。
+    // value と direction の両方を書いて指標名を誤記した場合は、
+    // 既存の閾値が緩まないまま、新しい閾値が足される。
+    // value だけを書いた誤記は `apply` がエラーにする。
+    // そちらは `a_new_metric_without_a_direction_is_an_error` が固定している。
     #[test]
     fn an_unknown_metric_name_is_added_rather_than_ignored() {
         let mut p = oss();

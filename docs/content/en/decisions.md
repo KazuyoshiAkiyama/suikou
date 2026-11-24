@@ -1564,9 +1564,13 @@ The table below places the rewritten prose against the measured human and AI ran
 
 ### Decision
 
-Adopt the neon style as the baseline for this repository's documentation. Confine threshold relaxation to the project-level override in `.suikou/profile.toml` and leave the built-in `oss` profile unchanged, so judgments on users' documents do not change.
+Adopt the neon style as the baseline for this repository's documentation. Confine threshold relaxation to the project-level override in `.suikou/profile.toml` and leave the built-in `oss` profile unchanged, so no relaxed threshold reaches a user's document.
 
-Calibrate with `suikou baseline` over this repository's nine Japanese documents. `baseline.rs` refuses to calibrate from fewer than four samples, and nine satisfies that condition.
+Two rule-precision fixes do reach users, deliberately. `register/rare-wago` now exempts tokens whose surface is entirely katakana, and `structure/missing-section` now accepts `事前準備` as the prerequisites section. Both only reduce false positives.
+
+Derive the thresholds from the measured maximum across this repository's nine Japanese documents plus roughly 3% of headroom, rather than from `suikou baseline` directly. The Tukey upper fence that `baseline` applies (Q3 + 1.5×IQR) finds outliers within a corpus; it does not set a style baseline, and over nine samples it lands far above the maximum. For `ja.renyo_te_ratio` the calibrated 23.21 is 1.8 times the measured maximum of 12.75 and exceeds even the top of the measured AI range at 15.94, so adopting it would stop that metric detecting AI prose entirely.
+
+Leave `ja.list_ratio` and `ja.prose_ratio` at their defaults. Measured at 0.167 against a default of 0.25 and 0.870 against 0.75, neither produced a single finding. Relaxing a metric that never fired would be relaxation without evidence.
 
 Do not relax `ja.demonstrative_per_1k`. `baseline` refuses to calibrate it, reporting that the derived bound falls outside the value range and could never fire. The default of 4.5 stands, and demonstratives were added to the three documents that fell below it.
 
@@ -1576,9 +1580,22 @@ Do not change the English rules. The rewrite improved the English side without a
 
 Recalibrating the built-in thresholds from the neon measurements is rejected. Doing so would set `renyo_te_ratio` to 23.21, placing the entire measured AI range of 3.62–15.94 below the threshold, and `kango_ratio` behaves the same way. Those two metrics would stop detecting AI prose, which changes what the tool claims.
 
+The adopted thresholds and the detection power each one costs are below.
+
+| Metric | Default | Measured max | Adopted | AI, 4 models | Detection |
+|---|---|---|---|---|---|
+| ja.renyo_te_ratio | 3.0 | 12.75 | 13.2 | 3.62–15.94 | upper part of the range survives |
+| ja.renyo_per_1k | 4.0 | 7.16 | 7.4 | 4.81–6.75 | lost |
+| ja.mattr100 | 0.60 | 0.6235 | 0.64 | 0.629–0.665 | mostly lost |
+| ja.kango_ratio | 0.52 | 0.5871 | 0.59 | 0.455–0.519 | lost |
+
+For `ja.renyo_per_1k`, `ja.mattr100`, and `ja.kango_ratio` the loss is unavoidable: the measured maximum already sits inside or above the AI range, so any threshold admitting this style sits there too. `CLAUDE.md` carries a 連用中止 density of 7.16, higher than any of the four models measured. That loss is accepted knowingly. `ja.renyo_te_ratio` is the exception, because its measured maximum falls inside the AI range, so adopting 13.2 preserves detection above that point.
+
 Hand-setting per-doctype values under `[doctype.*]` is also rejected. The log, design, howto, overview, and readme doctypes each have exactly one sample in this repository, so values derived from them would overfit. D-41 introduced per-doctype adjustment on the strength of 240 READMEs and 652 reference documents, not one file. The threshold at which the tool refuses its own calibration must not be circumvented by hand.
 
-Three false positives were corrected alongside the adoption. `register/prefer-katakana` fired 27 times on `検査→テスト`, but `検査` here denotes the lint inspection while `テスト` denotes `cargo test`, so the substitution would introduce an error. `register/rare-wago` flagged `糸`, the lexeme of `イト`, after the dictionary split `トレイト` into `トレ` and `イト`; the existing guard excluded only single-character katakana, letting two characters through. Formal vocabulary (`否`, `留まる`, `内訳`) and writing-domain vocabulary (`表記ゆれ`, `書き出し`) were also false positives, because the reference corpus consists of Japanese translations of Kubernetes, MDN, and Vue — web documentation that is thin in both registers.
+Three false positives were corrected alongside the adoption. `register/prefer-katakana` fired 27 times on `検査→テスト`, but `検査` here denotes the lint inspection while `テスト` denotes `cargo test`, so the substitution would introduce an error. `register/rare-wago` flagged `糸`, the lexeme of `イト`, after the dictionary split `トレイト` into `トレ` and `イト`; the existing guard excluded only single-character katakana, letting two characters through. Widening the guard also exempts native Japanese words spelled in katakana, but measurement found that trade to be near-free: across 13 formal nouns and common native words, standalone occurrences numbered 1 in 798 professional Japanese translations and 0 in 150 AI-authored Japanese documents. The single hit is `ヒト` in a physiology context, where it names the species by scientific convention. Formal vocabulary (`否`, `留まる`, `内訳`) and writing-domain vocabulary (`表記ゆれ`, `書き出し`) were also false positives, because the reference corpus consists of Japanese translations of Kubernetes, MDN, and Vue — web documentation that is thin in both registers.
+
+Not every flagged word became an allow entry. Each was counted against the 798-document reference corpus, and words absent from it were replaced instead: `改める` (0) became `変更する` (255), `上がる` became `増加する` (45), and `取りこぼし` (0) became `見落とし` (4). `改める` and `上がる` belong to the body-motion class that step 6 of CLAUDE.md's vocabulary procedure names. Minority spellings were normalized too: `保守` (2) to `メンテナンス` (17) and `書式` (4) to `フォーマット` (11), and both left the allow list. `食い違う` is absent from the corpus but appears in 12 places, so its replacement was deferred and recorded in `TASKS.md`.
 
 `structure/missing-section` collided with nominal-phrase headings. neon renamed the prerequisites section to `事前準備`, which was absent from the synonym list, so `事前準備` was added. The header of `structure.toml` already records the same principle for `register/prefer-katakana`: a document written the way the tool advises must not be rejected by another of its rules.
 
