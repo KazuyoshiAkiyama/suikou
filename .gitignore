@@ -8,6 +8,7 @@ __pycache__/
 !/.suikou/register-allow.toml
 !/.suikou/structure.toml
 /.claude/
+/.superpowers/
 /docs/public/
 /docs/.hugo_build.lock
 
