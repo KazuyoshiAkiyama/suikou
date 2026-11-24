@@ -4,326 +4,333 @@ weight: 20
 doctype: "reference"
 ---
 
-This page holds the definitions that the Rust implementation has to satisfy.
-The Python under `research/` is the reference implementation, and `tests/golden/` pins
-its output.
+This page is a reference for the definitions that the Rust implementation must satisfy.
+The reference implementation is the Python code under `research/`, and `tests/golden/`
+fixes its output.
 
-lindera and fugashi are different tokenizers, so the two implementations are not asked to
-agree exactly. The comparison allows a margin. When a metric falls outside that margin,
-the question of which implementation is right gets settled case by case.
+Because lindera and fugashi are different tokenizers, the two implementations are not
+required to agree exactly, and the comparison allows a tolerance. When a metric falls
+outside that tolerance, the correct implementation is decided case by case.
 
 ## Preprocessing
 
-The order changes the result. The steps run in the order below.
+The order of the steps affects the result, so the steps run in the order below.
 
-1. Strip the YAML front matter.
-2. Strip fenced code blocks.
-3. Strip the Hugo shortcodes whose content is code.
-4. **Undo backslash escapes**, turning `\.` back into `.`.
-5. Strip HTML tags.
-6. Sort the lines into blocks.
-7. Strip inline markup, meaning links, code spans, and emphasis.
+1. Remove the YAML front matter.
+2. Remove fenced code blocks.
+3. Remove the Hugo shortcodes whose content is code.
+4. **Undo backslash escapes**, so that `\.` becomes `.` again.
+5. Remove HTML tags.
+6. Classify each line as a type of block.
+7. Remove inline markup, that is, links, code spans, and emphasis.
 
-Fenced code blocks are found by scanning lines. A fence closes only on a line of the same
-marker, at least as long as the opening one, with nothing after it, as CommonMark
-specifies. A long fence can hold a shorter one, and closing at the inner fence would let
-the code past that point be read as prose.
+Fenced code blocks are detected by scanning line by line. As CommonMark specifies, a fence
+closes only on a line that uses the same marker as the opening fence, is at least as long,
+and has nothing after it. A long fence can contain a shorter one, and treating the inner
+fence as the close would cause the rest of the code to be read as prose.
 
-The third step covers `highlight`, `mermaid`, and a `tab` that declares `codelang`. In
-each case the document itself declares the content to be code. A shortcode such as `note`
-or `caution` wraps prose, so removing it would remove the body itself. An opening tag whose
-close is never found is left alone, since treating it as open would drop every line below
-it in a document whose tags do not balance.
+The third step applies to `highlight`, `mermaid`, and any `tab` that declares `codelang`.
+In each of these cases the document itself declares that the content is code. A shortcode
+such as `note` or `caution` encloses prose, so removing it would remove the body text as
+well. An opening tag with no matching close is left in place, because treating it as open
+would remove every line after it in a document whose tags are unbalanced.
 
-Skipping the fourth step breaks sentence splitting.
-The AWS doc_source corpus is written in that escaped form, and leaving the escapes in
-place inflates the mean sentence length by a factor of three or more.
-`tests/golden/input/en_escaped.md` pins this behavior.
-The sentence count is 6 before the escapes come out and 11 afterward.
+If the fourth step is skipped, sentence splitting stops working.
+The AWS doc_source corpus uses this escaped form, and when the escapes are not removed the
+mean sentence length grows by a factor of three or more.
+`tests/golden/input/en_escaped.md` locks in this behavior.
+That file contains 6 sentences before the escapes are removed and 11 afterward.
 
-Every step keeps the line count intact. A step that removed lines outright would shift
-the line numbers of everything below it, and a finding that points at the wrong line is a
-finding nobody can act on.
+No step changes the number of lines. If a step removed lines entirely, every line after
+the removal would get a different line number, and a finding that refers to the wrong line
+cannot be acted on.
 
-### How blocks are sorted
+### How lines are classified into blocks
 
-| Kind | Test |
+| Kind | Rule |
 |---|---|
-| Heading | Up to three spaces, then one to six `#` followed by a space |
-| List item | Leading space, then `-` `*` `+`, or a number with `.` or `)`, then a space |
-| Table | The line opens with `\|` |
-| Quote | The line opens with `>` |
+| Heading | Up to three spaces, then one to six `#` characters followed by a space |
+| List item | Leading spaces, then `-` `*` `+`, or a number with `.` or `)`, then a space |
+| Table | The line begins with `\|` |
+| Quote | The line begins with `>` |
 | Prose | Any other line that is not empty |
 
-The three-space ceiling on a heading follows CommonMark. Four spaces or more make the
-line code, and a `#` inside an indented code block is not a heading.
+The limit of three spaces before a heading follows CommonMark. A line indented by four or
+more spaces is code, and a `#` inside an indented code block must not be read as a heading.
 
-### What each metric covers
+### Which text each metric covers
 
-| Kind of metric | Covers |
+| Kind of metric | Text covered |
 |---|---|
-| Vocabulary, meaning MATTR, kanji ratio, kango ratio, demonstratives, formal nouns | Prose and the body of list items |
-| Sentence structure, meaning length, commas, endings, renyo, te-form | Prose only |
-| Format, meaning prose ratio, list ratio, bold | Every line |
+| Vocabulary: MATTR, kanji ratio, kango ratio, demonstratives, formal nouns | Prose and the text of list items |
+| Sentence structure: length, commas, endings, renyo, te-form | Prose only |
+| Format: prose ratio, list ratio, bold | Every line |
 
-A vocabulary metric must never be measured over prose alone.
-Some models put almost everything into bullet lists, and for those models prose alone
-throws away more than eighty percent of the text. For example, one model in the corpus
-left only fifteen percent of its output in prose.
+A vocabulary metric must never be limited to prose.
+Some models put nearly all of their output into bullet lists, and for those models a
+prose-only measurement discards more than eighty percent of the text. In the corpus, for
+example, one model left only fifteen percent of its output as prose.
 
 ## Sentence splitting
 
-Japanese splits right after `。` `！` `？`.
-A fragment shorter than five characters is dropped, and so is a fragment with no Japanese
-character in it.
+Japanese text is split immediately after `。` `！` `？`.
+A fragment of fewer than five characters is discarded, as is a fragment that contains no
+Japanese characters.
 
-English follows the spaCy splitter.
-A sentence with fewer than four tokens, once punctuation is removed, is dropped.
+English text is split by spaCy.
+A sentence with fewer than four tokens after punctuation is removed is discarded.
 
 ## Japanese metrics
 
-The tokenizer is UniDic. IPADIC returns neither the word origin nor the inflected form,
-so IPADIC cannot serve here.
+The tokenizer uses UniDic. IPADIC provides neither the word origin nor the inflected form,
+so it cannot be used for these metrics.
 
 ### ja.mattr100
 
-Take a moving window one hundred tokens wide.
-Divide the number of distinct tokens in each window by the width of the window, then
-average across every window.
-When the token count falls below the width of the window, divide the number of distinct
-tokens in the whole text by the token count.
-A token is a surface form.
+Use a moving window that is one hundred tokens wide.
+For each window, divide the number of distinct tokens by the window width, and then take
+the average over all windows.
+If the text has fewer tokens than the window width, divide the number of distinct tokens
+in the whole text by the number of tokens.
+Tokens are surface forms.
 
-Humans land between 0.559 and 0.581, and AI lands between 0.629 and 0.665.
+Human text ranges from 0.559 to 0.581, and AI text ranges from 0.629 to 0.665.
 The threshold is 0.60.
 
 ### ja.renyo_per_1k
 
-Count each place where a verb carries an inflected form beginning with 連用形 and the
-token right after it is a comma.
-Divide by the character count of the prose, spaces excluded, and multiply by one thousand.
+Count every position where a verb has an inflected form that begins with 連用形 and the
+next token is a comma.
+Divide the count by the number of characters in the prose, excluding spaces, and multiply
+by one thousand.
 
 ### ja.te_per_1k
 
-Count each place where the surface form is `て` or `で`, the part of speech is a
-conjunctive particle, and the token right after it is a comma.
-Normalize per thousand characters the same way.
+Count every position where the surface form is `て` or `で`, the part of speech is a
+conjunctive particle, and the next token is a comma.
+Convert the count to a rate per thousand characters in the same way.
 
 ### ja.renyo_te_ratio
 
-Divide `renyo_per_1k` by `te_per_1k`.
-When the divisor falls below 0.05, the ratio is not reported at all.
+This ratio is `renyo_per_1k` divided by `te_per_1k`.
+If the divisor is below 0.05, the ratio is not reported.
 
-Native humans land at 2.00, translated Japanese lands at 1.79, and AI lands between 3.62 and
-15.94. The threshold is 3.0.
+Native human writing is at 2.00, human translation at 1.79, and AI output ranges from 3.62
+to 15.94. The threshold is 3.0.
 
-This metric separates the two groups more sharply than any other. The te-form leans toward
-speech and folds clauses into one. The renyo form leans toward writing and lines clauses up
-side by side. AI leans toward the second. The same thing shows up in English as an excess of
-participial clauses.
+This metric separates human and AI text more clearly than any other. The te-form is typical
+of speech and joins clauses into one. The renyo form is typical of writing and places
+clauses one after another. AI output favors the renyo form. The same tendency appears in
+English as an excess of participial clauses.
 
 ### ja.keishiki_meishi_per_1k
 
-Count each token whose part of speech is a noun and whose surface form is one of
-`こと` `もの` `ため` `よう` `点` `場合`. Normalize per thousand characters.
+Count every token whose part of speech is a noun and whose surface form is one of
+`こと` `もの` `ため` `よう` `点` `場合`. Convert the count to a rate per thousand characters.
 
-Humans land at 11.1, and AI lands between 4.99 and 6.95.
+Human text is at 11.1, and AI text ranges from 4.99 to 6.95.
 A value below the threshold of 8.5 is reported.
-**This finding is about something missing**, so it carries no position.
+**This finding indicates that something is missing**, so it has no position.
 
-The metric is sensitive to the kind of document requested. In procedures, AI climbs to
-8.11 and comes close to the threshold. Until human baselines exist for each kind of
-document, the severity stays at info.
+The value depends heavily on the kind of document requested. In procedures, AI text rises
+to 8.11, close to the threshold. The severity remains at info until human baselines are
+available for each kind of document.
 
 ### ja.demonstrative_per_1k
 
-Count each token whose surface form is one of
+Count every token whose surface form is one of
 `これ` `それ` `この` `その` `これら` `それら` `こちら` `そちら` `ここ` `そこ`.
-Normalize per thousand characters.
+Convert the count to a rate per thousand characters.
 
-Humans land between 5.69 and 6.47, and AI lands between 1.38 and 3.39.
+Human text ranges from 5.69 to 6.47, and AI text ranges from 1.38 to 3.39.
 A value below the threshold of 4.5 is reported.
-This finding is also about something missing.
-It relates to zero anaphora in Japanese.
+This finding also indicates that something is missing.
+The metric is related to zero anaphora in Japanese.
 
 ### ja.kango_ratio
 
-Among content words, meaning nouns, verbs, adjectives, adverbs, and adjectival nouns,
-take the share whose word origin is `漢`.
-The divisor is the count of those whose origin is `和` `漢` `外` or `混`.
+Among content words, that is, nouns, verbs, adjectives, adverbs, and adjectival nouns,
+compute the proportion whose word origin is `漢`.
+The divisor is the number of content words whose origin is `和` `漢` `外` or `混`.
 
-Humans land between 0.326 and 0.397, and AI lands between 0.455 and 0.519.
+Human text ranges from 0.326 to 0.397, and AI text ranges from 0.455 to 0.519.
 The threshold is 0.42.
-The metric is sensitive to the kind of document and to the subject, so the severity stays
+The value depends heavily on the kind of document and on its topic, so the severity remains
 at info.
 
 ### ja.kanji_ratio
 
-Divide the number of kanji, meaning U+4E00 through U+9FFF, by the number of Japanese
-characters, meaning hiragana, katakana, and kanji.
+Divide the number of kanji, defined as U+4E00 through U+9FFF, by the number of Japanese
+characters, defined as hiragana, katakana, and kanji.
 
 ### ja.prose_ratio and ja.list_ratio
 
-The prose ratio divides the character count of the prose by the character count of the
-prose plus the body of the list items.
-The list ratio divides the number of list item lines by the number of lines that are not
+The prose ratio is the number of characters in prose divided by the number of characters
+in prose and list-item text combined.
+The list ratio is the number of list-item lines divided by the number of lines that are not
 empty.
 
-Both counts exclude spaces.
+Spaces are excluded from both counts.
 
 ## English metrics
 
-Only three metrics survived validation.
+Only three metrics passed validation.
 Participial clauses and nominalization overlapped the human range.
-The effect size of 5.3 reported in earlier work did not carry over to the task of writing
-a document.
+The effect size of 5.3 reported in earlier research did not reappear when the task was to
+write a document.
 
 ### en.mattr100
 
-The definition matches the Japanese one.
-A token is a lowercased surface form, and symbols and spaces are excluded.
+The definition is the same as for Japanese.
+Tokens are lowercased surface forms, and symbols and spaces are excluded.
 
-Humans land between 0.58 and 0.69, and AI lands between 0.72 and 0.82.
+Human text ranges from 0.58 to 0.69, and AI text ranges from 0.72 to 0.82.
 The threshold is 0.71.
-Every AI condition sits above every human corpus, which makes this the steadiest metric
-of the set.
+Every AI condition scores higher than every human corpus, which makes this the most stable
+metric of the set.
 
 ### en.prose_ratio
 
-The definition matches the Japanese one. Humans land between 0.66 and 0.97, and AI lands
-between 0.31 and 0.56. The threshold is 0.65.
+The definition is the same as for Japanese. Human text ranges from 0.66 to 0.97, and AI text
+ranges from 0.31 to 0.56. The threshold is 0.65.
 
 ### en.simile_marker_per_1k
 
-Count the phrases below and normalize per thousand words. Case is ignored.
+Count the phrases below and convert the count to a rate per thousand words. Matching is not
+case-sensitive.
 
 `like a` / `like the` / `as if` / `as though` / `akin to` / `similar to` /
 `think of it as` / `imagine` / `analogous to` / `for example` / `for instance`
 
-Humans land between 0.84 and 2.54, and AI lands between 0.00 and 0.60.
+Human text ranges from 0.84 to 2.54, and AI text ranges from 0.00 to 0.60.
 A value below the threshold of 0.8 is reported.
 
-AI reaches for figurative vocabulary and then leaves the figure unmarked.
-This metric matches the policy of avoiding a bare metaphor and reaching instead for a
-simile or for an example. A sentence that says a cache behaves like a queue marks the
-comparison, and a sentence that calls the cache a queue does not.
+AI output uses figurative vocabulary but does not mark the comparison as figurative.
+This metric corresponds to the policy of avoiding metaphor and using a simile or an example
+instead. For example, a sentence saying that a cache behaves like a queue marks the
+comparison, whereas a sentence calling the cache a queue does not.
 
 ## The M rules
 
 ### M1, the lead-in to a list
 
-The lead-in is the nearest line above the list that is not empty.
-When that line is a heading or another list item, no judgment is made.
+The lead-in is the closest non-empty line above the list.
+If that line is a heading or another list item, the rule makes no judgment.
 
-The Japanese test runs as follows.
+The Japanese check works as shown in the table below.
 
 | Result | Condition |
 |---|---|
-| ok | The line ends in `。` `！` `？` |
-| ok | The line ends in `:` or `：` and the token before it is a noun, a suffix, or a pronoun |
-| ng | The line ends in `:` or `：` and the token before it is a predicate |
+| ok | The line ends with `。` `！` `？` |
+| ok | The line ends with `:` or `：`, and the token before it is a noun, a suffix, or a pronoun |
+| ng | The line ends with `:` or `：`, and the token before it is a predicate |
 | ng | The last token is a particle |
 | ng | The last token is a verb or an auxiliary in the 連用形 |
 | other | None of the above |
 
-For English, a line that ends in `:` counts as ok when it contains
-`the following` `as follows` `these` `below` `steps` or `following`, and counts as ng
-otherwise. A line ending in `.` `!` or `?` counts as ok.
+In English, a line that ends with `:` is ok if it contains
+`the following` `as follows` `these` `below` `steps` or `following`, and ng if it does
+not. A line that ends with `.` `!` or `?` is ok.
 
-A strict test would look for a finite verb.
-Even so, this test alone separates the AWS S3 user guide, at 30 incomplete against 145
-complete, from the Linux kernel, at 105 against 16.
+A strict check would look for a finite verb.
+Even so, this check alone distinguishes the AWS S3 user guide, with 30 incomplete against 145
+complete, from the Linux kernel, with 105 against 16.
 
 The violation rate is `ng / (ok + ng)`.
 
 ### M2, stating the number of items in prose
 
-Within prose, headings excluded, count the shapes below.
+In prose, excluding headings, count the patterns below.
 
-For Japanese, a numeral followed by `つ` `個` `点` `種` or `類`, followed in turn by one of
+In Japanese, count a numeral followed by `つ` `個` `点` `種` or `類`, which is then followed by one of
 `理由` `方法` `ポイント` `点` `要素` `ステップ` `手順` `方針` `特徴` `観点` `側面`
 `利点` `欠点` `課題` `原則` `要因` `種類`.
-Shapes such as `以下の3つ` and `次の2点` count as well, and so do `3つある` and `3つあります`.
+Patterns such as `以下の3つ` and `次の2点` are counted too, as are `3つある` and `3つあります`.
 
-For English, `two` through `seven`, or `2` through `7`, followed by one of
+In English, count `two` through `seven`, or `2` through `7`, followed by one of
 `reasons` `ways` `steps` `things` `types` `categories` `benefits` `points`
 `factors` `approaches` `options` `principles` `rules` `components` `parts`.
 
-Writing the number of items into the prose breaks the prose the moment an item is added
-or removed.
+If the number of items is written in the prose, the prose becomes wrong as soon as an item
+is added or removed.
 
-**It is reported only where the count points forward.** These are the signals.
+**The rule reports a count only when the count refers forward.** The signals are listed below.
 
-| Signal | Why |
+| Signal | Reason |
 |---|---|
-| The sentence contains 以下, 次の, 下記, `following`, `below` or `these` | It promises what follows |
-| A list, a heading or a table comes next | A structure editable separately from the sentence |
-| Prose carrying an enumerating word comes next | Likewise editable separately |
+| The sentence contains 以下, 次の, 下記, `following`, `below` or `these` | It announces what comes next |
+| A list, a heading or a table follows | That structure can be edited separately from the sentence |
+| Prose containing an enumerating word follows | That prose can also be edited separately |
 
-A count that resolves within the same sentence is left alone:
+A count whose items are all given within the same sentence is not reported, as in this
+example:
 `無効化の方法は大きく分けて二つある。時間で切る方法と、変更を検知して切る方法である。`
-Adding a third method means rewriting that sentence, so nothing is left to fall out of step.
+Adding a third method would require rewriting that sentence, so the count cannot fall out
+of step with the items.
 
-The condition came from sorting the 168 firings across 798 reference documents. Of the 81
-that carry no marker and are followed by prose, only 3 carry an enumerating word. Firings
-fell from 112 documents to 67. D-45 records it.
+This condition was derived by classifying the 168 firings in 798 reference documents. Of
+the 81 firings that had no signal word and were followed by prose, only 3 had an enumerating
+word. The condition reduced the number of documents that fire from 112 to 67. D-45 records
+the details.
 
-The English enumerating words, `first`, `second` and `one is`, are carried over from the
-Japanese rather than measured on an English corpus.
+The English enumerating words, `first`, `second` and `one is`, were taken over from the
+Japanese side and were not measured on an English corpus.
 
 ### M3, numbered headings
 
-Count each heading line where the `#` is followed by a number and then `.` `、` `)` `章`
+Count every heading line in which the `#` is followed by a number and then by `.` `、` `)` `章`
 or `節`.
 
-The title is left out. An ADR is written `# 3. Title`, and that number is its name rather
-than a section ordinal; nothing renumbers when a section moves. 155 of 190 published ADRs
-were firing on it, so the leading level-one heading is exempt.
+The title is excluded. An ADR title is written as `# 3. Title`, and that number identifies
+the record; it is not a section number, and nothing has to be renumbered when a section
+moves. Of 190 published ADRs, 155 fired on the title, so the first level-one heading is
+exempt.
 
 ### M4, hand-written numbers
 
-Count each list item whose marker is `-` `*` or `+` and whose body opens with a number
+Count every list item whose marker is `-` `*` or `+` and whose text begins with a number
 followed by `.` or `)`.
 
 ### M5, parallel items
 
-Within one list, sort the items by the shape of their ending.
+Within each list, classify the items by how they end.
 
-Japanese sorts into three groups, meaning items ending in a full stop, items ending in a
-noun, and items ending in a predicate.
-English sorts into two, meaning items ending in a period and items that do not.
+Japanese items fall into three groups: those that end with a full stop, those that end with
+a noun, and those that end with a predicate.
+English items fall into two groups: those that end with a period and those that do not.
 
-A list holding two or more groups counts as mixed.
-The mixed rate divides the number of mixed lists by the number of lists holding two or
-more items.
+A list that contains items from two or more groups counts as mixed.
+The mixed rate is the number of mixed lists divided by the number of lists that contain two
+or more items.
 
 ### M6, words that depend on a moment in time
 
-Count each occurrence of the words below. Two on one line count as two.
+Count every occurrence of the words below. Two occurrences on the same line count as two.
 
-For Japanese, `現在` `現時点` `最新の` `新しい` `今後` `将来的に` `まもなく` `既存の` `目下`
-`現行の`, together with `最近` `近年` `直近` `先日` `従来` `当面` `順次`.
+In Japanese, count `現在` `現時点` `最新の` `新しい` `今後` `将来的に` `まもなく` `既存の` `目下`
+`現行の`, and also `最近` `近年` `直近` `先日` `従来` `当面` `順次`.
 
-For English, `currently` `presently` `eventually` `soon` `latest` `newest` `newer`
+In English, count `currently` `presently` `eventually` `soon` `latest` `newest` `newer`
 `as of this writing` `at present` `in the future` `in the near future` `for now`,
-together with `recently` `lately` `these days` `nowadays` `so far` `for the time being`
+and also `recently` `lately` `these days` `nowadays` `so far` `for the time being`
 `up to now`.
 
-The second group works the same way as the first: each word takes the moment of writing
-as its origin. Google's guidance on timeless documentation names `recently`, `soon`, and
-`new`, and these are the rest of that set.
+The words in the second group behave like those in the first: each takes the time of
+writing as its reference point. Google's guidance on timeless documentation lists `recently`, `soon`, and
+`new`, and the second group completes that set.
 
 ### Relative periods with no anchor
 
-A period counted from now cannot be listed as a word, because it carries a number:
-`直近3ヶ月`, `過去2年`, `in the past three months`, `last week`, `next month`. Those are
-matched as a pattern instead.
+A period measured from the present cannot be detected from a word list, because it contains
+a number, as in
+`直近3ヶ月`, `過去2年`, `in the past three months`, `last week`, `next month`. These are
+detected with a pattern instead.
 
 ### A sentence with an absolute anchor is passed over
 
-Touching on a moment is not the error. Meaning something different depending on when it
-is read is the error. Where the same sentence carries an absolute anchor, the rule does
-not fire.
+Referring to a point in time is not itself the error. The error is a meaning that changes
+depending on when the text is read. If the same sentence contains an absolute anchor, the
+rule does not fire.
 
 | Anchor | Example |
 |---|---|
@@ -331,147 +338,152 @@ not fire.
 | A version number | `verified against lindera 6.0.0` |
 | A numbered document | `RFC 7322 states` |
 
-`Verified against lindera 6.0.0` states a past fact and never goes stale. `The current
-feature order is this` changes truth value with the reading. What separates them is the
-anchor, not the tense.
+`Verified against lindera 6.0.0` states a past fact and does not go out of date. `The current
+feature order is this` may be true or false depending on when it is read. The difference
+between the two lies in the anchor, not in the tense.
 
-The anchor is read per sentence: a year in a neighbouring sentence of the same paragraph
-does not settle this one. Only a `v`-prefixed form or a three-part number counts as a
-version, so that `2.5 times` is not mistaken for one.
+Anchors are checked sentence by sentence; a year in a neighboring sentence of the same
+paragraph does not anchor this one. Only a form prefixed with `v` or a three-part number
+counts as a version, so that `2.5 times` is not mistaken for a version.
 
-This is the operational form of the promise to allow a deliberate reference to a moment.
-Left to judgement it could not be checked, so it becomes a question of whether an anchor
-is present.
+This check is how the rule implements the commitment to allow a deliberate reference to a
+point in time. Deliberateness cannot be checked by a machine, so the check is reduced to
+whether an anchor is present.
 
-### Why the English vocabulary is narrow
+### Why the English vocabulary is limited
 
-The English vocabulary is held to the strict set.
-Adding `new` `now` `future` and `existing` raises the number of false catches.
-With those words included, Google eng-practices scored the highest violation rate of any
-corpus at 6.13. With the strict set, the same corpus scored 0.58, the lowest of any
-corpus.
+The English word list is restricted to the strict set.
+Adding `new` `now` `future` and `existing` increases the number of false positives.
+With those words included, Google eng-practices had the highest violation rate of any
+corpus, at 6.13. With the strict set, the same corpus had the lowest rate of any corpus, at
+0.58.
 
-This is the one rule that a short instruction fails to enforce.
-Putting it into the layer that runs before generation means listing the forbidden words
-one by one.
+This is the only rule that a model does not follow when it is given as a short instruction.
+If the rule is placed in the layer that runs before generation, the forbidden words must be
+listed one by one.
 
 ### M7, the tail of an enumeration
 
-For Japanese, a line ending in `など` or `等`.
-For English, a line ending in `etc.` `and so on` or `and more`.
+In Japanese, count lines that end with `など` or `等`.
+In English, count lines that end with `etc.` `and so on` or `and more`.
 
-Both prose and list items are covered.
+The rule covers both prose and list items.
 
 ## The register rule
 
 ### register/rare-wago, a native word out of register
 
-The rule reports a native content word used far more often here than in professional
+This rule reports native content words that are used much more often than in professional
 Japanese translation.
-It covers content words whose origin is native, and it skips numerals and single
-katakana characters.
-Field terminology leans on Sino-Japanese words and loanwords, so covering native words
-alone keeps that terminology out of the findings.
+It covers content words of native origin and excludes numerals and single katakana
+characters.
+Technical terms in a field are mostly Sino-Japanese words or loanwords, so limiting the rule
+to native words keeps those terms out of the findings.
 
-A word has to appear three times or more.
-A word used once cannot be told apart from a turn of phrase.
+A word must appear three or more times.
+With a single occurrence, an out-of-register word cannot be distinguished from an incidental
+phrase.
 
-Two statistics decide a finding.
-The log-likelihood ratio from Dunning (1993) has to reach 15.13, which is p < 0.0001 at
-one degree of freedom, and the Log Ratio from Hardie (2014) has to reach 7.0, which is
-128 times the reference rate. Significance alone is not enough, because using an ordinary
-word slightly more often reaches significance on a corpus this size.
+A finding requires two statistics.
+The log-likelihood ratio of Dunning (1993) must be at least 15.13, which corresponds to p < 0.0001 at
+one degree of freedom, and the Log Ratio of Hardie (2014) must be at least 7.0, which corresponds to
+128 times the reference rate. Significance alone is not enough, because in a corpus of this
+size even an ordinary word used slightly more often becomes significant.
 
-The reference lives in `crates/suikou-core/data/register_ja.toml`.
-It is a frequency table built from 652 pages of Kubernetes, MDN, and Vue in Japanese,
-holding roughly 290,000 content words.
-A tutorial stays out, because its register differs, and a word has to appear in two
-fields or more to be listed.
-`research/lexshift/build_reference.py` rebuilds it.
+The reference is stored in `crates/suikou-core/data/register_ja.toml`.
+It is a frequency table built from 652 Japanese pages of Kubernetes, MDN, and Vue, which
+contain roughly 290,000 content words.
+Tutorials are excluded because their register is different, and only words that appear in
+two or more fields are included.
+`research/lexshift/build_reference.py` rebuilds the table.
 
-Words listed in `.suikou/terms.toml` and `.suikou/register-allow.toml` are skipped.
-The reference is built from web documentation, which is thin on the vocabulary of
+Words listed in `.suikou/terms.toml` and `.suikou/register-allow.toml` are excluded.
+The reference was built from web documentation, which contains little vocabulary from
 measurement and arithmetic.
 
 ### register/prefer-katakana, a Sino-Japanese word where the loanword wins
 
-Some concepts are written either as a Sino-Japanese word or as a katakana loanword.
-Where professional Japanese translation prefers the loanword, the table carries the pair
-and the rule reports the Sino-Japanese side. A table decides this rather than a
+Some concepts can be written either as a Sino-Japanese word or as a katakana loanword.
+When professional Japanese translation prefers the loanword, the pair is listed in a table,
+and the rule reports the Sino-Japanese form. The decision comes from the table, not from a
 statistic, so every occurrence is reported.
 
-The table lives in `crates/suikou-core/data/kata_pairs_ja.toml`.
-Candidates were listed by hand, and measurement across fields decided which ones to keep:
-the loanword has to outnumber the Sino-Japanese word at least two to one, the pair has to
-reach twenty occurrences, and the Sino-Japanese side has to stay at or below sixty.
+The table is stored in `crates/suikou-core/data/kata_pairs_ja.toml`.
+Candidates were proposed by hand, and measurements across several fields decided which ones
+to keep. The loanword must occur at least twice as often as the Sino-Japanese word, the pair
+must occur at least twenty times in total, and the Sino-Japanese word must occur no more
+than sixty times.
 
-That last condition avoids words with more than one sense.
-Professionals use 対象, 対応, and 状態 often, but not always in the sense the loanword
-carries. Restricting the table to words professionals barely use keeps each pair
-trustworthy as a substitution.
+The last condition excludes words that have more than one meaning.
+Professionals use 対象, 対応, and 状態 often, but not always with the meaning of the
+loanword. Limiting the table to Sino-Japanese words that professionals rarely use makes each
+pair reliable as a substitution.
 
-A word preceded by a noun is skipped as part of a compound, since rewriting the 版 inside
-英語版 or 第3版 would be wrong.
+A word that follows a noun is treated as part of a compound and is not reported, because
+replacing the 版 in 英語版 or 第3版 would be wrong.
 
-`.suikou/register-allow.toml` exempts a word a project uses in another sense.
+`.suikou/register-allow.toml` exempts a word that a project uses with a different meaning.
 
 ## The structural rules
 
 Unlike the style rules, the structural rules do not depend on the language.
-The set of sections, their order, and the unit of a paragraph are properties of the
-argument a document makes, and they sit outside the vocabulary of any one language.
-Measurement bears this out. Paragraphs of seven sentences or more run at 0.27 percent
-in professional English and at 0.59 percent in professional Japanese, so the two
-languages land in the same band. Only the section names and the sentence splitter are
-held per language.
+The set of sections, their order, and the paragraph as a unit belong to the logic of a
+document, which is independent of the vocabulary of any particular language.
+Measurement supports this. Paragraphs of seven or more sentences account for 0.27 percent
+of paragraphs in professional English and 0.59 percent in professional Japanese, so both
+languages fall within the same order of magnitude. Only the section names and the sentence
+splitter are defined separately for each language.
 
-The framework comes from the sources below.
-RFC 7322 is the precedent for a set of required sections in a recommended order, and it
-also states that a section may hold nothing but subsections.
-The sections of each doctype come from the Rust RFC template, the Kubernetes Enhancement
+The structural framework is based on the sources below.
+RFC 7322 provides the precedent for a set of required sections in a recommended order, and
+it also states that a section may contain only subsections.
+The sections of each doctype are based on the Rust RFC template, the Kubernetes Enhancement
 Proposal, Michael Nygard's Architecture Decision Record, and Diátaxis.
-Treating a paragraph as one unit of thought comes from the Google developer documentation
-style guide and from Strunk's The Elements of Style.
+Treating each paragraph as a single unit of thought is based on the Google developer
+documentation style guide and on Strunk's The Elements of Style.
 
 ### Doctypes
 
-The doctypes live in `crates/suikou-core/data/structure.toml`.
-Each one carries its required sections, the recommended order, the synonyms accepted for
-a heading, the question each section answers, and what belongs in it.
+The doctypes are defined in `crates/suikou-core/data/structure.toml`.
+Each doctype specifies its required sections, the recommended order, the synonyms accepted
+for each heading, the question each section answers, and what each section should contain.
 
-A section may also carry a `scale`, how much to write, which `plot` and `brief` print and
-`check` never reports: across human documents the quartiles spread to 2.5 or 3 times the
-median, so it does not separate. Only `readme` carries one. D-46 records it.
+A section can also have a `scale`, which indicates how much to write. `plot` and `brief`
+print it, but `check` never reports on it, because in human documents the quartiles spread
+to 2.5 or 3 times the median and the value does not separate human from AI text. Only
+`readme` has one. D-46 records the details.
 
-| Doctype | What it is for |
+| Doctype | Purpose |
 |---|---|
-| `design` | A proposal or design: what is built, why it is needed, how far it goes |
-| `enhancement` | A staged proposal: the test plan, the graduation criteria and the rollback |
-| `decision` | A decision record: the context, the decision, the consequences |
-| `howto` | A procedure: it starts at the prerequisites and ends at the check |
+| `design` | A proposal or design: what will be built, why it is needed, and what its scope is |
+| `enhancement` | A proposal introduced in stages: the test plan, the graduation criteria, and the rollback |
+| `decision` | A decision record: the context, the decision, and its consequences |
+| `howto` | A procedure: it starts with the prerequisites and ends with the verification |
 | `reference` | A reference: no section is required |
-| `log` | A log of records: decisions, tasks, or changes |
-| `readme` | A README: the first paragraph says what the thing is |
-| `overview` | An entry point: it starts by saying what the thing is |
+| `log` | A collection of records: decisions, tasks, or changes |
+| `readme` | A README: the first paragraph states what the project is |
+| `overview` | An entry point: it begins by stating what the subject is |
 
-`suikou doctype` puts the questions that settle which type to use, two at most. The tool
-asks nothing; it prints the tree, because it is called from CI and from agents. The tree
-lives in `[[select]]` in `structure.toml`, and a test holds every type reachable from it.
+`suikou doctype` presents the questions that determine the doctype, two at most. The tool
+does not prompt for answers; it prints the decision tree, because it is called from CI and
+from agents. The tree is defined in `[[select]]` in `structure.toml`, and a test confirms
+that every type can be reached from it.
 
-A declaration is looked for in three places, nearest first.
+The tool looks for a doctype declaration in three places, starting with the one closest to
+the document.
 
-| Where | How it reads |
+| Where | What it looks like |
 |---|---|
 | The front matter | `doctype: "design"` |
-| A field another tool wrote | `[front_matter]` and `[front_matter.map]` |
+| A field written by another tool | `[front_matter]` and `[front_matter.map]` |
 | `[paths]` in `.suikou/structure.toml` | `"README.md" = "readme"` |
-| The head of the plot | `<!-- suikou:doctype design -->` |
+| The top of the plot | `<!-- suikou:doctype design -->` |
 
-Where two prefixes match, the longer one wins.
+When two path prefixes match, the longer prefix takes precedence.
 
-Some documents already declare a type under another name. Hugo's `content_type` is one.
-Naming that field and mapping its values settles the doctype without touching a single
-document.
+Some documents already declare a type under a different name. Hugo's `content_type` is an
+example. By naming that field and mapping its values, you can set the doctype without
+editing any document.
 
 ```toml
 [front_matter]
@@ -482,133 +494,137 @@ task = "howto"
 reference = "reference"
 ```
 
-A value missing from the map declares nothing, rather than being assigned a type on our
-own reading of it.
+A value that is not in the map declares no doctype, so that suikou does not assign a type
+based on its own guess.
 
-A plot is created with `--doctype`, so it already holds the type. A document that has a
-plot therefore needs no declaration of its own. The mark is an HTML comment so that it
-stays invisible when the plot is read as Markdown.
+A plot is created with `--doctype`, so it already has a type. A document with a plot
+therefore does not need its own declaration. The marker is an HTML comment so that it is not
+visible when the plot is rendered as Markdown.
 
-A document declared in none of the three gets no doctype rule, so that a document written
-before the rule existed does not start failing once the rule lands.
+A document that is not declared in any of the three places is not checked by any doctype
+rule. This prevents a document written before a rule existed from starting to fail once the
+rule is added.
 
-A doctype name that no doctype defines fails on the spot.
-Skipping it silently would delete the check whenever the name is misspelled.
+If a declared doctype name is not defined, the tool exits with an error immediately.
+Ignoring the name silently would disable the check whenever the name is misspelled.
 
 ### structure/missing-section
 
-Fires when no heading matches a required section of the declared doctype, at error.
+This rule fires at error when no heading corresponds to a required section of the declared
+doctype.
 
-A heading matches through the synonym list, and only the top level of headings is
-considered. A leading level-one heading is the title of the document rather than a
-section, so it is dropped. What a doctype fixes is the top-level outline; a subheading
-inside a section is not a section.
+Headings are matched by using the synonym list, and only top-level headings are considered.
+The first level-one heading is the title of the document, not a section, so it is excluded.
+A doctype defines the top-level outline; a subheading within a section is not itself a
+section.
 
-A section that states the subject can be answered by the lead paragraph instead of a
-heading, which the doctype marks with `lead_ok`. The abstract in RFC 7322 sits between
-the title and the table of contents without a heading of its own, and a README takes the
-same shape. Forcing a heading there reads worse.
+A section that states the subject can be satisfied by the lead paragraph instead of a
+heading; the doctype marks such a section with `lead_ok`. The abstract in RFC 7322 appears
+between the title and the table of contents with no heading of its own, and a README follows
+the same pattern. Requiring a heading in that position makes the document harder to read.
 
-The exemption was once given to whichever section came first. That let the lead paragraph
-satisfy any first required section, whatever it was, and all 120 Kubernetes concept pages
-came out satisfying the `howto` type. Prerequisites and context are not answered by an
+At one time, this exemption applied to whichever required section came first. With that
+rule, the lead paragraph could satisfy any first required section, and all 120 Kubernetes
+concept pages passed as the `howto` type. Prerequisites and context cannot be satisfied by an
 opening paragraph.
 
-Matching runs against the synonyms of both languages, because a document in one language
-may carry a heading in the other.
+Headings are matched against the synonyms of both languages, because a document written in
+one language may use headings in the other.
 
-The report does not stop at naming what is absent. It carries the question that section
-answers and what belongs in it.
+The finding does more than name the missing section. It also gives the question that the
+section answers and what the section should contain.
 
-Which sections are required differs by doctype. For `howto` only the prerequisites are
-required; steps and verification are not. Running the type against 120 Kubernetes task
-pages reported steps absent on all 120 and verification absent on 113, because the steps
-of a how-to are its body rather than a section of it. D-31 records the reasoning.
+The required sections differ by doctype. For `howto`, only the prerequisites are required;
+the steps and the verification are not. When the type was applied to 120 Kubernetes task
+pages, steps were reported missing on all 120 and verification on 113, because the steps of
+a how-to are its body and not a separate section. D-31 records the reasoning.
 
-Dropping them from the detection leaves them in the guidance. `plot` and `brief` still
-ask how it is done and how the reader knows it worked. What can be detected and what is
-worth asking before writing are not the same set.
+Removing these sections from detection does not remove them from the guidance. `plot` and
+`brief` still ask how the task is done and how the reader can tell that it worked. What can
+be detected is not the same as what is worth asking before writing.
 
 ### structure/section-order
 
-Fires when the sections that were found run against the order the doctype recommends, at
-warning. The order is a path through the argument for the reader, not a rule that must
-never be broken.
+This rule fires at warning when the sections found in the document do not follow the order
+that the doctype recommends. The order is a path for the reader through the document, not a
+rule that must never be broken.
 
-That the recommended order matches practice was checked against 190 published ADRs. Of
-those, 189 carry enough sections for an order to be judged, and the rule fires on none.
+The recommended order was checked against 190 published ADRs to confirm that it matches
+practice. Of those, 189 contain enough sections for the order to be judged, and the rule
+fires on none of them.
 
 ### structure/long-paragraph
 
-Fires when a paragraph holds more sentences than `MAX_SENTENCES_PER_PARAGRAPH`, at
-warning. The Google developer documentation style guide puts the ceiling at five or six
-sentences, and the constant follows it at six.
+This rule fires at warning when a paragraph contains more sentences than
+`MAX_SENTENCES_PER_PARAGRAPH`. The Google developer documentation style guide suggests
+five or six sentences as an upper limit, and the constant is set to six accordingly.
 
-A blank line separates paragraphs. Japanese sentences are split by
-`split_sentences_ja`. English splits only where a terminator is followed by whitespace,
-because splitting on every period turns `11.095` into two sentences and inflates the
-count.
+Paragraphs are separated by blank lines. Japanese sentences are split with
+`split_sentences_ja`. English text is split only where a sentence-ending mark is followed by
+whitespace, because splitting at every period would divide `11.095` into two sentences and
+inflate the count.
 
 ### structure/empty-section
 
-Fires when a leaf section has no body, at warning.
+This rule fires at warning when a section at the lowest level has no body.
 
-A section that holds subsections needs no body of its own; RFC 7322 states this outright.
-A section whose body is a code block counts as having one.
+A section that contains subsections does not need its own body; RFC 7322 states this
+explicitly. A section whose only content is a code block counts as having a body.
 
 ### structure/plot-mismatch
 
-Compares the headings of the body against an approved plot in `.suikou/plans/`, at
-warning.
+This rule fires at warning after comparing the headings of the body with an approved plot in
+`.suikou/plans/`.
 
-A plot is a working document that is kept out of version control, so CI cannot see it.
-The rule works on a local machine and inside an agent loop.
+A plot is a working document kept out of version control, so CI cannot see it.
+The rule therefore works only on a local machine and inside an agent's loop.
 
 ### structure/lead-opener
 
-Reports how the lead paragraph opens, at warning.
+This rule reports at warning how the lead paragraph begins.
 
 The lead paragraph is the first prose after the title and before the first section heading.
-A document without one is not reported.
+A document without a lead paragraph produces no finding.
 
-The forms reported are held per language.
+The forms that are reported are defined separately for each language.
 
 | Form | Japanese | English |
 |---|---|---|
-| Opens on generalities | `近年`, `従来`, `昨今` | `In recent years`, `Traditionally` |
-| Opens on how it came about | `筆者は`, `当初は` | `I built`, `We decided`, `Originally` |
-| Declares what the document is for | `本文書の目的は` | `The goal of this`, `This aims to` |
+| Opens with a general statement | `近年`, `従来`, `昨今` | `In recent years`, `Traditionally` |
+| Opens with the author's history | `筆者は`, `当初は` | `I built`, `We decided`, `Originally` |
+| Declares the purpose of the document | `本文書の目的は` | `The goal of this`, `This aims to` |
 
-Adoption was decided by measurement. Across 831 lead paragraphs — 199 notable open source
-READMEs, 20 Rust RFCs, 10 ADRs and 602 English reference documents — each of these forms
-occurred zero times. In Japanese they were likewise absent from 653 lead paragraphs in the
-reference corpus.
+The forms were chosen by measurement. In 831 lead paragraphs, taken from 199 READMEs of
+well-known open source projects, 20 Rust RFCs, 10 ADRs, and 602 English reference
+documents, none of these forms occurred even once. In Japanese, the forms likewise did not
+occur in any of the 653 lead paragraphs in the reference corpus.
 
 Self-reference (`This document describes`, `本文書は`) is not reported. It occurs in 37 of
-602 English reference documents (6%), where API documentation makes it work.
+602 English reference documents (6%), and it is a natural form in API documentation.
 
-Against 2,080 real documents the rule fires zero times. D-39 records it.
+When the rule was run on 2,080 real documents, it fired zero times. D-39 records the details.
 
-The rule does not find the writer's notes. Notes placed in the middle of a document are out
-of its reach. Settling that the lead begins with the subject is what pushes them backwards.
+This rule does not detect the author's notes. Notes written in the middle of a document are
+beyond its reach. Requiring the lead paragraph to start with the subject is what moves such
+notes toward the end of the document.
 
 ### Guidance for writing
 
-The structural rules also have an output that reports nothing.
-`suikou plot` and `suikou brief --doctype` lay out the sections and the writing rules
-before a word of the body is written.
+The structural rules also produce output that reports no problems.
+`suikou plot` and `suikou brief --doctype` present the sections and the writing rules before
+any of the body is written.
 
-Listing violations settles what to avoid, not what to write. So each section arrives with
-the question it answers and what belongs in it, together with the rules for building a
-paragraph and for putting the conclusion first.
-The text of that guidance lives in one place, `structure::writing_rules`.
+A list of violations shows what to avoid but does not show what to write. For this reason,
+each section is presented with the question it answers and what it should contain, along with
+rules for building a paragraph and for stating the conclusion first.
+The text of this guidance is kept in a single place, `structure::writing_rules`.
 
 ## Adjusting a threshold
 
-### Across the board
+### Settings for all documents
 
-Only the fields written into `.suikou/profile.toml` replace the built-in values. Swapping
-the whole profile would mean copying all of it to change one number.
+Only the fields written in `.suikou/profile.toml` replace the built-in values. If the whole
+profile had to be replaced, changing a single number would require copying everything.
 
 ```toml
 [thresholds."ja.kango_ratio"]
@@ -618,14 +634,14 @@ value = 0.55
 disable = ["en.simile_marker_per_1k"]
 ```
 
-Adding a metric the built-in profile has no threshold for takes both `value` and
-`direction`. One of the two cannot decide anything, so the run fails rather than ignoring
-it silently.
+To add a metric that has no built-in threshold, specify both `value` and `direction`. One of
+them alone is not enough to make a judgment, so the run fails instead of silently ignoring
+the setting.
 
-### Per doctype
+### Settings for one doctype
 
-What a document is for changes how a metric applies to it. A README is an entry point and
-is not as formal as a reference.
+How a metric should be applied depends on what the document is for. A README is an entry
+point and is less formal than a reference document.
 
 ```toml
 [doctype.readme]
@@ -636,27 +652,29 @@ rules = ["structure/long-paragraph"]
 value = 0.65
 ```
 
-`reason` is there to keep the account of the adjustment, so that whoever reads it later does
-not repeat the same deliberation. Every built-in adjustment carries one, and a test checks
-that.
+`reason` records why the adjustment was made, so that a later reader does not have to go
+through the same deliberation again. Every built-in adjustment has a reason, and a test
+confirms this.
 
-`rules` silences a local rule. A metric can be loosened by its threshold; a local rule
-either reports or it does not.
+`rules` suppresses a local rule. A metric can be relaxed by changing its threshold, but a
+local rule either reports or does not.
 
-The order of application is the built-in profile, the built-in doctype adjustment, the
-project's own override, then the project's own doctype adjustment. What the project writes
-always comes last, because a built-in adjustment that cannot be undone leaves no way out
-where the measurement does not fit.
+Settings are applied in this order: the built-in profile, the built-in doctype adjustment,
+the project's own settings, and then the project's own doctype adjustment. The project's
+settings are always applied last, because if a built-in adjustment could not be overridden,
+there would be no remedy where the measurements do not fit.
 
-A doctype adjustment cannot add a metric; the across-the-board override does that. Metrics
-appearing per doctype would make it impossible to follow which document was judged by what.
+A doctype adjustment cannot add a metric; only the settings for all documents can. If
+different metrics appeared for different doctypes, it would no longer be possible to tell
+which document was judged by which metric.
 
-### The built-in adjustment
+### The built-in adjustments
 
-`readme`, `design` and `decision` carry one, derived from measuring notable open source:
-240 READMEs in English and 150 in Japanese, 200 Rust RFCs and 190 published ADRs.
+The `readme`, `design` and `decision` doctypes each have an adjustment. The adjustments were
+derived from measurements of well-known open source projects: 240 READMEs in English and 150
+in Japanese, 200 Rust RFCs, and 190 published ADRs.
 
-With the default thresholds applied, READMEs fire at these rates.
+With the default thresholds, READMEs fire at the rates shown below.
 
 | Metric | README | Reference | Ratio |
 |---|---|---|---|
@@ -664,8 +682,8 @@ With the default thresholds applied, READMEs fire at these rates.
 | `en.prose_ratio` | 32% | 11% | 2.9 |
 | `en.simile_marker_per_1k` | 74% | 45% | 1.6 |
 
-A metric firing on 70% of a genre is reporting a mismatched threshold, not a property of
-the documents.
+When a metric fires on 70% of a genre, the cause is a threshold that does not fit, not a
+characteristic of the documents.
 
 | Metric | README, adjusted | Reference, unchanged |
 |---|---|---|
@@ -673,68 +691,70 @@ the documents.
 | `en.prose_ratio` | 7% | 11% |
 | `en.simile_marker_per_1k` | 0% | 45% |
 
-Across 150 Japanese READMEs the adjusted rates fall between 0% and 2%.
+For 150 Japanese READMEs, the firing rates after adjustment fall between 0% and 2%.
 
-The difference in formality does not run one way. Japanese READMEs carry a higher
-Sino-Japanese ratio than the reference corpus, 0.62 against 0.52, because naming features
-and components piles up compounds. D-41 records it.
+The difference in formality does not always point the same way. Japanese READMEs have a
+higher Sino-Japanese ratio than the reference corpus, at 0.62 against 0.52, because listing
+the names of features and components produces many compounds. D-41 records the details.
 
 ## The excerpt beside a finding
 
-A position carries the text that matched, then a narrow window around it.
+Each position shows the matched text first, followed by a short window of the surrounding
+text.
 
 ```
 - L5:78 Currently｜…e limiting to the public API. Currently, a
 ```
 
-The match comes first so that the reader knows which word to change. Cutting a fixed
-number of characters from the start of the line leaves the match out whenever it sits
-further along, and prints the same excerpt once per match where a line holds several.
+The match is shown first so that the reader knows which word to change. If a fixed number of
+characters were taken from the start of the line, a match further along the line would be
+left out, and a line with several matches would show the same excerpt once for each match.
 
-The window is fourteen characters per side in Japanese and twenty in English, because a
-Japanese character carries more than an English one.
+The window extends fourteen characters on each side in Japanese and twenty in English,
+because a Japanese character carries more information than an English one.
 
 ## Golden tests
 
-The expected values for each file under `tests/golden/input/` sit in
+The expected values for each file in `tests/golden/input/` are stored in
 `tests/golden/expected/`.
 
 | File | Purpose |
 |---|---|
-| `ja_maintainability.md` | Fire M1 through M7 in Japanese |
-| `en_maintainability.md` | Fire the same rules in English |
+| `ja_maintainability.md` | Trigger M1 through M7 on Japanese text |
+| `en_maintainability.md` | Trigger the same rules on English text |
 | `ja_prose.md` | Check the Japanese document metrics on prose-heavy text |
-| `en_prose.md` | Check the English ones, which need 445 words or more |
-| `en_escaped.md` | Check that undoing escapes changes the sentence split |
+| `en_prose.md` | Check the English document metrics, which need 445 words or more |
+| `en_escaped.md` | Check that undoing escapes changes how sentences are split |
 
-The expected values come from inputs written for the purpose.
-Regression against a real corpus uses whatever `corpus/fetch.sh` fetches.
-Licensing keeps the corpus itself out of the repository.
+The expected values are generated from inputs written for this purpose.
+Regression testing against a real corpus uses the corpus that `corpus/fetch.sh` downloads.
+The corpus itself is not stored in the repository for licensing reasons.
 
 ## The glossary rule
 
 ### glossary/variant
 
-Fires where a spelling departs from the one the glossary settled on, at warning.
+This rule fires at warning when a spelling differs from the one the glossary has settled on.
 
-It covers orthography, pulling `サーバ` to `サーバー`, and calques of more than one
-character, pulling `根因` to `根本原因`.
+It covers spelling, such as changing `サーバ` to `サーバー`, and literal translations of more than one
+character, such as changing `根因` to `根本原因`.
 
-Word choice itself belongs to `register/prefer-katakana`, since a pair of rules pointing
-at the same spot would make the reader read the same finding twice.
+Word choice itself is handled by `register/prefer-katakana`. If two rules pointed at the same
+place, the reader would have to read the same finding twice.
 
-A one-character calque is left out. Substring matching would catch the `題` inside `問題`,
-which needs morphological analysis; `prefer-katakana` already reads it that way.
+Literal translations of a single character are not covered. Substring matching would catch
+the `題` inside `問題`, so morphological analysis would be needed, and `prefer-katakana`
+already performs that analysis.
 
-The rule reads prose and list bodies, not headings or code, and needs no dictionary, so it
-runs in the build without one.
+The rule checks prose and list-item text, not headings or code. It does not need a
+dictionary, so it also runs in the build without one.
 
-### How orthography is settled
+### How spelling is decided
 
-The JTCA guideline on loanword orthography, third edition, writes the English endings
+The third edition of the JTCA guideline on loanword spelling writes the English endings
 -er, -or, -ar, and -y with the long-vowel mark.
 
-Measured over 4.38 million characters of the reference corpus, -er, -or, and -ar hold.
+Measurement over 4.38 million characters of the reference corpus confirms the guideline for -er, -or, and -ar.
 
 | Word | With the mark | Without |
 |---|---|---|
@@ -743,8 +763,8 @@ Measured over 4.38 million characters of the reference corpus, -er, -or, and -ar
 | パラメーター | 158 | 6 |
 | クラスター | 1279 | 5 |
 
-The -y ending runs the other way, so each word is settled by measurement rather than
-derived from the rule.
+For the -y ending the result is the opposite, so the spelling of each word is decided by
+measurement instead of being derived from the guideline.
 
 | Word | With the mark | Without |
 |---|---|---|
@@ -753,4 +773,4 @@ derived from the rule.
 | ディレクトリ | 9 | 227 |
 | コンテナ | 95 | 1783 |
 
-`コンテナ` ends in -er, and this field has settled on the form without the mark.
+`コンテナ` ends in -er, but this field has settled on the spelling without the mark.

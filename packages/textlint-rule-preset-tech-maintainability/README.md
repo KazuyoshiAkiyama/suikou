@@ -1,36 +1,37 @@
-<!-- suikou lint applies to this file. See "Writing this document" below before editing it. -->
+<!-- suikou lint applies to this file. Read "Writing this document" below before you edit it. -->
 # textlint-rule-preset-tech-maintainability
 
-A textlint preset for rules M1 through M7 of [suikou](https://github.com/KazuyoshiAkiyama/suikou).
-Each rule catches one habit that makes a document hard to keep up to date later. The
-preset handles Japanese and English, and it detects the language of each document on its
-own, so one preset covers a document written in either language, or a repository that
-carries documents in both.
+textlint-rule-preset-tech-maintainability is a textlint preset that implements rules M1
+through M7 of [suikou](https://github.com/KazuyoshiAkiyama/suikou).
+Each rule detects one habit that makes a document hard to keep current. The preset
+supports Japanese and English and identifies the language of each document by itself, so a
+single preset works for a document in either language and for a repository that contains
+documents in both.
 
 [日本語](README.ja.md)
 
-## What the rules check
+## What each rule detects
 
-The rules come from the Google developer documentation style guide, from the sections on
-lists, on headings, and on timeless documentation. They describe a problem that predates
-generative AI: a document that breaks these rules keeps breaking a reader's trust every
-time it is edited, whether or not a model wrote it. The exact definition of each rule
-lives in [`docs/content/en/metrics.md`](../../docs/content/en/metrics.md) ("The M rules").
+The rules are taken from the sections on lists, headings, and timeless documentation in
+the Google developer documentation style guide. They address a problem that existed before
+generative AI: whether or not a model wrote it, a document that violates these rules
+becomes less trustworthy to its readers with every edit. The precise definition of each
+rule is in [`docs/content/en/metrics.md`](../../docs/content/en/metrics.md) ("The M rules").
 
-The rule key on the left is the name this package registers internally, and it is also the
-suffix of the matching Rust rule ID (`maint/list-lead-in` and so on, defined in
-`crates/suikou-core/src/rules/mod.rs`). What textlint prints for a finding carries a
-different prefix; see "Installing" below.
+The rule key in the left column is the name this package registers internally. It also
+matches the suffix of the corresponding Rust rule ID (`maint/list-lead-in` and so on, defined in
+`crates/suikou-core/src/rules/mod.rs`). The ID that textlint prints for a finding has a
+different prefix, which is described under "Installing" below.
 
 | Rule key | Checks |
 |---|---|
-| `list-lead-in` | A list whose lead-in line is grammatically bound to the items, so that adding or removing an item breaks the sentence |
-| `item-count` | Prose that states the number of items, so that adding or removing an item makes the prose wrong |
-| `numbered-heading` | A heading that carries a hand-written section number |
-| `manual-number` | A bulleted list item whose body opens with a hand-written number |
-| `parallel-items` | A list whose items do not share one ending shape |
-| `time-dependent` | A word whose meaning depends on when the reader opens the document |
-| `trailing-etc` | Prose or a list item that trails off with "etc." or "など" |
+| `list-lead-in` | A list whose lead-in line is grammatically tied to the items, so the sentence breaks when an item is added or removed |
+| `item-count` | Prose that states how many items there are, so the prose becomes wrong when an item is added or removed |
+| `numbered-heading` | A heading with a section number typed by hand |
+| `manual-number` | A bulleted list item whose text begins with a number typed by hand |
+| `parallel-items` | A list whose items do not all end in the same form |
+| `time-dependent` | A word whose meaning depends on when the document is read |
+| `trailing-etc` | Prose or a list item that ends with "etc." or "など" |
 
 ## Installing
 
@@ -38,7 +39,7 @@ different prefix; see "Installing" below.
 npm install --save-dev textlint textlint-rule-preset-tech-maintainability
 ```
 
-Add this package to `.textlintrc`:
+Register the package in `.textlintrc` as follows.
 
 ```json
 {
@@ -48,7 +49,7 @@ Add this package to `.textlintrc`:
 }
 ```
 
-Individual rules can be turned off through this package's namespace:
+A single rule can be disabled by setting it under this package's namespace.
 
 ```json
 {
@@ -60,63 +61,63 @@ Individual rules can be turned off through this package's namespace:
 }
 ```
 
-A finding loaded this way prints under the prefix `tech-maintainability/`, for instance
-`tech-maintainability/list-lead-in`. That prefix comes from the config key above with
-`preset-` stripped off; it is textlint's own convention, not something this package
-picks. The `maint/` prefix in this document is `suikou check`'s own prefix, kept here
-only so the rule key on the right of it (`list-lead-in` and so on) can be matched
-against the table above. D-23 in
-[`docs/content/en/decisions.md`](../../docs/content/en/decisions.md) has the full
-account of why the two prefixes differ.
+When the package is loaded this way, findings are printed with the prefix
+`tech-maintainability/`, as in
+`tech-maintainability/list-lead-in`. textlint builds that prefix by removing
+`preset-` from the config key above; the naming follows textlint's own convention and is not
+chosen by this package. The `maint/` prefix that appears in this document belongs to `suikou check`,
+and it is used here only so that the rule key after it (`list-lead-in` and so on) can be
+matched against the table above. D-23 in
+[`docs/content/en/decisions.md`](../../docs/content/en/decisions.md) explains in full
+why the two prefixes differ.
 
-## Relationship to the Rust implementation
+## How this package relates to the Rust implementation
 
-suikou's core analysis lives in a Rust crate
-([`crates/suikou-core`](../../crates/suikou-core)) and ships as the `suikou` binary. This
-package is a second, independent implementation of the same M rules for people who
-already run textlint. The judgment logic and the regular expressions are ported line for
-line from `crates/suikou-core/src/rules/mod.rs`; nothing here was invented from scratch.
+The core analysis of suikou is in a Rust crate
+([`crates/suikou-core`](../../crates/suikou-core)) and is distributed as the `suikou` binary. This
+package is a separate implementation of the same M rules for people who already use
+textlint. The judgment logic and the regular expressions were ported line by line from
+`crates/suikou-core/src/rules/mod.rs`; no part of this package was designed independently.
 
-The two implementations differ in one structural way. `suikou check` builds its blocks
-from the raw source, one block per physical line, using the line-based parser in
-`markdown.rs`. This package does the same: each rule reads the whole file through
-`context.getSource()` and runs it through a JavaScript port of that same line-based
-parser, rather than walking textlint's own Markdown AST. A paragraph that soft-wraps
-across two lines would otherwise become one joined node inside textlint, and matching
-against the joined text can catch a phrase that spans a line break the Rust side never
-joins. Porting the line-based parser keeps the count of findings identical between the
-two tools; the [golden tests](../../tests/golden/) in this repository check that
-identical count file by file.
+The two implementations differ in one structural respect. `suikou check` splits the raw source
+into blocks, one block per physical line, with the line-based parser in
+`markdown.rs`. This package does the same thing. Each rule receives the whole file through
+`context.getSource()` and passes it to a JavaScript port of that line-based parser,
+instead of traversing textlint's own Markdown AST. Without the port, a paragraph that soft-wraps
+across two lines would become a single joined node inside textlint. A match against the
+joined text could then include a phrase that crosses a line break the Rust side never joins.
+Because of the port, both tools report the same number of findings, and the
+[golden tests](../../tests/golden/) in this repository confirm that the counts match for each file.
 
-The preprocessing that parser runs is ported step for step, down to the Hugo shortcodes
-whose content is code. A `{{< highlight yaml >}}` block holds YAML comments, and a `#`
-at the start of one reads as a heading unless the block comes out first. Both
-implementations remove `highlight`, `mermaid`, and a `tab` that declares `codelang`, and
-both leave a shortcode alone when its closing tag is never found.
+The parser's preprocessing is ported step by step as well, including the treatment of Hugo
+shortcodes that contain code. A `{{< highlight yaml >}}` block contains YAML comments, and a `#`
+at the start of such a comment is read as a heading unless the block is removed first. Both
+implementations remove `highlight`, `mermaid`, and any `tab` that declares `codelang`, and
+both leave a shortcode untouched when its closing tag cannot be found.
 
-Japanese morphology is the other point of difference. suikou-core reads one dictionary
-through lindera; this package reads a different one, IPADIC, through
-[kuromojin](https://github.com/azu/kuromojin), the standard morphological analyzer in
-the textlint ecosystem. The first dictionary keeps a suffix, a pronoun, and an
-adjectival noun stem apart at the top level; IPADIC does not, and folds all three into
-one noun category with a finer subcategory instead. The taigen check used by
-`list-lead-in` and `parallel-items` collapses to a single condition under IPADIC as a
-result. The reasoning and the probe that confirmed it are written up as D-23 in
-[`docs/content/en/decisions.md`](../../docs/content/en/decisions.md).
+Japanese morphological analysis is the other difference. suikou-core reads one dictionary
+through lindera, while this package reads a different dictionary, IPADIC, through
+[kuromojin](https://github.com/azu/kuromojin), the standard morphological analyzer among
+textlint tools. The dictionary used by suikou-core gives suffixes, pronouns, and
+adjectival noun stems separate top-level categories. IPADIC does not, and it puts all three
+under a single noun category with finer subcategories. As a result, the taigen check that
+`list-lead-in` and `parallel-items` use reduces to a single condition under IPADIC. D-23 in
+[`docs/content/en/decisions.md`](../../docs/content/en/decisions.md) gives the reasoning
+and the probe that confirmed it.
 
-The structural rules stay out of this package. `structure/missing-section` and the rules
-beside it ask whether a section is absent from the document, and an absent section has no
-node to report against. This is the same reason the document-wide metrics stay out, which
-D-01 records. The `suikou` binary carries those rules.
+This package does not include the structural rules. `structure/missing-section` and the
+related rules ask whether a section is missing from the document, and a missing section
+has no node that a finding could be attached to. The document-wide metrics are excluded for
+the same reason, as D-01 records. The `suikou` binary handles those rules.
 
-One more difference is not structural but deliberate: `suikou check` always prints its
-explanation in Japanese, even for an English document. This package picks the explanation
-language to match the language it detects, because a message nobody in the room can read
-does not help them.
+The remaining difference is intentional and has nothing to do with structure: `suikou check`
+always prints its explanations in Japanese, even when the document is in English. This
+package prints explanations in the language it detects in the document, because a message
+that no one present can read helps no one.
 
 ## Examples
 
-A lead-in line that ends in a bound predicate breaks the moment the list under it
+A lead-in line that ends in a bound predicate breaks as soon as the list below it
 changes:
 
 ```markdown
@@ -126,32 +127,34 @@ The files affected are:
 - `/etc/app/conf.d/*.conf`
 ```
 
-`list-lead-in` flags the lead-in line above because it ends in a particle, not a full
-sentence and not a noun before the colon. Rewriting the lead-in as a full sentence, for
-instance "The files affected are as follows:" or "The affected files are these:", fixes
-the finding without touching the list itself.
+`list-lead-in` flags this lead-in line because it ends in a particle instead of a full
+sentence or a noun before the colon. Rewriting the lead-in as a full sentence, such as
+"The files affected are as follows:" or "The affected files are these:", clears the
+finding with no change to the list.
 
-A list whose items do not share one ending shape breaks the same way:
+A list whose items end in different forms breaks for the same reason:
 
 ```markdown
 - Validate the syntax of the file.
 - Reload the service
 ```
 
-`parallel-items` flags this list because one item ends in a period and the other does
-not. Making every item end the same way, either every item as a full sentence or every
-item as a phrase, fixes the finding.
+`parallel-items` flags this list because one item ends with a period and the other does
+not. The finding is cleared when every item ends the same way, either all as full
+sentences or all as phrases.
 
-## Overlap with other presets
+## Where this preset overlaps with others
 
 [`@textlint-ja/textlint-rule-preset-ai-writing`](https://github.com/textlint-ja/textlint-rule-preset-ai-writing)
-carries a rule named `no-ai-colon-continuation`. It also uses kuromojin to check whether
-the text before a colon ends in a predicate, close to the Japanese half of
-`list-lead-in`. The purpose differs even where the check overlaps: that rule flags a
-phrasing pattern typical of AI-written Japanese, and `list-lead-in` flags a list
-structure that breaks when an item is added or removed. Enabling both presets can
-produce two findings on the same line. Neither preset suppresses the other; a person who
-enabled both can read both messages and judge which one fits their document.
+includes a rule named `no-ai-colon-continuation`. That rule also uses kuromojin to check
+whether the text before a colon ends in a predicate, which is similar to the Japanese
+check in `list-lead-in`. Even where the checks overlap, the two rules serve different
+purposes. The ai-writing rule detects a phrasing pattern typical of AI-written Japanese, while
+`list-lead-in` detects a list structure that breaks when an item is added or removed.
+
+With both presets enabled, the same line can receive two findings. Neither preset
+suppresses the other. A user who has enabled both can read both messages and decide which one
+applies to the document.
 
 ## Testing
 
@@ -159,18 +162,17 @@ enabled both can read both messages and judge which one fits their document.
 npm test
 ```
 
-Tests run under Node's built-in test runner (`node --test`), not
-[`textlint-tester`](https://github.com/textlint/textlint-tester). `textlint-tester`
-assumes Mocha's global `describe` and `it`; its fallback for other runners does not await
-the Promise a test case returns, which let assertions pass before the lint they depended
-on had finished. `test/support/lint.js` wraps `@textlint/kernel` directly instead, in a
-form that awaits cleanly under `node --test`.
+The tests run on Node's built-in test runner (`node --test`) instead of [`textlint-tester`](https://github.com/textlint/textlint-tester).
+`textlint-tester` expects Mocha's global `describe` and `it`. Its fallback for other runners does not wait
+for the Promise that a test case returns, so assertions passed before the lint they
+relied on had finished. `test/support/lint.js` wraps `@textlint/kernel` directly instead,
+in a way that waits correctly under `node --test`.
 
-`test/golden.test.js` runs this package against every file under
-[`tests/golden/input/`](../../tests/golden/input/) and checks that the count of findings,
-rule by rule, matches what `suikou check --format json` reports for the same file. That
-count is this package's completion bar.
+`test/golden.test.js` runs this package on every file in
+[`tests/golden/input/`](../../tests/golden/input/) and checks that, for each rule, the
+number of findings equals the number that `suikou check --format json` reports for the
+same file. Matching those counts is the completion criterion for this package.
 
 ## License
 
-MIT or Apache-2.0, whichever you prefer.
+You may use this package under either the MIT or the Apache-2.0 license.

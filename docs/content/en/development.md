@@ -4,26 +4,25 @@ weight: 40
 doctype: "reference"
 ---
 
-This page covers building the project, pinning versions, handling the tokenizer, and
-running the golden tests. Each of these is a constraint that work in this repository has
-to respect.
+This page is a reference for building the project, pinning versions, handling the
+tokenizer, and running the golden tests. Every topic on this page is a rule that anyone
+working in this repository must follow.
 
-## Layout
+## Repository layout
 
 | Path | Content |
 |---|---|
-| `crates/suikou-core` | The analysis core |
+| `crates/suikou-core` | The core of the analysis |
 | `crates/suikou-cli` | The CLI and the MCP server |
-| `packages/` | The textlint rules that carry a position |
+| `packages/` | The textlint rules that report a position |
 | `skills/suikou` | The skill for agents |
-| `research/` | The Python used for calibration and exploration |
-| `corpus/` | The measurements and the script that fetches the corpus |
+| `research/` | Python code for calibration and exploration |
+| `corpus/` | The measured values and the script that downloads the corpus |
 
-## Building and testing
+## How to build and test
 
-The commands for checking the core are listed below. The first command is the one to
-reach for most of the time, and the second command is the one to reach for when the
-dictionary matters.
+Use the commands below to check the core. You will run the first command most often, and
+the second command when the dictionary is involved.
 
 ```sh
 cargo test --all                           # No tokenizer. Fast. Start here
@@ -32,182 +31,187 @@ cargo fmt --all
 cargo clippy --all-targets -- -D warnings
 ```
 
-The default features leave lindera out, so the core logic can be checked without
-downloading a dictionary. Leaving lindera out keeps the loop for checking a change
-short. For example, a change to the rules can be checked in seconds.
+lindera is not part of the default features, so the core logic can be tested without
+downloading a dictionary. This keeps the cycle of making and checking a change short; a
+change to the rules, for example, can be checked in a few seconds.
 
-The release build names that feature explicitly.
+A release build has to specify that feature explicitly.
 
 ```sh
 cargo build --release -p suikou-cli --features lindera-unidic
 ```
 
-A build without the dictionary handles English only.
-Asking that build for Japanese makes that build fail on the spot rather than return an
-empty analysis. `suikou selftest` reports which build is in hand.
+A build that lacks the dictionary supports English only.
+If that build is asked to process Japanese, it fails immediately instead of returning an
+empty analysis. `suikou selftest` tells you which build you have.
 
-## Pinning versions
+## Why and how versions are pinned
 
-Pinning versions has a reason behind it, and that reason is set out here. The reason is
-that a version change can break a value without breaking a build.
+Versions are pinned for a specific reason, which this section explains. A version change
+can corrupt a value even when the build still succeeds.
 
-Every dependency is pinned with `=`, and `Cargo.lock` is committed.
-Every version is confirmed to exist on crates.io before that version is written down.
+Every dependency is pinned with `=`, and `Cargo.lock` is committed to the repository.
+Before a version is written into the manifest, it is confirmed to exist on crates.io.
 
-lindera gets the strictest treatment.
-The lindera API and the order of the UniDic features both change between versions.
-When that order shifts, the word origin and the inflected form break silently.
-The kango ratio and the renyo count both depend on those two fields, so running on broken
-values makes the findings themselves wrong.
+lindera is handled more strictly than any other dependency.
+Between versions, both the lindera API and the order of the UniDic features can change.
+If that order changes, the word origin and the inflected form are read incorrectly without
+any error. The kango ratio and the renyo count depend on those two fields, so if the
+program keeps running on incorrect values, the findings themselves become incorrect.
 
-After a lindera upgrade, `LinderaMorphology::verify_schema` has to pass.
-That check pushes a known sentence through the tokenizer and confirms that the part of
-speech, the word origin, and the inflected form come from the expected positions.
-On a mismatch that check reports which constant to fix and exits.
-Failing beats returning a wrong value quietly.
+After upgrading lindera, `LinderaMorphology::verify_schema` must pass.
+This check runs a sentence with known analysis through the tokenizer and confirms that the
+part of speech, the word origin, and the inflected form are read from the expected
+positions. If they do not match, the check exits and reports which constant needs to be
+corrected. Exiting with an error is better than silently returning an incorrect value.
 
-## Handling the tokenizer
+## Where the tokenizer is handled
 
-The tokenizer changes behavior between versions, so the tokenizer is kept behind a
-boundary.
+The behavior of the tokenizer changes from version to version, so the tokenizer is isolated
+behind a boundary.
 
-Version-dependent code lives only in `LinderaMorphology`, inside
+All version-dependent code is in `LinderaMorphology`, in
 `crates/suikou-core/src/tokenizer.rs`.
-Every other module reaches the tokenizer through the `Morphology` trait.
-Tests use `FakeMorphology`, so the logic can be checked with no dictionary present at
-all.
+Every other module accesses the tokenizer only through the `Morphology` trait.
+Tests use `FakeMorphology`, so the logic can be tested even when no dictionary is
+installed.
 
-A new metric must not cross that boundary.
-Crossing that boundary means the tests stop running without a dictionary.
+A new metric must stay on its side of that boundary.
+If it crosses the boundary, the tests can no longer run without a dictionary.
 
-Measured in a release build, loading the embedded dictionary takes 0.7 milliseconds.
-Analyzing one sentence after that takes 9.6 microseconds.
+In a release build, loading the embedded dictionary took 0.7 milliseconds in our
+measurement. Once the dictionary was loaded, analyzing one sentence took 9.6 microseconds.
 
 ```sh
 cargo run --release --features lindera-unidic --example dict_load
 ```
 
-## Keeping the scope of each metric straight
+## Which part of the document each metric measures
 
-Vocabulary metrics, meaning MATTR, the kanji ratio, the kango ratio, demonstratives, and
-formal nouns, run over `Document::body()`.
-Sentence-structure metrics, meaning sentence length, commas, renyo, and the te-form, run
-over `Document::prose()`.
+Vocabulary metrics run over `Document::body()`. These are MATTR, the kanji ratio, the kango
+ratio, demonstratives, and formal nouns.
+Sentence-structure metrics run over `Document::prose()`. These are sentence length,
+commas, renyo, and the te-form.
 
-A vocabulary metric must never run over prose alone.
-Some models put almost everything into bullet lists, and for those models prose alone
-throws away more than eighty percent of the document.
+A vocabulary metric must never be limited to prose.
+Some models put nearly all of their output into bullet lists, and for those models a
+prose-only measurement discards more than eighty percent of the document.
 
-## Keeping the preprocessing order
+## Why the preprocessing order must not change
 
-`preprocess` in `markdown.rs` depends on the order of its steps.
-Moving the step that undoes backslash escapes later breaks sentence splitting.
-The AWS doc_source corpus is written in that escaped form, and leaving the escapes in
-place inflates the mean sentence length by a factor of three or more.
+The steps of `preprocess` in `markdown.rs` must run in a fixed order.
+If the step that removes backslash escapes is moved later, sentence splitting stops working.
+The AWS doc_source corpus uses this escaped form, and when the escapes are not removed the
+mean sentence length grows by a factor of three or more.
 
-`tests/golden/input/en_escaped.md` pins that behavior.
+`tests/golden/input/en_escaped.md` locks in this behavior.
 
-Each removal leaves the same number of newlines behind, so a finding points at the line
-the user has open. A correct value at the wrong position is a finding nobody can use.
+Each removed span is replaced by the same number of newlines, so every finding refers to
+the correct line in the file the user has open. A finding with a correct value but the
+wrong position is of no use to anyone.
 
-## Measuring how often a rule fires
+## How to measure the firing rate of a rule
 
-Adding a rule or moving a threshold calls for a measurement against the reference corpus.
+When you add a rule or change a threshold, measure the firing rate on the reference corpus.
 
 ```sh
 cargo run --release --example structure_rate -- corpus/cache/pro_en en
 cargo run --release --example structure_rate -- corpus/cache/pro_ja ja
 ```
 
-`suikou check` truncates the positions it prints per rule, so the count cannot be read
-off the CLI output. The example calls the rules directly. What comes out is recorded in
+`suikou check` limits how many positions it prints for each rule, so the count cannot be
+taken from the CLI output. The example calls the rules directly. Record the results in
 `TASKS.md`.
 
-`corpus/fetch.sh` fetches the corpus, which licensing keeps out of the repository.
+`corpus/fetch.sh` downloads the corpus. The corpus is not stored in the repository for
+licensing reasons.
 
-Measuring the required sections needs a corpus that declares a type.
+To measure the required-section rules, you need a corpus whose documents declare a type.
 
 ```sh
 python research/structure/fetch_typed.py corpus/cache/typed 120
 ```
 
-That collects Kubernetes pages grouped by their own `content_type:`. Map those values
-onto the doctypes under `[front_matter]` in `.suikou/structure.toml`, then run `check`
-as usual. `research/structure/structure.toml` holds that configuration.
+This script collects Kubernetes pages grouped by their `content_type:`. Map those values
+to suikou's doctypes under `[front_matter]` in `.suikou/structure.toml`, and then run
+`check` in the usual way. The mapping is in `research/structure/structure.toml`.
 
-The size of the report is compared before and after a rule changes. Build the previous
-revision in a `git worktree`, run both over the same corpus, and total the characters.
+When a rule changes, compare the length of the report before and after the change. Build
+the earlier revision in a `git worktree`, run both builds on the same corpus, and add up
+the characters in each report.
 
-The `design` type is measured against the Rust RFCs.
+The `design` type is measured on the Rust RFCs.
 
 ```sh
 python research/structure/fetch_rfcs.py corpus/cache/rfcs 200
 ```
 
-Running a type against its own source is the strictest test available.
+Because this applies the type to the documents it was derived from, it is the strictest
+test available.
 
-The `decision` type is measured against published ADRs.
+The `decision` type is measured on published ADRs.
 
 ```sh
 python research/structure/fetch_adrs.py corpus/cache/adrs 200 12
 ```
 
-`research/structure/structure-adr.toml` holds that configuration.
+The configuration for this measurement is in `research/structure/structure-adr.toml`.
 
-## Golden tests
+## What the golden tests are for
 
-The golden tests exist to keep the values in line with the reference implementation.
-The reference implementation is the Python under `research/`, and the golden tests pin
-what that implementation returns.
+The golden tests keep the values consistent with the reference implementation.
+The reference implementation is the Python code under `research/`, and the golden tests
+fix the values that it returns.
 
-`crates/suikou-core/tests/golden_rules.rs` compares the rule counts, and
-`golden_metrics.rs` compares the document metrics, against `tests/golden/expected/`.
-English runs without a dictionary, and Japanese needs `--features lindera-unidic` to run.
+`crates/suikou-core/tests/golden_rules.rs` checks the rule counts, and
+`golden_metrics.rs` checks the document metrics, against the values in `tests/golden/expected/`.
+The English tests run without a dictionary, and the Japanese tests require
+`--features lindera-unidic`.
 
-lindera and fugashi are different tokenizers, so the comparison allows a margin.
-A ratio allows an absolute error of 0.02, a density per thousand characters allows 0.5,
-and the M rules demand an exact integer match.
-A word or sentence count allows a relative error of one percent, because the count
-depends on how the tokenizer is defined.
+lindera and fugashi are different tokenizers, so the comparison allows a tolerance.
+A ratio may differ by an absolute 0.02 and a density per thousand characters by 0.5, while
+the M rules must match exactly as integers.
+Word and sentence counts may differ by a relative one percent, because these counts depend
+on how each tokenizer defines a word and a sentence.
 
-When a metric falls outside that margin, the question of which implementation is right
-gets settled case by case, and the reasoning goes on the decisions page.
-The Python side is not automatically right.
+When a metric falls outside the tolerance, the correct implementation is decided case by
+case, and the reasoning is recorded on the decisions page.
+The Python side is not assumed to be correct.
 
-## Not adding rules on a hunch
+## Why rules are never added on intuition
 
-**This is the heaviest constraint in the repository.**
+**No constraint in this repository carries more weight than this one.**
 
-A hunch about style turns out to be wrong most of the time once someone measures it.
-Many of the hypotheses raised while designing this project were rejected by measurement.
-Research on translationese found the same thing about its own hypotheses.
+Intuitions about style usually turn out to be wrong once they are measured.
+Many of the hypotheses formed while designing this project were disproved by measurement.
+Research on translationese reached the same finding about its own hypotheses.
 
-Adding a rule means showing one of the following.
+To add a rule, provide one of the following kinds of evidence.
 
-- A measurement over a human corpus and over AI output, with ranges that do not overlap.
-- A clause in a published style guide, cited.
+- Measurements of a human corpus and of AI output, showing that their ranges do not overlap.
+- A clause from a published style guide, with a citation.
 
-`corpus/baselines.toml` records the rejected metrics together with the reason under
-`[rejected]`.
-**Nothing recorded there may be reintroduced.**
-The coefficient of variation of sentence length, the loanword ratio, and participial
-clauses and nominalization in English all sit on that list.
-Each one is widely described as a marker of AI prose, and each one overlaps the human
-range once it is measured.
+`corpus/baselines.toml` records each rejected metric and the reason for its rejection
+under `[rejected]`.
+**No metric on that list may be brought back.**
+The list includes the coefficient of variation of sentence length, the loanword ratio, and
+participial clauses and nominalization in English.
+Each of these is widely cited as a marker of AI-written text, yet each one overlaps the
+human range when it is measured.
 
-## Holding down token use
+## How token use is kept low
 
-Holding down token use puts the constraints below on the report. Each constraint exists
-to keep the report small enough to read in one pass.
+To keep token use low, the report is subject to the constraints listed below. They keep
+the report short enough to be read in a single pass.
 
-The report format carries constraints.
+The report format must meet these requirements.
 
-- The explanation for a rule is printed once per rule and never repeated per line.
-- At most `Report::MAX_POSITIONS_PER_RULE` positions are printed per rule.
-- A metric inside its threshold is not printed at all.
-- A document metric becomes an instruction rather than a number.
+- A rule's explanation is printed once for that rule, not once for each line.
+- No more than `Report::MAX_POSITIONS_PER_RULE` positions are printed for a rule.
+- A metric that stays within its threshold is not printed.
+- A document metric is printed as an instruction, not as a number.
 
-These exist so that the linter and the model never have to pass a document back and forth
-layer by layer.
-Anyone changing the format should confirm that the change leaves that purpose intact, and
-that the report still fits in one pass.
+These constraints exist so that the linter and the model do not have to send a document
+back and forth once for every layer.
+Before changing the report format, confirm that the change preserves this purpose and that
+the report can still be read in a single pass.

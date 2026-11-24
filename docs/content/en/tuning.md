@@ -4,79 +4,81 @@ weight: 5
 doctype: "howto"
 ---
 
-Tuning suikou is not a matter of rewriting thresholds to taste. It is a matter of measuring
-your own documents and moving each threshold to where their properties put it.
+Tuning suikou means measuring your own documents and setting each threshold to the value
+that their characteristics call for. It does not mean editing thresholds to suit your taste.
 
-## Before you begin
+## What to check before tuning
 
-Run `suikou check` once before changing anything. Which layer reports findings decides
-which file you write.
+Run `suikou check` once before you change any setting. The layer that produces findings
+determines which file you edit.
 
 ```sh
 suikou check docs/*.md --format text
 ```
 
-Judge by the number of findings. The exit code is 1 for an error only, so reading it alone
-misses every warning.
+Base your judgment on the number of findings. The exit code is 1 only when there is an
+error, so if you look only at the exit code you will miss every warning.
 
 ```sh
 suikou check docs/*.md --format text | grep -c ':[0-9]*:[0-9]*:'
 ```
 
-## What suikou looks at
+## What suikou examines
 
-There are three layers, and each is tuned somewhere different.
+suikou has three layers, and each layer is tuned in a different place.
 
-| Layer | What it reads | What it reports | Examples |
+| Layer | What it examines | What it reports | Examples |
 |---|---|---|---|
-| Local rules | A form inside a line | The position and the fix | `maint/list-lead-in`, `register/rare-wago` |
-| Document metrics | A figure over the whole document | An instruction to rewrite | `ja.kango_ratio`, `en.mattr100` |
-| Structure rules | Which sections exist, in what order | The missing section | `structure/missing-section` |
+| Local rules | The form of an expression within a line | The position and how to fix it | `maint/list-lead-in`, `register/rare-wago` |
+| Document metrics | A value computed over the whole document | An instruction for rewriting | `ja.kango_ratio`, `en.mattr100` |
+| Structure rules | Whether sections are present, and their order | The sections that are missing | `structure/missing-section` |
 
-A local rule gives the position, so what to change is immediate. A document metric is never
-reported as a number; it is turned into an instruction. A structure rule applies only to a
-document that declares a type.
+Because a local rule reports a position, you can see at once what to change. A document
+metric is never reported as a number; suikou converts it into an instruction first. A
+structure rule is applied only to a document that declares a type.
 
-Japanese is read through a morphological analyzer, which gives the word's origin and its
-inflected form. English is read as words. That boundary is closed inside `tokenizer.rs`.
+For Japanese, a morphological analyzer determines each word's origin and inflected form.
+For English, the analysis works on whole words. This difference between the languages is
+handled entirely inside `tokenizer.rs`.
 
-Every metric and rule is defined exactly in [Metrics]({{< relref "metrics.md" >}}). How the
-layers divide the work is in [Design]({{< relref "design.md" >}}).
+[Metrics]({{< relref "metrics.md" >}}) gives the exact definition of every metric and rule.
+[Design]({{< relref "design.md" >}}) explains how the work is divided among the layers.
 
-## Where the thresholds came from
+## How the thresholds were set
 
-Each threshold was derived by measuring documents written by professionals, and placed
-where human and machine prose separate.
+Each threshold was derived by measuring documents written by professionals, and it was set
+at the point where human prose and machine prose separate.
 
-Take the ratio of suspended conjugation at the end of a clause. Native human writing runs
-2.00, human translation 1.79, and model output 3.62 to 15.94. The threshold is 3.0.
+Consider the ratio of suspended conjugation at the end of a clause. The value was 2.00 for
+native human writing, 1.79 for human translation, and 3.62 to 15.94 for model output.
+Based on these values, the threshold is 3.0.
 
-Moving a threshold by ear breaks that separation. Measure your own corpus before you move
-one.
+Changing a threshold by intuition shifts the point that separates human and machine prose.
+Measure your own corpus before you change a threshold.
 
-What each metric showed on which corpus is in [Metrics]({{< relref "metrics.md" >}}). The
-metrics that were measured and rejected are listed under `[rejected]` in
+[Metrics]({{< relref "metrics.md" >}}) reports the values each metric showed on each corpus.
+The metrics that were measured and then rejected are listed under `[rejected]` in
 `corpus/baselines.toml`.
 
-## What can be tuned
+## Which settings can be tuned, and where
 
-Look up what you want to change.
+Use the table below to find where to make the change you want.
 
-| What you want to change | Where to write it |
+| Change you want | Where to make it |
 |---|---|
-| A threshold everywhere | `[thresholds]` in `.suikou/profile.toml` |
-| A threshold for one doctype | `[doctype.<type>]` in `.suikou/profile.toml` |
-| Stop reporting a metric | `disable` in `.suikou/profile.toml` |
-| Stop reporting a local rule for one doctype | `rules` under `[doctype.<type>]` |
-| Pin a name your project has settled | `.suikou/defined.toml` |
+| Change a threshold for all documents | `[thresholds]` in `.suikou/profile.toml` |
+| Change a threshold for one doctype | `[doctype.<type>]` in `.suikou/profile.toml` |
+| Stop a metric from being reported | `disable` in `.suikou/profile.toml` |
+| Stop a local rule from being reported for one doctype | `rules` under `[doctype.<type>]` |
+| Fix a name that your project has agreed on | `.suikou/defined.toml` |
 | Add a spelling variant, or cancel a built-in one | `.suikou/glossary.toml` |
-| Allow a term from your field | `.suikou/terms.toml` |
+| Permit a term specific to your field | `.suikou/terms.toml` |
 | Assign a type to a document | `[paths]` in `.suikou/structure.toml` |
 
-Only the fields you write replace the built-in values; there is no need to copy a whole
+Only the fields you set replace the built-in values; you do not need to copy the entire
 profile.
 
-A per-doctype adjustment is written like this.
+An adjustment for a single doctype is written in the following form.
 
 ```toml
 [doctype.readme]
@@ -87,111 +89,115 @@ rules = ["structure/long-paragraph"]
 value = 0.65
 ```
 
-Put the account of the adjustment in `reason`. A test checks that every built-in adjustment
-carries one. It is there so that whoever reads it later does not repeat the deliberation.
+Record the reason for the adjustment in `reason`. A test verifies that every built-in
+adjustment includes a reason. The reason is kept so that a later reader does not have to
+go through the same deliberation again.
 
-The format and the order of application are in [Metrics]({{< relref "metrics.md" >}}), under
-adjusting a threshold. Why the glossary keeps three separate stores is in
-[Writing]({{< relref "writing.md" >}}).
+[Metrics]({{< relref "metrics.md" >}}) describes the file format and the order in which
+settings are applied, in the part about adjusting a threshold. [Writing]({{< relref "writing.md" >}})
+explains why the glossary has three separate stores.
 
-## How to tune
+## How to tune effectively
 
-### Calibrate from your own corpus
+### Calibrate the thresholds on your own corpus
 
-`suikou baseline` derives thresholds from the corpus you give it.
+`suikou baseline` computes thresholds from the corpus you pass to it.
 
 ```sh
 suikou baseline docs/ --lang en > .suikou/profile.toml
 ```
 
-A metric it cannot calibrate is left out, with the reason on standard error: too few
-samples, or a bound that falls outside the metric's range and would never fire. Nothing is
-filled in with a zero or a placeholder, so a threshold without grounds is visible.
+When a metric cannot be calibrated, it is omitted from the output and the reason is written
+to standard error. A metric cannot be calibrated when there are too few samples, or when its
+bound falls outside the metric's range so that it would never fire. No value is filled in
+with a zero or a placeholder, so you can tell when a threshold has no basis.
 
-### Judge by how often a metric fires
+### Use the firing rate to judge a threshold
 
-A metric firing on 70% of your documents is reporting a mismatched threshold, not a
-property of the documents.
+When a metric fires on 70% of your documents, the cause is a threshold that does not fit,
+not a characteristic of the documents.
 
-Here is what the default thresholds do to 240 READMEs from notable open source.
+The table below shows the result of applying the default thresholds to 240 READMEs from
+well-known open source projects.
 
 | Metric | README | Reference corpus |
 |---|---|---|
 | `en.mattr100` | 70% | 15% |
 | `en.prose_ratio` | 32% | 11% |
 
-That gap is what grounded splitting thresholds by doctype. The same measurement works on
-your own corpus.
+This difference was the basis for setting separate thresholds for each doctype. You can
+take the same measurement on your own corpus.
 
 ```sh
 for f in docs/*.md; do suikou check "$f" --format text; done | grep -oE 'en\.[a-z_]+' | sort | uniq -c
 ```
 
-### Separate the cause before choosing the remedy
+### Identify the cause before choosing a remedy
 
-A metric that fires too often has one of three causes, and each takes a different remedy.
+A metric that fires too often has one of three causes, and each cause needs a different
+remedy.
 
 | Cause | How to check | Remedy |
 |---|---|---|
-| No resolution at this document length | Read the rate per band of word count | Gate the metric, regardless of doctype |
-| The distribution differs by doctype | Compare the rate across doctypes | Change the threshold per doctype |
-| The distribution is too wide to bound | Read what `suikou baseline` reports | Do not apply it to that doctype |
+| The metric has no resolution at this document length | Look at the firing rate for each word-count band | Set a lower limit for the metric, whatever the doctype |
+| The distribution varies by doctype | Compare the firing rate across doctypes | Set a separate threshold for each doctype |
+| The distribution is too wide to draw a boundary | Read the report from `suikou baseline` | Do not apply the metric to that doctype |
 
-Suspecting the doctype first leaves the same defect in every other type. The simile-marker
-density looked like a doctype problem and turned out to be about document length; D-43 in
-[Decisions]({{< relref "decisions.md" >}}) records it.
+If you suspect the doctype first, the same defect remains in every other type. The density
+of simile markers seemed to be a doctype problem but turned out to depend on document
+length; D-43 in [Decisions]({{< relref "decisions.md" >}}) records the details.
 
-### Change one thing at a time
+### Make one change at a time
 
-Measure the firing rate after each change. Moving several at once leaves no way to tell
-which one did the work.
+Measure the firing rate after every change. If you change several settings at once, you
+cannot tell which change had the effect.
 
-### Read info as a reference
+### Treat info findings as reference only
 
-The condition to meet is no errors and no warnings. A reference figure such as the
-Sino-Japanese ratio is reported at info, and is not something to drive to zero.
+The requirement is that there are no errors and no warnings. A reference value such as the
+Sino-Japanese ratio is reported at the info level, and it is not something to reduce to zero.
 
-## What not to tune
+## Tuning to avoid
 
-### Do not aim to minimise a metric
+### Do not try to minimize a metric
 
-Driving the Sino-Japanese ratio to zero by swapping in native verbs degraded the prose. If
-you want that ratio lower, use the loanwords that are established and stop stacking
-Sino-Japanese nouns together. D-27 in [Decisions]({{< relref "decisions.md" >}}) records
-what happened.
+An attempt to bring the Sino-Japanese ratio down to zero by substituting native verbs made
+the prose worse. To lower that ratio, use established loanwords and avoid placing several
+Sino-Japanese nouns in a row. D-27 in [Decisions]({{< relref "decisions.md" >}}) records
+the incident.
 
-### Do not tune for silence
+### Do not tune only to silence findings
 
-Listing everything under `disable` does make the findings go away, and takes the problems
-in the documents out of view with them.
+Putting every metric under `disable` makes the findings disappear, and it also hides the
+problems in the documents that those findings pointed to.
 
-Where a metric fires often, separate the cause first. Excluding it without checking leaves
-the same defect in every other document.
+When a metric fires often, identify the cause first. If you exclude the metric without
+checking, the same defect remains in every other document.
 
-### Do not replace a word by ear
+### Do not replace words by intuition
 
-Count the candidate in the reference corpus before replacing a flagged word. `読み手` does
-not appear once in four million characters of professional Japanese, while `読者` appears 13
-times, and nothing reveals that gap except counting.
+Before you replace a flagged word, count how often the candidate occurs in the reference
+corpus. `読み手` does not occur even once in four million characters of professional
+Japanese, while `読者` occurs 13 times, and only counting reveals that difference.
 
-The procedure for choosing a word is in [Writing]({{< relref "writing.md" >}}), under
-the order the checks run in.
+[Writing]({{< relref "writing.md" >}}) describes the procedure for choosing a word, in the
+part about the order in which the checks run.
 
-## Verify
+## How to confirm the result
 
-Run the same corpus again after tuning.
+After tuning, run suikou on the same corpus again.
 
 ```sh
 for f in docs/*.md; do suikou check "$f" --format text; done | grep -c ':[0-9]*:[0-9]*:'
 ```
 
-A firing rate around 10% means the thresholds fit your documents. A metric still at 70%
-means the cause was never separated, and no threshold will settle it.
+If the firing rate is around 10%, the thresholds fit your documents. If a metric still
+fires at 70%, its cause was never identified, and no threshold change will resolve it.
 
-If the count reaches zero, check whether too much was excluded: count the lines under
-`disable` and `rules` in `.suikou/profile.toml`.
+If the count drops to zero, check whether too much has been excluded by counting the lines
+under `disable` and `rules` in `.suikou/profile.toml`.
 
-This document covers the tuning procedure only. The metrics are defined in
-[Metrics]({{< relref "metrics.md" >}}), the grounds for the design are in
-[Design]({{< relref "design.md" >}}), and the account of each judgement is in
+This document covers only the tuning procedure. The metrics are defined in
+[Metrics]({{< relref "metrics.md" >}}), the reasoning behind the design is in
+[Design]({{< relref "design.md" >}}), and the history of each decision is in
 [Decisions]({{< relref "decisions.md" >}}).

@@ -3,25 +3,25 @@ title: "suikou"
 doctype: "overview"
 ---
 
-suikou is a linter and a harness for technical documentation. It handles Japanese and
+suikou is a linter and harness for technical documentation, covering both Japanese and
 English.
 
-Technical documentation written by generative AI carries habits that go beyond word
-choice. It leans on figures of speech, it repeats the same sentence endings, it joins
-sentences awkwardly, and it spells out details that make the document hard to maintain.
-suikou finds these habits in the document, and it moves the document toward a shape that
-stays maintainable.
+Technical documentation produced by generative AI shows patterns that extend beyond
+vocabulary. The text uses many figures of speech, keeps ending sentences the same way,
+connects one sentence to the next clumsily, and includes so much detail that the document
+becomes costly to maintain. suikou detects these patterns and then revises the document
+toward a form that remains easy to maintain.
 
-Every rule here rests on a measurement or on a written standard.
-Not one rule came from a hunch, because a hunch about style turns out to be wrong most of
-the time once someone measures it. For example, the coefficient of variation of sentence
-length is widely described as a marker of AI prose, and measurement put it on top of the
-human range.
+Each rule is grounded in either a measurement or a published standard.
+None of them is based on intuition, because intuitions about style usually fail once they
+are tested against data. One example is the coefficient of variation of sentence length.
+It is often cited as a sign of AI-written text, yet the measured values fell within the
+range of human writing.
 
-## Usage
+## Getting started
 
-Install it by unpacking the archive from GitHub Releases and putting `suikou` on the
-PATH. The commands below cover the ordinary workflow.
+To install, extract the archive published on GitHub Releases and place `suikou` in a
+directory on your PATH. Day-to-day work needs only the commands below.
 
 ```sh
 suikou plot docs/design.md --doctype design  # settle the structure before writing
@@ -29,7 +29,8 @@ suikou brief --doctype design                # paste into the prompt before gene
 suikou check docs/design.md                  # check what was written
 ```
 
-[Writing](writing/) holds the norms and procedures for writing a document with it, and
-[Tuning](tuning/) covers fitting it to your own documents. The [design](design/) document
-covers installation and each command in turn. [Metrics](metrics/) holds the exact
-definitions, and [decisions](decisions/) holds the record of what was settled and why.
+[Writing](writing/) explains the norms and steps to follow when writing a document, and
+[Tuning](tuning/) explains how to adapt the tool to your own documents. Installation and a
+description of each command are in the [design](design/) document. [Metrics](metrics/)
+gives the precise definitions, and [decisions](decisions/) records what was decided and
+the reasons behind each decision.

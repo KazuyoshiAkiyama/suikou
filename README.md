@@ -1,53 +1,52 @@
 # suikou
 
-A linter and harness for technical documentation. It handles Japanese and English.
+suikou is a linter and harness for technical documentation in Japanese and English.
 
-Technical documentation written by generative AI carries habits that go beyond word choice.
-It leans on figures of speech, it repeats the same sentence endings, it joins sentences
-awkwardly, and it spells out details that make the document hard to maintain later.
-suikou finds these habits in the document.
-It then moves the document toward a shape that stays maintainable.
+Technical documentation produced by generative AI shows patterns that go further than
+vocabulary. The text uses many figures of speech, keeps ending sentences the same way,
+connects sentences clumsily, and includes detail that makes the document hard to maintain
+later. suikou detects these patterns in a document.
+It then reshapes the document so that it remains easy to maintain.
 
 [日本語](README.ja.md) · [Documentation](docs/)
 
-## How it works
+## How suikou works
 
-### Every rule rests on a measurement or on a written standard
+### Each rule is based on a measurement or a published standard
 
-Not one rule here came from a hunch.
-Hunches about style turn out to be wrong most of the time once someone measures them.
-Research on translationese and research on AI prose found this same result, and the two
-lines of research were separate.
+No rule in suikou was chosen on intuition.
+When intuitions about style are measured, most of them prove wrong.
+Research on translationese and research on AI-written text reached this conclusion
+independently of each other.
 
-The measurements behind each threshold live in `corpus/baselines.toml`.
-The metrics that were rejected are recorded there as well, together with the reason.
-They stay on record so that nobody has to test the same hunch twice.
+`corpus/baselines.toml` holds the measured values behind each threshold.
+It also lists the metrics that were rejected, along with the reason for each rejection.
+Keeping the rejected metrics on record means that no one has to test the same intuition again.
 
-### What the tool finds splits into two groups
+### Findings fall into two groups
 
-Some problems are true or false at the level of a line or a sentence, and those problems
-carry a position. Other problems can only be measured across the whole document, and
-those problems carry no position. Most of the problems in the second group report
-something that is missing from the document, and something that is missing has nowhere
-to point.
+Some problems can be judged true or false within a single line or sentence, and these
+problems have a position in the document. Other problems can be measured only over the
+whole document, and these problems have no position. Most problems in the second group
+point out something the document lacks, and a missing element has no location to report.
 
-That split is what lets one run and one edit finish the work.
-The findings that carry a position say where to edit.
-The guidance built from the whole document says how to edit.
-Because both arrive together, no layer has to be linted and fixed in a separate pass.
+This division is what allows the work to finish with a single run and a single round of
+edits. Findings with a position tell the writer where to edit.
+Guidance derived from the whole document tells the writer how to edit.
+Since both are delivered at once, no layer needs a separate pass of linting and fixing.
 
-### The maintainability layer stands apart from AI style
+### The maintainability layer is independent of AI style
 
-Rules M1 through M7 come from the Google developer documentation style guide.
-Those rules describe a problem that predates generative AI, so those rules do not age as
-models change. That is why this layer can be used on its own. A document written before
-generative AI existed, for example, breaks the same rules in the same way.
+Rules M1 through M7 are taken from the Google developer documentation style guide.
+These rules address a problem that existed before generative AI, so they stay valid as
+models change. For this reason, the layer can also be used by itself. A document written
+before generative AI existed, for example, violates these rules in the same way.
 
-## Install
+## Installation
 
-GitHub Releases carries an archive for each operating system.
-Each archive embeds the dictionary, so nothing has to be downloaded afterward.
-The Linux build links musl statically, so it runs whatever version of glibc is present.
+GitHub Releases provides an archive for each operating system.
+The dictionary is built into every archive, so nothing more needs to be downloaded.
+The Linux build is statically linked against musl, so it runs regardless of the glibc version.
 
 ```sh
 tar xf suikou-v<version>-<target>.tar.xz
@@ -56,75 +55,74 @@ install -m 755 suikou ~/.local/bin/
 suikou selftest
 ```
 
-On Windows, open the zip and put `suikou.exe` somewhere on the PATH.
+On Windows, extract the zip file and place `suikou.exe` in a directory on the PATH.
 
-`suikou selftest` loads the dictionary and asks the dictionary to analyze a sentence.
-If the binary you hold is missing the dictionary, the command fails there.
-The check works this way because a printed flag can claim a dictionary that was never
-linked into the binary.
+`suikou selftest` loads the dictionary and has it analyze a sentence.
+If your binary lacks the dictionary, the command fails at that point.
+The check is designed this way because a printed flag can report a dictionary that was
+never linked into the binary.
 
-To install from source, name the feature.
+To install from source, specify the feature.
 
 ```sh
 cargo install --git https://github.com/KazuyoshiAkiyama/suikou suikou-cli --features lindera-unidic
 ```
 
-Leaving the feature out installs a build with no dictionary.
-That build handles English only. Asking that build for Japanese makes it fail on the spot.
-Returning an empty analysis would drive every Japanese metric to zero.
-Zero sits below the thresholds, so the run would end in a false report of nothing to fix.
+Without the feature, the installed build contains no dictionary.
+That build supports English only, and it fails immediately when asked to process Japanese.
+If it returned an empty analysis instead, every Japanese metric would become zero.
+Zero is below the thresholds, so the run would falsely report that nothing needs fixing.
 
 ## Usage
 
-A document starts by settling which type it is. The questions below reach one in two
-steps at most.
+Start a document by choosing its type. The type is settled in two steps at most.
 
 ```sh
 suikou doctype
 ```
 
-Then the outline comes before the prose.
+Next, write the outline before the prose.
 
 ```sh
 suikou plot docs/guide.md --doctype howto
 ```
 
-That lays out the section headings and the question each section answers under
-`.suikou/plans/`. Fill in the claim each section makes, one line each, and get that
-approved before the body is written. The plot is kept out of version control, because it
-is a document of the thinking rather than a deliverable.
+This command lists, under `.suikou/plans/`, the heading of each section and the question
+that section answers. Write the claim of each section in one line, and have the claims
+approved before you write the body. The plot stays out of version control, because it
+records the thinking and is not a deliverable.
 
-The instruction handed to a model carries the doctype too, which puts the question behind
-each section and the rules for writing ahead of the prohibitions.
+Pass the doctype when you build the instruction for a model as well. The instruction then
+lists the question for each section and the writing rules before the prohibitions.
 
 ```sh
 suikou brief --doctype howto --lang en
 ```
 
-What was written is then checked.
+Check the written document afterward.
 
 ```sh
 suikou check docs/guide.md
 ```
 
-`suikou mcp` starts an MCP server that speaks JSON-RPC 2.0 over stdio and answers
-`initialize`, `tools/list`, and `tools/call`. It exposes `check` and `brief` as tools,
-so an agent that supports MCP calls the same judgment the CLI uses, without parsing
-text meant for a terminal.
+`suikou mcp` launches an MCP server that communicates with JSON-RPC 2.0 over stdio and
+responds to `initialize`, `tools/list`, and `tools/call`. The server offers `check` and
+`brief` as tools. An agent that supports MCP can therefore invoke the same judgment as the
+CLI without parsing output meant for a terminal.
 
 ```sh
 suikou mcp
 ```
 
-Point an MCP client at that command by naming `suikou` and `mcp` as the command and
-its argument in the client's server configuration.
+To register the server, set `suikou` as the command and `mcp` as its argument in the
+MCP client's server configuration.
 
-The [documentation](docs/) covers installation and use in full.
+See the [documentation](docs/) for complete installation and usage instructions.
 
 ## Documentation
 
-The documentation lives in `docs/`. The documentation builds with Hugo, and it carries
-both English and Japanese. English is the default language.
+The documentation is in `docs/`. It is built with Hugo and is available in both English
+and Japanese, with English as the default language.
 
 ```sh
 cd docs && hugo server
@@ -132,25 +130,25 @@ cd docs && hugo server
 
 | Page | Content |
 |---|---|
-| design | The design as a whole, with the measurements behind it |
-| metrics | The strict definition of each metric, for anyone porting them |
+| design | The overall design, including the measurements that support it |
+| metrics | The exact definition of each metric, for anyone porting them |
 | decisions | The reasoning behind each decision |
-| writing | The norms for choosing a word and laying out a README |
-| development | The repository layout, how to build, how versions are pinned, how the tokenizer is handled |
+| writing | Norms for word choice and README structure |
+| development | Repository layout, build steps, version pinning, and tokenizer handling |
 
-`CLAUDE.md` records the constraints, and `TASKS.md` records the order of work.
+`CLAUDE.md` lists the constraints, and `TASKS.md` lists the order of work.
 
 ## Status
 
-Every subcommand is written, except that `daemon` was decided against: launching the
-binary takes a few milliseconds, which leaves a resident process nothing to save. Tests,
-fmt and clippy pass under the default features and under `--features lindera-unidic`, and
-the golden tests hold the Rust rules, the textlint rules and the reference implementation
-at identical counts.
+All subcommands are implemented. The exception is `daemon`, which was rejected: the
+binary starts in a few milliseconds, so a resident process would save nothing. Tests,
+fmt and clippy pass both with the default features and with `--features lindera-unidic`.
+The golden tests keep the Rust rules, the textlint rules and the reference implementation
+returning the same counts.
 
-`CLAUDE.md` carries the state of each part. It is kept there rather than here because a
-second copy goes stale: this one had fallen five parts behind before it was removed.
+The status of each part is kept in `CLAUDE.md` instead of here, because a second copy
+falls out of date. The copy in this README was five parts behind by the time it was removed.
 
 ## License
 
-MIT or Apache-2.0, whichever you prefer.
+You may use suikou under either the MIT or the Apache-2.0 license.
