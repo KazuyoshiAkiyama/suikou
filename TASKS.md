@@ -1094,14 +1094,16 @@ M2 の適用範囲は D-45 で決定済みであり、数値が前方参照し�
 
 | 対象 | 指摘 |
 |---|---|
-| `TASKS.md` | `ja.demonstrative_per_1k` が 4.02（閾値 4.5）、`register/rare-wago` 4件、`register/prefer-katakana` 6件 |
+| `TASKS.md` | `ja.demonstrative_per_1k` が 4.15（閾値 4.5）、`ja.renyo_te_ratio` が 13.6（閾値 13.2）、`register/rare-wago` 8件、`register/prefer-katakana` 6件 |
 | 英語の8文書 | `en.mattr100` が全件で閾値を超過 |
 | `docs/content/en/decisions.md`、`docs/content/en/writing.md` | `en.simile_marker_per_1k` が閾値を下回る |
 | `docs/content/en/tuning.md` | `structure/missing-section` |
 
 英語側の閾値は D-51 で非目標としたため、この一覧は対応を保留した記録である。英語の閾値をこのリポジトリの文書に合わせるかどうかは未検討である。
 
-## T17 見出しの検査レイヤーの分離（済み）
+件数は 2026-11-26 に再計測した。`docs/content/en/metrics.md` と `docs/content/en/_index.md` も `en.mattr100` を超過しており、超過するのは英語の8文書である。`docs/content/en/writing.md` の `en.simile_marker_per_1k` は未解消のまま残る。`docs/content/en/decisions.md` の同指標は D-52 の追記で基準を満たした。
+
+## T28 見出しの検査レイヤーの分離（済み）
 
 見出しに当てる規則を `crates/suikou-core/src/headings.rs` へ集約し、章タイトルの用言止めを検出する `structure/heading-form` を追加した。設計は `docs/superpowers/specs/2026-11-26-heading-layer-design.md`、経緯は D-52 にある。
 
@@ -1120,16 +1122,16 @@ cargo run --release --features lindera-unidic --example structure_rate -- corpus
 | `adrs_ja`（公開 ADR 123件） | 897 | 1.78% | 4.9% |
 | `ai_docs_ja`（AI の出力 150件） | 879 | 6.37% | 14.7% |
 
-分母は判定の対象になった章タイトルである。日本語を含まない見出しと、末尾を整えると空になる見出しは除いてある。設計の段階では末尾が補助記号になる見出しも分母から外していたため、用言率が 4.8% と出ていた。発火する文書の割合は両者でほぼ一致する。
+分母は判定の対象となった章タイトルである。日本語を含まない見出しと、末尾の整形後に空になる見出しは除外している。設計の段階では末尾が補助記号になる見出しも分母から除外していたため、用言率は 4.8% であった。発火する文書の割合は双方でほぼ一致する。
 
-`howto_ja` の 24.5% が `docs/content/ja/tuning.md` の適合の目安 10% を超えるため、`howto` 型を除外した。`log` 型も除外した。`decision` 型は除外していない。発火率 4.9% は目安の内側であり、公開 ADR は決定文を第1階層の標題に置くため `structure::sections` が外す。
+`howto_ja` の 24.5% が `docs/content/ja/tuning.md` の適合の基準 10% を超過するため、`howto` 型を除外した。`log` 型も除外した。`decision` 型は除外していない。発火率 4.9% は基準の範囲内であり、公開 ADR は決定文を第1階層の標題に配置するため `structure::sections` が除外する。
 
 ### 見送った項目
 
-`suikou brief` に章タイトルの規約を加えることは見送った。`brief.rs` は M2、M3、M4 を意図して省いており、テスト `m2_m3_m4_are_left_out` がそれを固定している。生成前の指示で守れる規約であるため追加の余地はあるが、日英の描画とテストに手を入れることになり、今回の範囲を超える。生成した文書が新しい warning を踏み続けることが費用である。
+`suikou brief` に章タイトルの規約を加えることは見送った。`brief.rs` は M2、M3、M4 を意図して除外しており、テスト `m2_m3_m4_are_left_out` がそれを固定している。生成前の指示で遵守できる規約であるため追加の余地はあるが、日英の描画処理とテストの変更を要し、今回の範囲を超える。生成した文書が追加した warning を踏み続けることが費用である。
 
 `corpus/baselines.toml` の `[rejected]` には追記していない。`[rejected]` は指標の一覧であり、規則を書く場所ではない。章タイトルの用言率を文書指標にしてはならない理由は D-52 に書いた。
 
-`.suikou/defined.toml` は作っていない。`glossary/defined-name` は配線したが、設定ファイルが無いためこのリポジトリでは何も報告しない。固有名（`suikou`、`plot`、`brief`、`doctype`、`語種`、`体言止め`、`発火率`、`係留`）の登録と、語彙選定手順への固有名の例外は未着手である。
+`.suikou/defined.toml` は作っていない。`glossary/defined-name` は配線したが、設定ファイルが存在しないためこのリポジトリでは何も報告しない。定義した名前（`suikou`、`plot`、`brief`、`doctype`、`語種`、`体言止め`、`発火率`、`係留`）の登録と、語彙選定手順における例外の記述は未着手である。
 
-`ja.list_ratio` の分母に見出し行が入る事実は文書化していない。`markdown.rs` の `non_empty_lines` が見出し行を数えるため、見出しの多い文書は箇条書き割合が下がる。`docs/content/ja/metrics.md` の表は「すべての行」と書いており誤りではないが、見出しが影響することを読み取れない。
+`ja.list_ratio` の分母に見出し行が入る事実は文書化していない。`markdown.rs` の `non_empty_lines` が見出し行を計上するため、見出しの多い文書では箇条書き割合が低下する。`docs/content/ja/metrics.md` の表は「すべての行」と記載しており誤りではないが、見出しの影響を読み取れない。
