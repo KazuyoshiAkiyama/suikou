@@ -1100,3 +1100,36 @@ M2 の適用範囲は D-45 で決定済みであり、数値が前方参照し�
 | `docs/content/en/tuning.md` | `structure/missing-section` |
 
 英語側の閾値は D-51 で非目標としたため、この一覧は対応を保留した記録である。英語の閾値をこのリポジトリの文書に合わせるかどうかは未検討である。
+
+## T17 見出しの検査レイヤーの分離（済み）
+
+見出しに当てる規則を `crates/suikou-core/src/headings.rs` へ集約し、章タイトルの用言止めを検出する `structure/heading-form` を追加した。設計は `docs/superpowers/specs/2026-11-26-heading-layer-design.md`、経緯は D-52 にある。
+
+### 発火率の計測
+
+`crates/suikou-core/examples/structure_rate.rs` に `structure/heading-form` を加えて計測した。
+
+```sh
+cargo run --release --features lindera-unidic --example structure_rate -- corpus/cache/pro_ja ja
+```
+
+| コーパス | 章タイトル | 用言止め | 発火する文書 |
+|---|---|---|---|
+| `pro_ja`（人間のネイティブ執筆 798件） | 2783 | 3.34% | 8.0% |
+| `howto_ja`（手順書 200件） | 1174 | 11.16% | 24.5% |
+| `adrs_ja`（公開 ADR 123件） | 897 | 1.78% | 4.9% |
+| `ai_docs_ja`（AI の出力 150件） | 879 | 6.37% | 14.7% |
+
+分母は判定の対象になった章タイトルである。日本語を含まない見出しと、末尾を整えると空になる見出しは除いてある。設計の段階では末尾が補助記号になる見出しも分母から外していたため、用言率が 4.8% と出ていた。発火する文書の割合は両者でほぼ一致する。
+
+`howto_ja` の 24.5% が `docs/content/ja/tuning.md` の適合の目安 10% を超えるため、`howto` 型を除外した。`log` 型も除外した。`decision` 型は除外していない。発火率 4.9% は目安の内側であり、公開 ADR は決定文を第1階層の標題に置くため `structure::sections` が外す。
+
+### 見送った項目
+
+`suikou brief` に章タイトルの規約を加えることは見送った。`brief.rs` は M2、M3、M4 を意図して省いており、テスト `m2_m3_m4_are_left_out` がそれを固定している。生成前の指示で守れる規約であるため追加の余地はあるが、日英の描画とテストに手を入れることになり、今回の範囲を超える。生成した文書が新しい warning を踏み続けることが費用である。
+
+`corpus/baselines.toml` の `[rejected]` には追記していない。`[rejected]` は指標の一覧であり、規則を書く場所ではない。章タイトルの用言率を文書指標にしてはならない理由は D-52 に書いた。
+
+`.suikou/defined.toml` は作っていない。`glossary/defined-name` は配線したが、設定ファイルが無いためこのリポジトリでは何も報告しない。固有名（`suikou`、`plot`、`brief`、`doctype`、`語種`、`体言止め`、`発火率`、`係留`）の登録と、語彙選定手順への固有名の例外は未着手である。
+
+`ja.list_ratio` の分母に見出し行が入る事実は文書化していない。`markdown.rs` の `non_empty_lines` が見出し行を数えるため、見出しの多い文書は箇条書き割合が下がる。`docs/content/ja/metrics.md` の表は「すべての行」と書いており誤りではないが、見出しが影響することを読み取れない。

@@ -170,6 +170,20 @@ pub fn check(doc: &Document, lang: crate::lang::Lang, morph: &dyn Morphology) ->
     out
 }
 
+/// 章タイトルのうち、形の判定の対象になる件数。
+///
+/// 発火率の分母に使う。日本語を含まない見出しと、末尾を整えると空になる見出しは
+/// 判定の対象外であり、分母に数えると発火率を実際より低く見せる。
+pub fn countable_sections(doc: &Document) -> usize {
+    crate::structure::sections(doc)
+        .iter()
+        .filter(|o| {
+            let t = trim_tail(&o.block.text);
+            !t.is_empty() && has_japanese(t)
+        })
+        .count()
+}
+
 /// 見出しの末尾から、形の判定に関わらない部分を落とす。
 ///
 /// `（完了）` のような注記と句読点を落とす。落とさないと最後の形態素が
