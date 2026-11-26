@@ -12,6 +12,7 @@
 pub mod baseline;
 pub mod check;
 pub mod glossary;
+pub mod headings;
 pub mod lang;
 pub mod markdown;
 pub mod metrics;
