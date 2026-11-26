@@ -48,7 +48,7 @@ The three-space limit on headings follows CommonMark. Four or more leading space
 | Sentence structure (length, commas, endings, renyo, te-form) | Prose only |
 | Formatting (prose ratio, list ratio, bold) | Every line |
 
-Headings fall outside the vocabulary and sentence-structure metrics. The register rules (`register/`) and the glossary spelling rule (`glossary/variant`) leave headings alone as well. The rules that do read headings are listed under "Heading rules".
+Headings fall outside the vocabulary and sentence-structure metrics. The register rules (`register/`) and the glossary spelling rule (`glossary/variant`) leave headings alone as well. The rules that read heading text are listed under "Heading rules". The structural rules read headings as document skeleton rather than as strings, so they are not in that list.
 
 The list-ratio denominator counts non-empty lines, and heading lines are among them. A document with many headings therefore shows a lower list ratio.
 
@@ -207,7 +207,7 @@ A list containing items from two or more groups is classified as mixed. The mixe
 
 ### M6: Time-dependent expressions
 
-Count every occurrence of the expressions below. Two occurrences on the same line count as two findings. The scope is headings including the title, plus prose, list items, and tables. The heading judgment lives in `headings.rs`, and its positions join the body positions in a single finding.
+Count every occurrence of the expressions below. Two occurrences on the same line count as two findings. The scope is headings including the title, plus prose, list items, tables, and quotes. The body loop excludes `BlockKind::Heading` and nothing else, so text inside a block quote is checked too. The heading judgment lives in `headings.rs`, and its positions join the body positions in a single finding.
 
 In Japanese, match `現在`, `現時点`, `最新の`, `新しい`, `今後`, `将来的に`, `まもなく`, `既存の`, `目下`, and `現行の`, plus `最近`, `近年`, `直近`, `先日`, `従来`, `当面`, and `順次`.
 
@@ -252,6 +252,8 @@ Both prose and list items are evaluated.
 
 The rules that read heading text live in `crates/suikou-core/src/headings.rs`. When each rule narrows its own block scope, nothing short of reading the implementation tells you which rules reach headings.
 
+`structure/missing-section`, `structure/section-order`, and `structure/empty-section` are not in this list. They read headings to decide which sections exist and in what order, not to inspect the text.
+
 | Rule | Headings it reads |
 |---|---|
 | `structure/heading-form` | Chapter titles only |
@@ -271,9 +273,13 @@ The tail is trimmed before the judgment. Punctuation goes, and a closing bracket
 
 The rule runs on Japanese documents only. English draws no line between a noun phrase and a predicate ending, and the English path never loads a tokenizer.
 
-Chapter titles end in a predicate in 3.34% of cases across 798 documents written by native Japanese authors, 1.78% across 123 published ADRs, 11.16% across 200 procedure documents, and 6.37% across 150 AI outputs. Human and AI distributions do not separate, so the figure cannot serve as a style signal; the rule rests instead on deviation from the convention that dominates the reference corpus. Below the chapter level the rate runs from 15% to 26%, which is why only chapter titles are in scope.
+Chapter titles end in a predicate in 3.34% of cases across 798 documents written by native Japanese authors, 1.78% across 123 published ADRs, 11.16% across 200 procedure documents, and 6.37% across 150 AI outputs. Human and AI distributions do not separate, so the figure cannot serve as a style signal; the rule rests instead on deviation from the convention that dominates the reference corpus.
 
-The rule is off for the `howto` and `log` doctypes. A chapter of a procedure document is a single operation and a chapter of a work log is a task, so a predicate ending is correct in both. For example, `テーブルを作成する` names the step the reader performs. The procedure corpus fires at 24.5%, far above the 10% that counts as a fit. The `decision` doctype keeps the rule: a published ADR carries its decision statement in the level-one title, which `structure::sections` drops, leaving noun-phrase section names to be judged. That corpus fires at 4.9%, inside the target.
+Below the chapter level the rate rises: 13.04% for native Japanese authors, 13.12% for procedure documents, 6.29% for published ADRs, and 22.80% for AI outputs. For native authors that is 3.9 times the 3.34% of chapter titles, so a predicate ending is a legitimate form at the lower levels. Only chapter titles are therefore in scope. Every figure comes from `examples/structure_rate.rs`.
+
+The rule is off for the `howto` and `log` doctypes. A chapter of a procedure document is a single operation and a chapter of a work log is a task, so a predicate ending is correct in both. For example, `テーブルを作成する` names the step the reader performs. The procedure corpus fires at 24.5%, far above the 10% that counts as a fit.
+
+The `log` basis is this repository's `docs/content/ja/decisions.md`, where 49 of 50 chapter titles (98.00%) end in a predicate. Its sibling `TASKS.md` reaches only 2 (6.06%), because those chapter titles close with `（済み）` and trim down to a noun phrase. One doctype, two conventions. The `decision` doctype keeps the rule: a published ADR carries its decision statement in the level-one title, which `structure::sections` drops, leaving noun-phrase section names to be judged. That corpus fires at 4.9%, inside the target.
 
 Documents that declare no doctype are in scope. Per-doctype exclusions engage only once a doctype resolves, so an undeclared procedure document draws findings at the 24.5% rate. Such a document either declares its doctype or turns the rule off in `.suikou/profile.toml`.
 

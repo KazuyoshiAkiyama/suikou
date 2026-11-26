@@ -1,5 +1,9 @@
 //! M1 から M7。メンテナンス性の局所規則。
 //!
+//! ただし M3（`maint/numbered-heading`）と M6 の見出しに対する判定は
+//! `crate::headings` にある。見出しを対象とする規則をそこへ集約してある。
+//! `check_all` は M3 を返さない。
+//!
 //! この層は AI 臭さではなくメンテナンス性を根拠に持つ。AI 以前から存在する問題であり、
 //! モデルの世代交代でも陳腐化しない。出典は Google developer documentation style guide。
 //!
@@ -459,6 +463,15 @@ pub(crate) fn pos_of(b: &Block) -> Position {
     }
 }
 
+/// 本文の局所規則をまとめて当てる。
+///
+/// **M3（`maint/numbered-heading`）は返さない。** 見出しだけに当たる規則であり、
+/// `crate::headings::check_numbered` が返す。この関数の結果だけを見る呼び出しは
+/// M3 を取りこぼす。`check::evaluate` は双方を呼ぶ。
+///
+/// M6（`maint/time-dependent`）は返す。見出しの分は
+/// `crate::headings::time_dependent_positions` から受け取り、本文の分と合わせて
+/// 1件の指摘に束ねる。識別子ごとに `LocalFinding` を1件に保つためである。
 pub fn check_all(doc: &Document, lang: Lang, morph: &dyn Morphology) -> Vec<LocalFinding> {
     let mut out = Vec::new();
     let mut m1 = Vec::new();

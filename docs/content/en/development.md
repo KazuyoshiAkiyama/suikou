@@ -78,8 +78,10 @@ Adding a rule or modifying a threshold requires measuring its firing frequency a
 
 ```sh
 cargo run --release --example structure_rate -- corpus/cache/pro_en en
-cargo run --release --example structure_rate -- corpus/cache/pro_ja ja
+cargo run --release --features lindera-unidic --example structure_rate -- corpus/cache/pro_ja ja
 ```
+
+Japanese needs `--features lindera-unidic`. Chapter-title form requires a tokenizer, so a dictionary-free build skips the `structure/heading-form` measurement.
 
 Standard CLI output from `suikou check` caps reported positions per rule and therefore hides true match totals. The example binary invokes rules directly, and its measurements are logged in `TASKS.md`.
 

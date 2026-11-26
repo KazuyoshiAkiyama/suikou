@@ -1094,14 +1094,14 @@ M2 の適用範囲は D-45 で決定済みであり、数値が前方参照し�
 
 | 対象 | 指摘 |
 |---|---|
-| `TASKS.md` | `ja.demonstrative_per_1k` が 4.15（閾値 4.5）、`ja.renyo_te_ratio` が 13.6（閾値 13.2）、`register/rare-wago` 8件、`register/prefer-katakana` 6件 |
+| `TASKS.md` | `ja.demonstrative_per_1k` が 4.12（閾値 4.5）、`ja.renyo_te_ratio` が 13.9（閾値 13.2）、`register/rare-wago` 8件、`register/prefer-katakana` 6件 |
 | 英語の8文書 | `en.mattr100` が全件で閾値を超過 |
 | `docs/content/en/decisions.md`、`docs/content/en/writing.md` | `en.simile_marker_per_1k` が閾値を下回る |
 | `docs/content/en/tuning.md` | `structure/missing-section` |
 
 英語側の閾値は D-51 で非目標としたため、この一覧は対応を保留した記録である。英語の閾値をこのリポジトリの文書に合わせるかどうかは未検討である。
 
-件数は 2026-11-26 に再計測した。`docs/content/en/metrics.md` と `docs/content/en/_index.md` も `en.mattr100` を超過しており、超過するのは英語の8文書である。`docs/content/en/writing.md` の `en.simile_marker_per_1k` は未解消のまま残る。`docs/content/en/decisions.md` の同指標は D-52 の追記で基準を満たした。
+件数は 2026-11-26 に再計測した。`docs/content/en/metrics.md` と `docs/content/en/_index.md` も `en.mattr100` を超過しており、超過するのは `docs/content/en/` の7文書である。`docs/content/en/writing.md` の `en.simile_marker_per_1k` は未解消のまま残る。`docs/content/en/decisions.md` の同指標は D-52 の追記で基準を満たした。
 
 ## T28 見出しの検査レイヤーの分離（済み）
 
@@ -1122,15 +1122,32 @@ cargo run --release --features lindera-unidic --example structure_rate -- corpus
 | `adrs_ja`（公開 ADR 123件） | 897 | 1.78% | 4.9% |
 | `ai_docs_ja`（AI の出力 150件） | 879 | 6.37% | 14.7% |
 
+章タイトルより下の見出しも計測した。規則の対象外だが、対象を章タイトルに絞った根拠になる。
+
+| コーパス | 下位の見出し | 用言止め |
+|---|---|---|
+| `pro_ja` | 2339 | 13.04% |
+| `howto_ja` | 1212 | 13.12% |
+| `adrs_ja` | 1511 | 6.29% |
+| `ai_docs_ja` | 763 | 22.80% |
+
+`pro_ja` では章タイトルの 3.34% に対して 3.9 倍である。下位の見出しでは用言止めが正当な形式として一定の割合を占める。
+
 分母は判定の対象となった章タイトルである。日本語を含まない見出しと、末尾の整形後に空になる見出しは除外している。設計の段階では末尾が補助記号になる見出しも分母から除外していたため、用言率は 4.8% であった。発火する文書の割合は双方でほぼ一致する。
 
-`howto_ja` の 24.5% が `docs/content/ja/tuning.md` の適合の基準 10% を超過するため、`howto` 型を除外した。`log` 型も除外した。`decision` 型は除外していない。発火率 4.9% は基準の範囲内であり、公開 ADR は決定文を第1階層の標題に配置するため `structure::sections` が除外する。
+`howto_ja` の 24.5% が `docs/content/ja/tuning.md` の適合の基準 10% を超過するため、`howto` 型を除外した。
+
+`log` 型も除外した。根拠は `docs/content/ja/decisions.md` の章タイトル50件中49件（98.00%）である。同じ `log` 型の `TASKS.md` は2件（6.06%）に留まる。章タイトルが `（済み）` で終わり、末尾の整形後に名詞句となるためである。`decision` 型は除外していない。発火率 4.9% は基準の範囲内であり、公開 ADR は決定文を第1階層の標題に配置するため `structure::sections` が除外する。
 
 ### 見送った項目
 
 `suikou brief` に章タイトルの規約を加えることは見送った。`brief.rs` は M2、M3、M4 を意図して除外しており、テスト `m2_m3_m4_are_left_out` がそれを固定している。生成前の指示で遵守できる規約であるため追加の余地はあるが、日英の描画処理とテストの変更を要し、今回の範囲を超える。生成した文書が追加した warning を踏み続けることが費用である。
 
 `corpus/baselines.toml` の `[rejected]` には追記していない。`[rejected]` は指標の一覧であり、規則を書く場所ではない。章タイトルの用言率を文書指標にしてはならない理由は D-52 に書いた。
+
+`trim_tail` は開き括弧を伴わない閉じ括弧を除去しない。`## 検証する）` は末尾が補助記号となり検出されない。`## 設定する（任意` と同じく、除去する範囲を決められないためである。偽陰性だが、いずれも通常の執筆では現れない。
+
+`glossary::defined()` は `.suikou/defined.toml` の解析失敗を無視して空の一覧を返し、結果を `OnceLock` に保持する。重大度 error の規則が有効になった以上、設定の誤記が黙って無検出になる。`morphology.rs` の「黙って空の解析結果を返すと誤った結論が出る」という方針と反する。ただし `glossary.toml`、`terms.toml`、`register-allow.toml`、`structure.toml` も同じ書き方であり、このブランチで持ち込んだものではない。`OnceLock` のため、常駐する `mcp` は編集後の `defined.toml` を読み直さない。
 
 `.suikou/defined.toml` は作っていない。`glossary/defined-name` は配線したが、設定ファイルが存在しないためこのリポジトリでは何も報告しない。定義した名前（`suikou`、`plot`、`brief`、`doctype`、`語種`、`体言止め`、`発火率`、`係留`）の登録と、語彙選定手順における例外の記述は未着手である。
 

@@ -39,8 +39,10 @@ fn has_japanese(s: &str) -> bool {
 /// 節ではなく、残りのうち最も浅い階層だけが章である。階層を2に固定しないのは、
 /// `##` から始まる文書と `###` から始まる文書を同じ定義で扱うためである。
 ///
-/// 参照コーパスでの章タイトルの用言率は、人間のネイティブ執筆 798件で 4.8%、
-/// 公開 ADR 123件で 1.8% である。人間と AI では分離しない（AI の出力 150件で 6.6%）。
+/// 参照コーパスでの章タイトルの用言率は、人間のネイティブ執筆 798件で 3.34%、
+/// 公開 ADR 123件で 1.78% である。人間と AI では分離しない（AI の出力 150件で 6.37%）。
+/// 章タイトルより下の見出しでは 13.04% まで上がるため、対象を章タイトルに絞る。
+/// 計測は `examples/structure_rate.rs` による。
 /// したがってこれは文体判定の指標ではなく、優勢な慣行からの逸脱を見る規則である。
 /// 経緯は決定の記録の D-52 にある。
 ///
@@ -170,6 +172,33 @@ pub fn check(doc: &Document, lang: crate::lang::Lang, morph: &dyn Morphology) ->
     out
 }
 
+/// 章タイトルより下の見出しの件数と、そのうち用言で終わる件数。
+///
+/// `structure/heading-form` の対象外である。対象を章タイトルに絞った根拠を
+/// 計測できるようにするために公開する。判定の条件は `check_form` と同じにする。
+pub fn sub_section_form(doc: &Document, morph: &dyn Morphology) -> (usize, usize) {
+    let top = crate::structure::sections(doc)
+        .first()
+        .map(|o| o.level)
+        .unwrap_or(usize::MAX);
+    let mut total = 0usize;
+    let mut yougen = 0usize;
+    for o in crate::structure::outline(doc) {
+        if o.level <= top {
+            continue;
+        }
+        let text = trim_tail(&o.block.text);
+        if text.is_empty() || !has_japanese(text) {
+            continue;
+        }
+        total += 1;
+        if morph.tokenize(text).last().is_some_and(|t| t.is_yougen()) {
+            yougen += 1;
+        }
+    }
+    (total, yougen)
+}
+
 /// 章タイトルのうち、形の判定の対象になる件数。
 ///
 /// 発火率の分母に使う。日本語を含まない見出しと、末尾を整えると空になる見出しは
@@ -297,6 +326,23 @@ mod form_tests {
     fn a_heading_without_japanese_is_not_reported() {
         let d = Document::parse("# 標題\n\n## ja.renyo_per_1k\n\n本文である。\n");
         assert!(check_form(&d, &morph()).is_none());
+    }
+
+    // 発火率の分母と、規則が実際に判定した件数を結び付ける。
+    //
+    // どちらかに条件が増えると、記録済みの発火率が黙って誤りになる。
+    // 判定を通った章タイトルは「用言で終わる」か「終わらない」のどちらかであり、
+    // その合計が分母に一致する。
+    #[test]
+    fn the_denominator_matches_what_the_rule_judges() {
+        let src = "# 標題\n\n## 構成を設計する\n\n本文である。\n\n## 検証の方法\n\n                   本文である。\n\n## ja.renyo_per_1k\n\n本文である。\n\n## （）\n\n本文である。\n";
+        let d = Document::parse(src);
+        // 章タイトルは4件。日本語を含まない1件と空になる1件は対象外。
+        assert_eq!(crate::structure::sections(&d).len(), 4);
+        assert_eq!(countable_sections(&d), 2);
+        let hits = check_form(&d, &morph()).map_or(0, |f| f.positions.len() + f.truncated);
+        assert_eq!(hits, 1);
+        assert!(hits <= countable_sections(&d));
     }
 
     #[test]

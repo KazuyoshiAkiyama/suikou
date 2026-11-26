@@ -28,6 +28,8 @@ struct Totals {
     section_headings: usize,
     yougen_headings: usize,
     files_with_yougen: usize,
+    sub_headings: usize,
+    yougen_sub_headings: usize,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -98,6 +100,10 @@ fn main() -> anyhow::Result<()> {
             t.section_headings += suikou_core::headings::countable_sections(&doc);
             t.yougen_headings += hits;
             t.files_with_yougen += usize::from(hits > 0);
+            // 章タイトルより下の見出し。規則の対象外だが、対象を章に絞った根拠になる。
+            let (sub, sub_yougen) = suikou_core::headings::sub_section_form(&doc, m);
+            t.sub_headings += sub;
+            t.yougen_sub_headings += sub_yougen;
         }
     }
 
@@ -143,6 +149,12 @@ fn main() -> anyhow::Result<()> {
             "  1件以上を含むファイルは {} 件（{:.1}%）",
             t.files_with_yougen,
             pct(t.files_with_yougen, t.files)
+        );
+        println!(
+            "章タイトルより下の見出し {} 件のうち {} 件が用言で終わる（{:.2}%）",
+            t.sub_headings,
+            t.yougen_sub_headings,
+            pct(t.yougen_sub_headings, t.sub_headings)
         );
     }
     Ok(())
