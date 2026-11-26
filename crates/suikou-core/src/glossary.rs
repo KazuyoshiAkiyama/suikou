@@ -400,9 +400,13 @@ pub fn defined() -> &'static Vec<Defined> {
 ///
 /// severity は error とする。選好の警告とは性質が違う。
 /// 定義した名前を別の語で呼ぶと、読み手は同じものを別のものと読む。
-pub fn check_defined(doc: &Document, list: &[Defined]) -> Option<LocalFinding> {
+/// 定義した名前以外の呼び方の位置。ブロックを渡した側が対象範囲を決める。
+///
+/// 本文と見出しの双方から呼ぶ。固有名の統一は文体ではなく識別子の問題であり、
+/// 見出しで別の呼び方をすれば読み手は同じものだと分からない。
+pub(crate) fn defined_hits(blocks: &[&crate::markdown::Block], list: &[Defined]) -> Vec<Position> {
     let mut positions = Vec::new();
-    for b in body_blocks(doc) {
+    for b in blocks {
         for d in list {
             for other in &d.instead_of {
                 for (at, _) in b.text.match_indices(other.as_str()) {
@@ -421,6 +425,17 @@ pub fn check_defined(doc: &Document, list: &[Defined]) -> Option<LocalFinding> {
             }
         }
     }
+    positions
+}
+
+/// 定義した名前以外の呼び方を見る。
+///
+/// 本文と見出しの双方を1件の指摘に束ねる。識別子ごとに `LocalFinding` を
+/// 1件に保たないと、`report.rs` の `to_markdown` が説明文を二度出す。
+pub fn check_defined(doc: &Document, list: &[Defined]) -> Option<LocalFinding> {
+    let body: Vec<&crate::markdown::Block> = body_blocks(doc).collect();
+    let mut positions = defined_hits(&body, list);
+    positions.extend(crate::headings::defined_positions(doc, list));
     if positions.is_empty() {
         return None;
     }
@@ -443,6 +458,23 @@ pub fn check_defined(doc: &Document, list: &[Defined]) -> Option<LocalFinding> {
 #[cfg(test)]
 mod target_tests {
     use super::*;
+
+    // 本文と見出しの双方に当たっても指摘は1件に束ねる。
+    // 2件返すと `report.rs` の `to_markdown` が説明文を二度出す。
+    #[test]
+    fn defined_name_findings_from_prose_and_headings_are_one() {
+        let list = vec![Defined {
+            name: "doctype".to_string(),
+            instead_of: vec!["文書型".to_string()],
+            note: String::new(),
+        }];
+        let d = Document::parse("# 標題\n\n## 文書型の一覧\n\n文書型を宣言する。\n");
+        let f = check_defined(&d, &list).expect("発火していない");
+        assert_eq!(f.rule_id, RULE_DEFINED);
+        assert_eq!(f.positions.len(), 2, "{f:?}");
+        assert_eq!(f.positions[0].line, 3);
+        assert_eq!(f.positions[1].line, 5);
+    }
 
     // 寄せる先が見つける形を含む場合がある。`除外する` の中に `外す` がある。
     // 直した先をまた指摘すると、直し続けても終わらない。

@@ -146,6 +146,30 @@ pub fn time_dependent_positions(doc: &Document, lang: crate::lang::Lang) -> Vec<
     out
 }
 
+/// 定義した名前以外の呼び方が見出しにある位置。
+///
+/// `LocalFinding` ではなく位置を返す。本文にも当たる規則であり、
+/// `glossary::check_defined` が本文の位置と合わせて1件に束ねる。
+pub fn defined_positions(doc: &Document, list: &[crate::glossary::Defined]) -> Vec<Position> {
+    crate::glossary::defined_hits(&heading_blocks(doc), list)
+}
+
+/// 見出しだけに当たる規則をまとめて当てる。
+///
+/// 本文にも当たる規則はここに含めない。`maint/time-dependent` は
+/// `time_dependent_positions`、`glossary/defined-name` は `defined_positions` を
+/// 本文側の producer が呼んで1件に束ねる。
+pub fn check(doc: &Document, lang: crate::lang::Lang, morph: &dyn Morphology) -> Vec<LocalFinding> {
+    let mut out: Vec<LocalFinding> = Vec::new();
+    out.extend(check_numbered(doc));
+    // 章タイトルの形は日本語だけに当てる。英語には体言止めと述語止めの二分が無く、
+    // 英語の経路の形態素解析器は `unreachable!` である。経緯は D-28、D-50、D-52 にある。
+    if lang == crate::lang::Lang::Ja {
+        out.extend(check_form(doc, morph));
+    }
+    out
+}
+
 /// 見出しの末尾から、形の判定に関わらない部分を落とす。
 ///
 /// `（完了）` のような注記と句読点を落とす。落とさないと最後の形態素が
@@ -308,5 +332,68 @@ mod moved_tests {
         let d =
             Document::parse("# 標題\n\n## lindera 6.0.0 で確認した現在の順序\n\n本文である。\n");
         assert!(time_dependent_positions(&d, Lang::Ja).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod entry_tests {
+    use super::*;
+    use crate::lang::Lang;
+    use crate::tokenizer::{FakeMorphology, Token};
+
+    fn morph() -> FakeMorphology {
+        FakeMorphology::from_spec(
+            "構成|名詞|普通名詞||漢 を|助詞|格助詞||和 設計|名詞|普通名詞||漢 \
+             する|動詞|非自立可能|終止形-一般|和 文書|名詞|普通名詞||漢 型|接尾辞|名詞的||漢 \
+             の|助詞|格助詞||和 一覧|名詞|普通名詞||漢 本文|名詞|普通名詞||漢 \
+             で|助動詞||連用形-一般|和 ある|動詞|非自立可能|終止形-一般|和 \
+             宣言|名詞|普通名詞||漢",
+        )
+    }
+
+    /// 英語の経路の形態素解析器は `unreachable!` である。呼ばれたら前提が崩れている。
+    struct PanicMorphology;
+    impl crate::tokenizer::Morphology for PanicMorphology {
+        fn tokenize(&self, _text: &str) -> Vec<Token> {
+            panic!("英語の経路で形態素解析器が呼ばれた")
+        }
+    }
+
+    #[test]
+    fn the_entry_point_collects_the_heading_only_rules() {
+        let d = Document::parse("# 標題\n\n## 2. 構成を設計する\n\n本文である。\n");
+        let f = check(&d, Lang::Ja, &morph());
+        let ids: Vec<&str> = f.iter().map(|x| x.rule_id.as_str()).collect();
+        assert!(ids.contains(&RULE_HEADING_FORM), "{ids:?}");
+        assert!(
+            ids.contains(&crate::rules::RULE_NUMBERED_HEADING),
+            "{ids:?}"
+        );
+    }
+
+    #[test]
+    fn an_english_document_never_touches_the_tokenizer() {
+        let d = Document::parse("# 日本語の標題\n\n## 構成を設計する\n\nBody text here.\n");
+        let f = check(&d, Lang::En, &PanicMorphology);
+        assert!(!f.iter().any(|x| x.rule_id == RULE_HEADING_FORM), "{f:?}");
+    }
+
+    #[test]
+    fn a_defined_name_called_otherwise_in_a_heading_yields_a_position() {
+        let list = vec![crate::glossary::Defined {
+            name: "doctype".to_string(),
+            instead_of: vec!["文書型".to_string()],
+            note: String::new(),
+        }];
+        let d = Document::parse("# 標題\n\n## 文書型の一覧\n\n本文である。\n");
+        let p = defined_positions(&d, &list);
+        assert_eq!(p.len(), 1, "{p:?}");
+        assert_eq!(p[0].line, 3);
+    }
+
+    #[test]
+    fn an_empty_defined_list_yields_no_position() {
+        let d = Document::parse("# 標題\n\n## 文書型の一覧\n\n本文である。\n");
+        assert!(defined_positions(&d, &[]).is_empty());
     }
 }

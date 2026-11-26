@@ -92,6 +92,16 @@ pub fn evaluate_with_glossary(
         });
     }
     let mut local = rules::check_all(doc, lang, morph);
+    // 見出しだけに当たる規則。CLI ではなくここに置く。
+    // `evaluate` は lib.rs で再公開された library の入口であり、
+    // CLI 側に置くと library の利用者から `maint/numbered-heading` が消える。
+    local.extend(crate::headings::check(doc, lang, morph));
+    // プロジェクトが定義した名前。本文と見出しの双方を1件に束ねる。
+    // `.suikou/defined.toml` が無ければ空の一覧が返り、何も報告しない。
+    local.extend(crate::glossary::check_defined(
+        doc,
+        crate::glossary::defined(),
+    ));
     // 文体の規則は日本語だけに当てる。
     // 同じ方法を英語で試したが、話題の語と文体の語を分けられず成立しなかった（D-28）。
     if lang == Lang::Ja {
