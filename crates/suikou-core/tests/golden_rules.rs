@@ -28,7 +28,11 @@ struct Counts {
 }
 
 fn count(doc: &Document, lang: Lang, morph: &dyn Morphology) -> Counts {
-    let findings = rules::check_all(doc, lang, morph);
+    // M3 は `headings` へ移った。参照実装は M 系を1つの規則集として数えるため、
+    // ここで連結して突き合わせの対象を変えない。M6 は `check_all` が本文と見出しを
+    // 1件に束ねたまま返すため、連結の対象にしない。
+    let mut findings = rules::check_all(doc, lang, morph);
+    findings.extend(suikou_core::headings::check_numbered(doc));
     let n = |rule: &str| {
         findings
             .iter()

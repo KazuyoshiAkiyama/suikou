@@ -29,10 +29,8 @@ pub const RULE_HEADING_FORM: &str = "structure/heading-form";
 /// 含まない見出しは判定の対象にしない。`## ja.renyo_per_1k` や `## JSON` のような
 /// 識別子の見出しは、形態素解析の結果で形を論じても意味を持たない。
 fn has_japanese(s: &str) -> bool {
-    s.chars().any(|c| {
-        matches!(c,
-            '\u{3040}'..='\u{309f}' | '\u{30a0}'..='\u{30ff}' | '\u{4e00}'..='\u{9fff}')
-    })
+    s.chars()
+        .any(|c| ('\u{3040}'..='\u{30ff}').contains(&c) || ('\u{4e00}'..='\u{9fff}').contains(&c))
 }
 
 /// 章タイトルが用言で終わっているかどうか。
@@ -78,6 +76,74 @@ pub fn check_form(doc: &Document, morph: &dyn Morphology) -> Option<LocalFinding
         truncated: total - kept.len(),
         positions: kept,
     })
+}
+
+/// 見出しのブロック。標題を含む。
+fn heading_blocks(doc: &Document) -> Vec<&crate::markdown::Block> {
+    doc.blocks
+        .iter()
+        .filter(|b| b.kind == crate::markdown::BlockKind::Heading)
+        .collect()
+}
+
+/// 見出しに節の連番があるかどうか。M3。
+///
+/// 先頭の第1階層の見出しは標題であって節ではないため外す。標題の番号は識別子であり、
+/// ADR は `# 3. 題` を様式としてその番号を振り直さない。節を増減すると振り直しが要る
+/// という理由は標題に当てはまらない。公開されている ADR 190件のうち155件が
+/// この除外を入れる前に発火していた。
+pub fn check_numbered(doc: &Document) -> Option<LocalFinding> {
+    let blocks = heading_blocks(doc);
+    let skip = usize::from(
+        blocks
+            .first()
+            .is_some_and(|b| b.raw.trim_start().starts_with("# ")),
+    );
+    let positions: Vec<Position> = blocks
+        .into_iter()
+        .skip(skip)
+        .filter(|b| crate::rules::re_m3().is_match(b.raw.trim()))
+        .map(crate::rules::pos_of)
+        .collect();
+    if positions.is_empty() {
+        return None;
+    }
+    let total = positions.len();
+    let kept: Vec<Position> = positions
+        .into_iter()
+        .take(crate::report::Report::MAX_POSITIONS_PER_RULE)
+        .collect();
+    Some(LocalFinding {
+        rule_id: crate::rules::RULE_NUMBERED_HEADING.to_string(),
+        severity: Severity::Error,
+        message: "見出しに節の連番がある。節を増減すると振り直しが要る".to_string(),
+        truncated: total - kept.len(),
+        positions: kept,
+    })
+}
+
+/// 見出しにある時点依存の語の位置。M6 の見出し分。
+///
+/// 標題も対象にする。標題も本文と同じだけ古びる。
+///
+/// `LocalFinding` ではなく位置を返す。M6 は本文にも当たるため、`rules::check_all` が
+/// 本文の位置と合わせて1件に束ねる。識別子ごとに1件に保つための形である。
+/// 並べ替えと重複の除去は束ねる側が行う。
+pub fn time_dependent_positions(doc: &Document, lang: crate::lang::Lang) -> Vec<Position> {
+    use crate::lang::Lang;
+    let (words, period) = match lang {
+        Lang::Ja => (crate::rules::re_m6_ja(), crate::rules::re_relative_period()),
+        Lang::En => (
+            crate::rules::re_m6_en(),
+            crate::rules::re_relative_period_en(),
+        ),
+    };
+    let mut out = Vec::new();
+    for b in heading_blocks(doc) {
+        out.extend(crate::rules::pos_of_unanchored_matches(b, words, lang));
+        out.extend(crate::rules::pos_of_unanchored_matches(b, period, lang));
+    }
+    out
 }
 
 /// 見出しの末尾から、形の判定に関わらない部分を落とす。
@@ -199,5 +265,48 @@ mod form_tests {
     fn a_parenthesised_suffix_does_not_hide_the_predicate() {
         let d = Document::parse("# 標題\n\n## 構成を設計する（任意）\n\n本文である。\n");
         assert!(check_form(&d, &morph()).is_some());
+    }
+}
+
+#[cfg(test)]
+mod moved_tests {
+    use super::*;
+    use crate::lang::Lang;
+
+    #[test]
+    fn a_numbered_section_heading_is_reported_here() {
+        let d = Document::parse("# 標題\n\n## 2. 検証の方法\n\n本文である。\n");
+        let f = check_numbered(&d).expect("発火していない");
+        assert_eq!(f.rule_id, crate::rules::RULE_NUMBERED_HEADING);
+        assert_eq!(f.positions[0].line, 3);
+    }
+
+    #[test]
+    fn a_numbered_title_is_not_reported() {
+        // ADR の `# 3. 題` は文書識別子である。
+        let d = Document::parse("# 3. 題\n\n本文である。\n");
+        assert!(check_numbered(&d).is_none());
+    }
+
+    #[test]
+    fn a_time_dependent_word_in_a_heading_yields_a_position() {
+        let d = Document::parse("# 標題\n\n## 現在の仕様\n\n本文である。\n");
+        let p = time_dependent_positions(&d, Lang::Ja);
+        assert_eq!(p.len(), 1, "{p:?}");
+        assert_eq!(p[0].line, 3);
+    }
+
+    #[test]
+    fn a_time_dependent_word_in_the_title_yields_a_position() {
+        // 移動前の挙動を保つ。標題も古びる。
+        let d = Document::parse("# 現在の仕様\n\n本文である。\n");
+        assert_eq!(time_dependent_positions(&d, Lang::Ja).len(), 1);
+    }
+
+    #[test]
+    fn an_anchored_heading_yields_no_position() {
+        let d =
+            Document::parse("# 標題\n\n## lindera 6.0.0 で確認した現在の順序\n\n本文である。\n");
+        assert!(time_dependent_positions(&d, Lang::Ja).is_empty());
     }
 }
