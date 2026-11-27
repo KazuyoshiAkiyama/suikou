@@ -2,7 +2,9 @@
 // 規範の出典は Google developer documentation style guide の Lists、Headings、
 // Timeless documentation の各節。
 //
-// Rust 側の実装は crates/suikou-core/src/rules/mod.rs にある。判定ロジックは
+// Rust 側の実装は crates/suikou-core/src/rules/mod.rs にある。
+// ただし numbered-heading と time-dependent の見出しに対する判定は
+// crates/suikou-core/src/headings.rs にある。。判定ロジックは
 // そこから移植した。日本語と英語の両方を、文書ごとに自動判定して扱う
 // （lang.rs の detect_lang と同じしきい値）。個々のルールを textlint の
 // 設定で有効・無効にできるよう、プリセットとしてまとめてある。

@@ -1600,3 +1600,70 @@ Not every flagged word became an allow entry. Each was counted against the 798-d
 `structure/missing-section` collided with nominal-phrase headings. neon renamed the prerequisites section to `事前準備`, which was absent from the synonym list, so `事前準備` was added. The header of `structure.toml` already records the same principle for `register/prefer-katakana`: a document written the way the tool advises must not be rejected by another of its rules.
 
 Per-paragraph measurement is deferred to separate work. Measured at a paragraph threshold of 0.64, `ja.kango_ratio` separates the corpora 4.3-fold, flagging 3.6% of pre-rewrite paragraphs against 15.5% of neon's. `ja.renyo_te_ratio` cannot work per paragraph: the `MIN_TE_FOR_RATIO` gate yields a value for only 38 of 562 paragraphs. `ja.renyo_per_1k` is measurable but cannot localize, because the excess spreads across half the paragraphs. `TASKS.md` carries the detail.
+
+## D-52 Separating the heading check from the body check and ruling on chapter-title form
+
+### Context
+
+The investigation started from a question: do metrics such as the kango ratio apply to headings? They do not. `body()` in `markdown.rs` joins prose and list items only, so the document metrics and the register rules never see a heading. `maint/time-dependent` did reach headings, but only because the `m6.extend` call sat outside the `match b.kind` — a side effect of where the lines landed rather than a design.
+
+`glossary/defined-name` carried a different defect. No call to `check_defined` existed anywhere in the workspace, so the rule read neither the body nor the headings. Unit tests existed, the severity was defined as error, and both `tuning.md` and `writing.md` pointed users at `.suikou/defined.toml`, akin to a documented feature with no implementation behind it. The rule still never fired.
+
+Chapter-title form had no rule in the implementation and no convention in the documentation. `skills/ja-style/SKILL.md` said that procedure documents and skills end their headings in a verb, a clause that draws no distinction between heading levels. Seven of that file's eight chapter titles ended in a predicate as a result, making it the only document in the repository written that way.
+
+Chapter titles ending in a predicate, measured with `examples/structure_rate.rs`:
+
+| Corpus | Chapter titles | Predicate ending | Documents that fire |
+|---|---|---|---|
+| `pro_ja` (798 documents by native Japanese authors) | 2783 | 3.34% | 8.0% |
+| `adrs_ja` (123 published ADRs) | 897 | 1.78% | 4.9% |
+| `howto_ja` (200 procedure documents) | 1174 | 11.16% | 24.5% |
+| `ai_docs_ja` (150 AI outputs) | 879 | 6.37% | 14.7% |
+
+### Decision
+
+Rules that read heading text move into `crates/suikou-core/src/headings.rs`, which opens with a table of which layers read headings and which do not. The heading judgments for `maint/numbered-heading` and `maint/time-dependent` move there, and `glossary/defined-name` is wired to both the body and the headings.
+
+`structure/heading-form` is added, emitting a warning when a chapter title ends in a predicate. Its scope is whatever `structure::sections` returns, and it runs on Japanese documents only. It is off for the `howto` and `log` doctypes, on for `decision`, and on for documents that declare no doctype.
+
+One rule id yields one finding. For a rule that reads both the body and the headings, the heading side returns positions and the body side folds them into a single finding.
+
+The predicate-ending rate must never become a document metric, because the human and AI distributions do not separate.
+
+### Rationale
+
+A figure that does not separate humans from AI still grounds the rule. `pro_ja` sits at 3.34% against `ai_docs_ja` at 6.37%, a gap too narrow to judge style by. The rule therefore detects deviation from the convention that dominates the reference corpus, not AI authorship — the same footing as `register/rare-wago`, which compares native-word frequency against that corpus (D-26). Leaving the distinction out of the documentation would invite a later attempt to tell human from AI prose with this number, analogous to the mistake D-08 records for external effect sizes.
+
+It does not go into the `[rejected]` section of `corpus/baselines.toml`. That section lists metrics, not rules, and an entry there would read as a prohibition on the rule itself.
+
+English gets no such rule. Of 2842 English chapter titles in `pro_en`, 9.1% open with a gerund, against 5.8% in `ai_docs`, and imperatives fall below both. English draws no line between a noun-phrase ending and a predicate ending, so there is no form to judge. This matches the conclusions of D-28 and D-50, where the register rules failed to transfer to English.
+
+Scope stops at chapter titles because a predicate ending is a legitimate form below that level: 13.04% in `pro_ja`, 13.12% in `howto_ja`, 6.29% in `adrs_ja`, and 22.80% in `ai_docs_ja`, concentrated in procedure steps and prohibitions. For native authors that is 3.9 times the 3.34% measured on chapter titles. Reaching below the chapter level would manufacture false positives in bulk. For instance, `変更を一つずつ適用する` in this repository's own tuning guide is correct as written.
+
+The `howto` doctype is exempt because its 24.5% firing rate runs far past the 10% that `tuning.md` treats as a fit. The headings behind that rate are operations. For example, `テーブルを作成する` and `データをダウンロードする` each name one step the reader performs, and a chapter of a procedure document is one operation. This is a distribution difference between doctypes, not a misfitted threshold.
+
+The `log` doctype is exempt too, on the strength of this repository's `docs/content/ja/decisions.md`, where 49 of 50 chapter titles (98.00%) end in a predicate because the form states each decision in one sentence; no external corpus confirms it. Its sibling `TASKS.md` reaches only 2 (6.06%), since those titles close with `（済み）` and trim to a noun phrase. The design stage cited 27 of 32 in `TASKS.md`, a count of headings ending in a punctuation token rather than a predicate — one doctype carries two conventions.
+
+The `decision` doctype is not exempt. The first design exempted it, but the evidence did not hold. This repository's `decisions.md` declares `doctype: "log"` in its front matter, so its 49-of-50 predicate-ending chapter titles are the evidence for the `log` exemption. A published ADR puts one decision in one file and carries the decision statement in the level-one title, similar to the shape Nygard describes, which `structure::sections` drops, leaving noun-phrase section names such as `背景`, `決定`, and `採用理由` to be judged. The 4.9% rate for `adrs_ja` does not come from decision statements and sits inside the target. Writing a `reason` into a built-in profile that the evidence contradicts is something `CLAUDE.md` forbids.
+
+Documents with no declared doctype are in scope, because per-doctype exclusions engage only once a doctype resolves. `structure/long-paragraph` and `structure/lead-opener` already run regardless of doctype, and this follows them. An undeclared procedure document consequently draws findings at the 24.5% rate, and either declares its doctype or turns the rule off in `.suikou/profile.toml`.
+
+The exclusions go into both `oss.toml` and `service.toml`. Writing them into one would make the two built-in profiles differ in which rules run rather than in which thresholds apply — a kind of divergence that did not exist through v0.2.0.
+
+The one-finding-per-rule constraint comes from the Markdown output. `to_markdown` emits a `### message — rule_id (n)` section per element of `local`, so two findings under one id print the rule explanation twice, against `CLAUDE.md`'s requirement that each rule explain itself once, and the 20-position cap applies once per producer for a total of 40. Hence the heading side returns positions only for `maint/time-dependent` and `glossary/defined-name`.
+
+The call site is `check::evaluate_with_glossary`, not the CLI. `check::evaluate` is the library entry re-exported from `lib.rs`, and placing the call in the CLI would drop `maint/numbered-heading` for library users.
+
+Wiring `glossary/defined-name` changes behavior for downstream users who keep a `.suikou/defined.toml`: an error-severity rule fires for the first time. It counts as a fix even so. With `tuning.md` and `writing.md` both pointing users at that file, a rule that reports nothing is a defect.
+
+### Consequences
+
+Five findings landed in `skills/suikou/SKILL.md` and seven in `skills/ja-style/SKILL.md`, and all twelve headings were rewritten as noun phrases. Redeclaring `skills/suikou/SKILL.md` as `howto` would exempt it, but the `howto` doctype requires a prerequisites section and `structure/missing-section` would fire. Rewriting the headings was chosen over changing the doctype.
+
+The heading convention in `skills/ja-style/SKILL.md` was rewritten to key on heading level rather than on document kind.
+
+The golden test calls `rules::check_all` directly and reconciles its M3 count against the reference implementation, so it now concatenates the result of `check_numbered`. The expected values in `tests/golden/expected/rules.json` are unchanged, because the judgments are unchanged.
+
+Adding the convention to `suikou brief` was deferred. `brief.rs` leaves out M2, M3, and M4 deliberately, and a test pins that. The cost is that generated documents keep tripping a warning the generator was never told about. `TASKS.md` records it.
+
+`.suikou/defined.toml` was not created. Registering the project's own names, and exempting defined names from the vocabulary-selection procedure, remain untouched. That heading lines count toward the `ja.list_ratio` denominator is also undocumented. `TASKS.md` records both.

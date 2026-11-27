@@ -1,5 +1,9 @@
 //! M1 から M7。メンテナンス性の局所規則。
 //!
+//! ただし M3（`maint/numbered-heading`）と M6 の見出しに対する判定は
+//! `crate::headings` にある。見出しを対象とする規則をそこへ集約してある。
+//! `check_all` は M3 を返さない。
+//!
 //! この層は AI 臭さではなくメンテナンス性を根拠に持つ。AI 以前から存在する問題であり、
 //! モデルの世代交代でも陳腐化しない。出典は Google developer documentation style guide。
 //!
@@ -85,7 +89,7 @@ pub const EN_LEAD_IN_MARKERS: &[&str] = &[
 
 macro_rules! re {
     ($name:ident, $pat:expr) => {
-        fn $name() -> &'static Regex {
+        pub(crate) fn $name() -> &'static Regex {
             static R: OnceLock<Regex> = OnceLock::new();
             R.get_or_init(|| Regex::new($pat).unwrap())
         }
@@ -156,7 +160,7 @@ fn re_anchor() -> &'static Regex {
 ///
 /// 「直近3ヶ月」「過去2年」「先週」は、読む時点によって指す範囲が変わる。
 /// 数を伴うため、語の一覧に並べても網羅できない。
-fn re_relative_period() -> &'static Regex {
+pub(crate) fn re_relative_period() -> &'static Regex {
     static R: OnceLock<Regex> = OnceLock::new();
     R.get_or_init(|| {
         Regex::new(r"(直近|過去|ここ|この)\s*[0-9０-９一二三四五六七八九十]+\s*(年|ヶ月|か月|箇月|週間|日間)|(先|今|来)(週|月|年度|年)")
@@ -165,7 +169,7 @@ fn re_relative_period() -> &'static Regex {
 }
 
 /// 英語の相対の期間。日本語側と対になる。
-fn re_relative_period_en() -> &'static Regex {
+pub(crate) fn re_relative_period_en() -> &'static Regex {
     static R: OnceLock<Regex> = OnceLock::new();
     R.get_or_init(|| {
         Regex::new(r"(?i)\b((in|over|for|during)\s+the\s+(past|last)\s+\w+\s+(years?|months?|weeks?|days?)|(last|next)\s+(week|month|quarter|year))\b")
@@ -175,12 +179,12 @@ fn re_relative_period_en() -> &'static Regex {
 
 /// M6 の日本語。語の一覧は `TIME_DEPENDENT_JA` を正本とし、そこから組み立てる。
 /// 出現ごとに数えるため、`contains` ではなく正規表現にしてある。
-fn re_m6_ja() -> &'static Regex {
+pub(crate) fn re_m6_ja() -> &'static Regex {
     static R: OnceLock<Regex> = OnceLock::new();
     R.get_or_init(|| Regex::new(&TIME_DEPENDENT_JA.join("|")).unwrap())
 }
 /// M6 の英語。語の一覧は `TIME_DEPENDENT_EN` を正本とし、そこから組み立てる。
-fn re_m6_en() -> &'static Regex {
+pub(crate) fn re_m6_en() -> &'static Regex {
     static R: OnceLock<Regex> = OnceLock::new();
     R.get_or_init(|| Regex::new(&format!(r"(?i)\b({})\b", TIME_DEPENDENT_EN.join("|"))).unwrap())
 }
@@ -350,7 +354,7 @@ pub(crate) fn context_at(text: &str, start: usize, len: usize, lang: Lang) -> St
 ///
 /// 係留は文ごとに見る。同じ段落の別の文が年号を持っていても、
 /// この文が時点に依存することは変わらない。
-fn pos_of_unanchored_matches(b: &Block, re: &Regex, lang: Lang) -> Vec<Position> {
+pub(crate) fn pos_of_unanchored_matches(b: &Block, re: &Regex, lang: Lang) -> Vec<Position> {
     let ends = sentence_ends(&b.text, lang);
     re.find_iter(&b.text)
         .filter(|m| {
@@ -451,7 +455,7 @@ fn pos_of_matches(b: &Block, re: &Regex, lang: Lang) -> Vec<Position> {
         .collect()
 }
 
-fn pos_of(b: &Block) -> Position {
+pub(crate) fn pos_of(b: &Block) -> Position {
     Position {
         line: b.line,
         column: 1,
@@ -459,6 +463,15 @@ fn pos_of(b: &Block) -> Position {
     }
 }
 
+/// 本文の局所規則をまとめて当てる。
+///
+/// **M3（`maint/numbered-heading`）は返さない。** 見出しだけに当たる規則であり、
+/// `crate::headings::check_numbered` が返す。この関数の結果だけを見る呼び出しは
+/// M3 を取りこぼす。`check::evaluate` は双方を呼ぶ。
+///
+/// M6（`maint/time-dependent`）は返す。見出しの分は
+/// `crate::headings::time_dependent_positions` から受け取り、本文の分と合わせて
+/// 1件の指摘に束ねる。識別子ごとに `LocalFinding` を1件に保つためである。
 pub fn check_all(doc: &Document, lang: Lang, morph: &dyn Morphology) -> Vec<LocalFinding> {
     let mut out = Vec::new();
     let mut m1 = Vec::new();
@@ -506,58 +519,45 @@ pub fn check_all(doc: &Document, lang: Lang, morph: &dyn Morphology) -> Vec<Loca
     }
 
     let mut m2 = Vec::new();
-    let mut m3 = Vec::new();
-    // 先頭の第1階層の見出しは標題である。structure::sections と同じ扱いにする。
-    let mut is_title = doc
-        .blocks
-        .iter()
-        .find(|b| b.kind == BlockKind::Heading)
-        .is_some_and(|b| b.raw.trim_start().starts_with("# "));
     let mut m6 = Vec::new();
     for (bi, b) in doc.blocks.iter().enumerate() {
-        match b.kind {
-            BlockKind::Heading => {
-                // 標題の番号は識別子であって節の連番ではない。
-                // ADR は `# 3. 題` を様式とし、その番号は振り直されない。
-                // 節を増減すると振り直しが要るという理由は、標題には当てはまらない。
-                // 実測では、公開されている ADR 190件のうち155件がこれで発火していた。
-                if !is_title && re_m3().is_match(b.raw.trim()) {
-                    m3.push(pos_of(b));
-                }
-                is_title = false;
+        if b.kind == BlockKind::Prose {
+            if m2_forward_reference(doc, bi, b, lang) {
+                m2.extend(pos_of_matches(
+                    b,
+                    match lang {
+                        Lang::Ja => re_m2_ja(),
+                        Lang::En => re_m2_en(),
+                    },
+                    lang,
+                ));
             }
-            BlockKind::Prose => {
-                if m2_forward_reference(doc, bi, b, lang) {
-                    m2.extend(pos_of_matches(
-                        b,
-                        match lang {
-                            Lang::Ja => re_m2_ja(),
-                            Lang::En => re_m2_en(),
-                        },
-                        lang,
-                    ));
-                }
-                if match lang {
-                    Lang::Ja => re_m7_ja().is_match(b.text.trim()),
-                    Lang::En => re_m7_en().is_match(b.text.trim()),
-                } {
-                    m7.push(pos_of(b));
-                }
+            if match lang {
+                Lang::Ja => re_m7_ja().is_match(b.text.trim()),
+                Lang::En => re_m7_en().is_match(b.text.trim()),
+            } {
+                m7.push(pos_of(b));
             }
-            _ => {}
         }
         // 絶対の係留がある文は見送る。時点に触れること自体は誤りではない。
-        let (words, period) = match lang {
-            Lang::Ja => (re_m6_ja(), re_relative_period()),
-            Lang::En => (re_m6_en(), re_relative_period_en()),
-        };
-        m6.extend(pos_of_unanchored_matches(b, words, lang));
-        m6.extend(pos_of_unanchored_matches(b, period, lang));
-        // 「直近3ヶ月」は語の一覧と期間の型の両方に当たる。
-        // 同じ位置を二度示すと、直す側は同じ箇所を二度読むことになる。
-        m6.sort_by_key(|p| (p.line, p.column));
-        m6.dedup_by_key(|p| (p.line, p.column));
+        //
+        // 見出しはここで見ない。見出しの判定は `headings` が持ち、位置だけを受け取る。
+        // 規則の識別子ごとに `LocalFinding` を1件に保つためである。2件返すと
+        // `report.rs` の `to_markdown` が説明文を二度出し、位置の上限も producer ごとになる。
+        if b.kind != BlockKind::Heading {
+            let (words, period) = match lang {
+                Lang::Ja => (re_m6_ja(), re_relative_period()),
+                Lang::En => (re_m6_en(), re_relative_period_en()),
+            };
+            m6.extend(pos_of_unanchored_matches(b, words, lang));
+            m6.extend(pos_of_unanchored_matches(b, period, lang));
+        }
     }
+    m6.extend(crate::headings::time_dependent_positions(doc, lang));
+    // 「直近3ヶ月」は語の一覧と期間の型の両方に当たる。
+    // 同じ位置を二度示すと、直す側は同じ箇所を二度読むことになる。
+    m6.sort_by_key(|p| (p.line, p.column));
+    m6.dedup_by_key(|p| (p.line, p.column));
 
     out.extend(finding(
         RULE_LIST_LEAD_IN,
@@ -570,12 +570,6 @@ pub fn check_all(doc: &Document, lang: Lang, morph: &dyn Morphology) -> Vec<Loca
         Severity::Error,
         "地の文に項目数を書いている。項目を増減すると本文が合わなくなる",
         m2,
-    ));
-    out.extend(finding(
-        RULE_NUMBERED_HEADING,
-        Severity::Error,
-        "見出しに節の連番がある。節を増減すると振り直しが要る",
-        m3,
     ));
     out.extend(finding(
         RULE_MANUAL_NUMBER,
@@ -717,13 +711,6 @@ mod tests {
     }
 
     #[test]
-    fn detects_numbered_heading() {
-        let d = Document::parse("## 2. 検証の方法\n\n本文である。\n");
-        let f = check_all(&d, Lang::Ja, &morph());
-        assert!(f.iter().any(|x| x.rule_id == RULE_NUMBERED_HEADING));
-    }
-
-    #[test]
     fn detects_manual_number_in_bullet() {
         let d = Document::parse("導入である。\n\n- 1. 最初\n- 2. 次\n");
         let f = check_all(&d, Lang::Ja, &morph());
@@ -759,6 +746,22 @@ mod tests {
                 "拾えていない: {src}"
             );
         }
+    }
+
+    // 本文と見出しの双方に対象語があっても、指摘は1件に束ねる。
+    // 2件返すと `report.rs` の `to_markdown` が説明文を二度出し、
+    // 位置の上限 MAX_POSITIONS_PER_RULE が producer ごとになる。
+    #[test]
+    fn time_dependent_findings_from_prose_and_headings_are_one() {
+        let d = Document::parse("## 現在の構成\n\n最新の版では挙動が変わる。\n");
+        let f = check_all(&d, Lang::Ja, &morph());
+        let n = f
+            .iter()
+            .filter(|x| x.rule_id == RULE_TIME_DEPENDENT)
+            .count();
+        assert_eq!(n, 1, "{f:?}");
+        let t = f.iter().find(|x| x.rule_id == RULE_TIME_DEPENDENT).unwrap();
+        assert_eq!(t.positions.len(), 2, "{t:?}");
     }
 
     // 絶対の係留がある文は見送る。時点に触れること自体は誤りではない。

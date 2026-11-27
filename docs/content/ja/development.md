@@ -78,8 +78,10 @@ cargo run --release --features lindera-unidic --example dict_load
 
 ```sh
 cargo run --release --example structure_rate -- corpus/cache/pro_en en
-cargo run --release --example structure_rate -- corpus/cache/pro_ja ja
+cargo run --release --features lindera-unidic --example structure_rate -- corpus/cache/pro_ja ja
 ```
+
+日本語では `--features lindera-unidic` を付ける。章タイトルの形は形態素解析を要するため、辞書なしのビルドでは `structure/heading-form` の計測が省かれる。
 
 `suikou check` は規則ごとに出力する検出位置の件数に上限を設けているため、CLI の出力結果からは総件数を集計できない。上記のサンプルプログラムは規則を直接呼び出して集計するものであり、計測値は `TASKS.md` に記録する。
 

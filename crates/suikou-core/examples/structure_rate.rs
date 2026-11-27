@@ -14,6 +14,7 @@ use std::path::Path;
 use suikou_core::lang::Lang;
 use suikou_core::markdown::Document;
 use suikou_core::structure::{outline, sentence_count, MAX_SENTENCES_PER_PARAGRAPH};
+use suikou_core::tokenizer::Morphology;
 
 #[derive(Default)]
 struct Totals {
@@ -24,6 +25,11 @@ struct Totals {
     leaf_sections: usize,
     empty_sections: usize,
     files_with_empty: usize,
+    section_headings: usize,
+    yougen_headings: usize,
+    files_with_yougen: usize,
+    sub_headings: usize,
+    yougen_sub_headings: usize,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -35,6 +41,21 @@ fn main() -> anyhow::Result<()> {
     let lang = match args.next().as_deref() {
         Some("en") => Lang::En,
         _ => Lang::Ja,
+    };
+
+    // 章タイトルの形は形態素解析を要する。日本語のときだけ測る。
+    let morph: Option<Box<dyn Morphology>> = match lang {
+        #[cfg(feature = "lindera-unidic")]
+        Lang::Ja => Some(Box::new(
+            suikou_core::tokenizer::LinderaMorphology::new()
+                .map_err(|e| anyhow::anyhow!("辞書を読めない: {e}"))?,
+        )),
+        #[cfg(not(feature = "lindera-unidic"))]
+        Lang::Ja => {
+            eprintln!("警告: --features lindera-unidic 無しでは章タイトルの形を測れない");
+            None
+        }
+        Lang::En => None,
     };
 
     let mut t = Totals::default();
@@ -71,6 +92,19 @@ fn main() -> anyhow::Result<()> {
         }
         t.empty_sections += empty_here;
         t.files_with_empty += usize::from(empty_here > 0);
+
+        if let Some(m) = morph.as_deref() {
+            let f = suikou_core::headings::check_form(&doc, m);
+            let hits = f.map_or(0, |x| x.positions.len() + x.truncated);
+            // 分母は判定の対象になった章タイトルだけにする。
+            t.section_headings += suikou_core::headings::countable_sections(&doc);
+            t.yougen_headings += hits;
+            t.files_with_yougen += usize::from(hits > 0);
+            // 章タイトルより下の見出し。規則の対象外だが、対象を章に絞った根拠になる。
+            let (sub, sub_yougen) = suikou_core::headings::sub_section_form(&doc, m);
+            t.sub_headings += sub;
+            t.yougen_sub_headings += sub_yougen;
+        }
     }
 
     let pct = |n: usize, d: usize| {
@@ -104,5 +138,24 @@ fn main() -> anyhow::Result<()> {
         t.files_with_empty,
         pct(t.files_with_empty, t.files)
     );
+    if morph.is_some() {
+        println!(
+            "章タイトル {} 件のうち {} 件が用言で終わる（{:.2}%）",
+            t.section_headings,
+            t.yougen_headings,
+            pct(t.yougen_headings, t.section_headings)
+        );
+        println!(
+            "  1件以上を含むファイルは {} 件（{:.1}%）",
+            t.files_with_yougen,
+            pct(t.files_with_yougen, t.files)
+        );
+        println!(
+            "章タイトルより下の見出し {} 件のうち {} 件が用言で終わる（{:.2}%）",
+            t.sub_headings,
+            t.yougen_sub_headings,
+            pct(t.yougen_sub_headings, t.sub_headings)
+        );
+    }
     Ok(())
 }

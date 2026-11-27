@@ -202,6 +202,37 @@ impl Profile {
 mod override_tests {
     use super::*;
 
+    // 章タイトルが手順の一歩や作業の項目になる型では、用言止めが正しい形である。
+    #[test]
+    fn heading_form_is_silenced_for_howto_and_log_in_both_profiles() {
+        for p in ["oss", "service"] {
+            let profile = Profile::builtin(p).unwrap();
+            for name in ["howto", "log"] {
+                let (_, silenced) = profile.for_doctype(name, None);
+                assert!(
+                    silenced.contains(&"structure/heading-form".to_string()),
+                    "{p}/{name} で黙らせていない: {silenced:?}"
+                );
+            }
+        }
+    }
+
+    // `decision` は除外しない。公開 ADR は決定文を第1階層の標題に置き、
+    // `structure::sections` がそれを外すため、判定対象は体言止めの節名になる。
+    #[test]
+    fn heading_form_stays_on_for_reference_design_and_decision() {
+        for p in ["oss", "service"] {
+            let profile = Profile::builtin(p).unwrap();
+            for name in ["reference", "design", "decision"] {
+                let (_, silenced) = profile.for_doctype(name, None);
+                assert!(
+                    !silenced.contains(&"structure/heading-form".to_string()),
+                    "{p}/{name}"
+                );
+            }
+        }
+    }
+
     fn oss() -> Profile {
         Profile::builtin("oss").unwrap()
     }

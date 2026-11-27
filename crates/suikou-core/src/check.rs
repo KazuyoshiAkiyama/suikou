@@ -92,6 +92,16 @@ pub fn evaluate_with_glossary(
         });
     }
     let mut local = rules::check_all(doc, lang, morph);
+    // 見出しだけに当たる規則。CLI ではなくここに置く。
+    // `evaluate` は lib.rs で再公開された library の入口であり、
+    // CLI 側に置くと library の利用者から `maint/numbered-heading` が消える。
+    local.extend(crate::headings::check(doc, lang, morph));
+    // プロジェクトが定義した名前。本文と見出しの双方を1件に束ねる。
+    // `.suikou/defined.toml` が無ければ空の一覧が返り、何も報告しない。
+    local.extend(crate::glossary::check_defined(
+        doc,
+        crate::glossary::defined(),
+    ));
     // 文体の規則は日本語だけに当てる。
     // 同じ方法を英語で試したが、話題の語と文体の語を分けられず成立しなかった（D-28）。
     if lang == Lang::Ja {
@@ -147,6 +157,53 @@ mod tests {
             .expect("箇条書き割合が出ていない");
         assert_eq!(m.direction, Direction::Above);
         assert!(!m.guidance.is_empty());
+    }
+
+    // 見出しのレイヤーが `evaluate` から呼ばれていることを固定する。
+    //
+    // このブランチの目的そのものであり、配線を落としても判定の単体テストは
+    // すべて通る。ゴールデンテストも `rules::check_all` と
+    // `headings::check_numbered` を直に呼ぶため、`evaluate` を通らない。
+    #[test]
+    fn the_heading_layer_is_wired_into_evaluate() {
+        let p = Profile::builtin("oss").unwrap();
+        let d = Document::parse("# 題\n\n## 2. 設定を変更する\n\nこれを設定する。\n");
+        let r = evaluate(&d, Lang::Ja, &morph(), &p);
+        let ids: Vec<&str> = r.local.iter().map(|f| f.rule_id.as_str()).collect();
+        assert!(
+            ids.contains(&crate::rules::RULE_NUMBERED_HEADING),
+            "見出しの連番が evaluate から出ていない: {ids:?}"
+        );
+        assert!(
+            ids.contains(&crate::headings::RULE_HEADING_FORM),
+            "章タイトルの形が evaluate から出ていない: {ids:?}"
+        );
+    }
+
+    // 定義した名前の規則が `evaluate` から呼ばれていることを固定する。
+    //
+    // 一覧はファイル由来（`.suikou/defined.toml`）であり、テストから注入できない。
+    // 一覧が空のときに発火しないことと、規則が `evaluate` の経路に乗っていることを
+    // 別々に確かめる。後者は `glossary::check_defined` 側のテストが受け持つ。
+    #[test]
+    fn the_defined_name_rule_is_wired_into_evaluate() {
+        let p = Profile::builtin("oss").unwrap();
+        let d = Document::parse("これを設定する。\n");
+        let r = evaluate(&d, Lang::Ja, &morph(), &p);
+        // 設定ファイルが無い環境では発火しない。配線の有無はここでは判定できない。
+        assert!(!r
+            .local
+            .iter()
+            .any(|f| f.rule_id == crate::glossary::RULE_DEFINED));
+        // 一覧を渡せば位置が出る。`evaluate` が渡す先が同じ関数であることを示す。
+        let list = vec![crate::glossary::Defined {
+            name: "doctype".to_string(),
+            instead_of: vec!["文書型".to_string()],
+            note: String::new(),
+        }];
+        let d2 = Document::parse("# 題\n\n## 文書型\n\n文書型を設定する。\n");
+        let f = crate::glossary::check_defined(&d2, &list).expect("発火していない");
+        assert_eq!(f.positions.len(), 2, "{f:?}");
     }
 
     #[test]

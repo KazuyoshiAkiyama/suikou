@@ -43,6 +43,14 @@ impl Token {
     pub fn is_taigen(&self) -> bool {
         matches!(self.pos1.as_str(), "名詞" | "接尾辞" | "代名詞" | "形状詞")
     }
+
+    /// 用言として文や見出しを止めている品詞かどうか。
+    ///
+    /// `is_taigen` の裏ではない。補助記号や助詞で終わる見出しがあり、
+    /// そのどちらでもない形が残る。`## JSON` の最後は記号である。
+    pub fn is_yougen(&self) -> bool {
+        matches!(self.pos1.as_str(), "動詞" | "助動詞" | "形容詞")
+    }
 }
 
 pub trait Morphology {
@@ -331,5 +339,24 @@ mod tests {
         let t = m.tokenize("設定を");
         assert!(t[0].is_content_word());
         assert!(!t[1].is_content_word());
+    }
+}
+
+#[cfg(test)]
+mod yougen_tests {
+    use super::*;
+
+    #[test]
+    fn a_verb_an_auxiliary_and_an_adjective_are_yougen() {
+        let m = FakeMorphology::from_spec(
+            "する|動詞|非自立可能|終止形-一般|和 ない|助動詞||終止形-一般|和 \
+             広い|形容詞|一般|終止形-一般|和 方法|名詞|普通名詞||漢 ）|補助記号|括弧閉||記号",
+        );
+        let yougen = |s: &str| m.tokenize(s).last().unwrap().is_yougen();
+        assert!(yougen("する"));
+        assert!(yougen("ない"));
+        assert!(yougen("広い"));
+        assert!(!yougen("方法"));
+        assert!(!yougen("）"));
     }
 }
